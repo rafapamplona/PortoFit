@@ -1,0 +1,25 @@
+# --- Gradle / build (ficheiros gerados) ---
+.gradle/
+.kotlin/
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+
+# --- Configuração local da máquina ---
+local.properties
+*.iml
+# Configuração do Android Studio (específica de cada máquina: JDK, dispositivo, workspace)
+/.idea/
+.DS_Store
+Thumbs.db
+
+# --- Credenciais e segredos ---
+*.jks
+*.keystore
+keystore.properties
+.env
+.env.*
+google-services.json

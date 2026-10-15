@@ -1,0 +1,12 @@
+# Normaliza finais de linha no repositório, independentemente do core.autocrlf de cada máquina
+* text=auto
+# Scripts de shell têm de manter LF para funcionar em Linux/macOS/Docker
+gradlew text eol=lf
+*.sh text eol=lf
+# Scripts Windows mantêm CRLF
+*.bat text eol=crlf
+# Binários
+*.jar binary
+*.webp binary
+*.png binary
+*.jpg binary
