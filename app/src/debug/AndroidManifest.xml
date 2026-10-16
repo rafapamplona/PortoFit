@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Só na variante debug: permite HTTP sem TLS para o backend local (ver res/xml/network_security_config.xml).
-     A variante release não tem esta configuração e mantém o tráfego em claro bloqueado. -->
+<!-- Só na variante debug, para falar com o backend local:
+     - permite HTTP sem TLS para o computador (ver res/xml/network_security_config.xml);
+     - pede acesso à rede local: com targetSdk 37 (Android 17) o tráfego para endereços privados,
+       como 10.0.2.2, é bloqueado sem ACCESS_LOCAL_NETWORK (as ligações TCP acabam em timeout).
+     A variante release não tem nada disto: o backend publicado estará na Internet. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <application android:networkSecurityConfig="@xml/network_security_config" />
 

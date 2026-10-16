@@ -21,6 +21,7 @@
    ```
 2. Abrir o projeto no Android Studio e arrancar um emulador (**Device Manager**). Esperar pelo ecrã inicial do Android antes de continuar (ver etapa 0: arrancar a app com o emulador ainda a iniciar dá "Activity class does not exist").
 3. Escolher a configuração **app**, variante **debug**, e carregar em **Run ▶**.
+4. **Na primeira execução (Android 17+)**, o sistema pergunta se o PortoFit pode encontrar e ligar-se a dispositivos próximos: escolher **Permitir** e depois tocar em **Tentar novamente** (os pedidos feitos antes da resposta já falharam). Ver §3.
 
 Alternativa pela linha de comandos, com o emulador já a correr:
 
@@ -41,6 +42,17 @@ adb shell am start -n com.example.portofit/.MainActivity
 - O backend continua publicado só em `127.0.0.1:8081` no computador; não fica acessível na rede local.
 - **HTTP sem TLS só em debug:** `app/src/debug/AndroidManifest.xml` aplica `res/xml/network_security_config.xml`, que permite tráfego em claro apenas para `10.0.2.2`, `localhost` e `127.0.0.1`. A variante release não tem esta configuração e bloqueia HTTP em claro.
 - Limites de espera do cliente HTTP: ligação 5 s, leitura 10 s, pedido completo 15 s.
+
+### Acesso à rede local (Android 17, `targetSdk` 37)
+
+Com `targetSdk` 37, o Android 17 aplica a **proteção de rede local**: o tráfego de uma app para endereços da rede local — incluindo `10.0.2.2`, que é um endereço privado — exige a permissão de execução `ACCESS_LOCAL_NETWORK` (grupo "Dispositivos próximos"). Sem ela, as ligações TCP **não dão erro imediato: ficam sem resposta até ao timeout**, e a app mostra "Sem ligação ao servidor".
+
+- A permissão está declarada **só em `app/src/debug/AndroidManifest.xml`**, e a `MainActivity` pede-a **só em builds de debug** em Android 17+. A release não a declara nem pede: o backend publicado estará na Internet, que não precisa desta permissão.
+- Se a permissão for recusada: **Definições → Apps → PortoFit → Autorizações → Dispositivos próximos → Permitir**, ou `adb shell pm grant com.example.portofit android.permission.ACCESS_LOCAL_NETWORK`.
+- Desinstalar a app apaga a autorização; reinstalar com `adb install -r` ou pelo Android Studio mantém-na.
+- Diagnóstico: `adb shell run-as com.example.portofit sh -c "printf 'GET /api/v1/sports HTTP/1.0\r\n\r\n' | nc -w 10 10.0.2.2 8081 | head -1"` faz o pedido **com o utilizador da app**; sem a permissão dá `nc: Timeout`, com ela `HTTP/1.1 200`. O mesmo pedido feito só com `adb shell` (sem `run-as`) funciona sempre, porque a shell não está sujeita a esta regra.
+
+Referência: [Local network permission — Android Developers](https://developer.android.com/privacy-and-security/local-network-permission).
 
 ## 4. Estrutura (MVVM)
 
@@ -105,6 +117,8 @@ Com a app aberta no emulador:
 `stop`/`start` não apagam dados; não usar `docker compose down -v`.
 
 ## 8. Problemas conhecidos neste ambiente
+
+- **"Sem ligação ao servidor" no emulador, com o backend `UP` no PC:** falta a autorização de rede local (ver §3). Confirmar com o comando `run-as … nc` dessa secção.
 
 - **Build falha com `JdkImageTransform` / `jlink.exe does not exist`:** o Gradle reutilizou um daemon arrancado pela extensão Java do VS Code no seu JRE embutido (sem `jlink`). Correr `.\gradlew.bat --stop` e repetir o build no terminal (que usa o Temurin 25). Como o VS Code volta a importar o projeto ao abrir, isto pode repetir-se.
 - **Memória:** o computador tem cerca de 8 GB de RAM. Docker (3,7 GB atribuídos), emulador, Android Studio, VS Code (com a extensão Java) e daemons Gradle em simultâneo esgotam a memória; já causou o encerramento da extensão Java do VS Code (`hs_err_pid*.log`). Fechar o que não estiver a ser usado antes de arrancar o emulador.
