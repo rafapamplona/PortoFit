@@ -1,14 +1,14 @@
 # PortoFit — Infraestrutura local
 
 > Como executar o backend em desenvolvimento. Desenho geral em [arquitetura.md](arquitetura.md).
-> Estado: etapa 2 — PostgreSQL e esqueleto do catalog-service (sem funcionalidades de catálogo).
+> Estado: etapa 3 — PostgreSQL e catalog-service com modalidades, pesquisa de locais e detalhe (backend). A integração na app Android está pendente.
 
 ## 1. O que existe
 
 | Componente | Função | Acesso |
 |---|---|---|
 | `postgres` | PostgreSQL com a base `catalog_db` e o utilizador próprio do catalog-service | Só na rede interna do Compose (sem porta no computador) |
-| `catalog-service` | Esqueleto Spring Boot ligado a `catalog_db`, com migrações Flyway e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
+| `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
 
 ```
 PortoFit/
@@ -20,11 +20,18 @@ PortoFit/
 │   └── catalog-service/          projeto Gradle independente da app Android
 │       ├── Dockerfile            build em duas etapas (JDK → JRE)
 │       ├── build.gradle.kts, settings.gradle.kts, gradlew, gradle/wrapper/
-│       └── src/main/
-│           ├── kotlin/…/CatalogServiceApplication.kt
-│           └── resources/
-│               ├── application.yaml
-│               └── db/migration/V1__baseline.sql
+│       └── src/
+│           ├── main/kotlin/…/catalog/
+│           │   ├── api/          envelopes de resposta e erros (Problem Details)
+│           │   ├── sport/        GET /api/v1/sports
+│           │   ├── place/        GET /api/v1/places e /places/{id}: validação, SQL, serviço
+│           │   ├── rating/       avaliações (por agora sempre UNAVAILABLE)
+│           │   └── demo/         carregamento dos dados fictícios (perfil demo)
+│           ├── main/resources/
+│           │   ├── application.yaml
+│           │   ├── db/migration/ V1 (vazia), V2 (esquema), V3 (modalidades)
+│           │   └── demo/catalog-demo-data.sql
+│           └── test/kotlin/…     testes de integração (Testcontainers)
 └── app/                          app Android (não alterada por esta etapa)
 ```
 
@@ -44,6 +51,7 @@ Confirmadas a 2026-10-16 no Spring Initializr (start.spring.io) e na documentaç
 | PostgreSQL | 18.6 | Imagem `postgres:18.6-trixie`; versão principal suportada até novembro de 2030 |
 | Flyway | 12.4.0 | Gerida pelo Spring Boot 4.1.1; PostgreSQL 18 consta como versão verificada na documentação do Flyway (módulo `flyway-database-postgresql`) |
 | Driver JDBC PostgreSQL | 42.7.13 | Gerido pelo Spring Boot 4.1.1 |
+| Testcontainers (testes) | 2.0.5 | Gerido pelo Spring Boot 4.1.1; dependências iguais às geradas pelo Initializr; compatível com o Docker Engine 29 |
 | Docker Desktop / Engine / Compose | 4.95.0 / 29.8.2 / v5.6.0 | Instalação local usada na verificação |
 
 Dependências do serviço: `spring-boot-starter-webmvc`, `-actuator`, `-jdbc`, `-flyway`, `flyway-database-postgresql`, driver PostgreSQL e Jackson para Kotlin. Usa-se Spring JDBC (sem JPA/Hibernate): o esquema é criado **só** pelas migrações Flyway, nunca automaticamente.
@@ -95,7 +103,52 @@ Resposta esperada (HTTP 200):
 - O estado inclui a ligação à base de dados: com o PostgreSQL parado, a resposta passa a `"status":"DOWN"` com HTTP 503, e volta a `UP` quando a base de dados regressa, sem reiniciar o serviço.
 - Não são mostrados detalhes (componentes, versões, nomes de bases de dados). Os restantes endpoints do Actuator, incluindo `/actuator`, não estão expostos (404).
 
-## 6. Configuração relevante
+## 6. Usar a API do catálogo
+
+Contrato completo em [catalog-api.md](catalog-api.md). Exemplos com os dados fictícios de demonstração (em PowerShell, usar `curl.exe`):
+
+| Objetivo | Pedido |
+|---|---|
+| Listar modalidades | `curl.exe "http://localhost:8081/api/v1/sports"` |
+| Pesquisar "boxe" (nome do local, modalidade ou atividade; ignora maiúsculas e acentos) | `curl.exe "http://localhost:8081/api/v1/places?q=boxe"` |
+| Mesmo resultado com outra grafia | `curl.exe "http://localhost:8081/api/v1/places?q=BOXE"` · `…?q=natacao` encontra "Natação" |
+| Filtrar por modalidade | `curl.exe "http://localhost:8081/api/v1/places?sport=natacao"` |
+| Proximidade (raio em km; ordena por distância) | `curl.exe "http://localhost:8081/api/v1/places?sport=boxe&lat=41.1496&lng=-8.6109&radiusKm=3"` |
+| Paginação | `curl.exe "http://localhost:8081/api/v1/places?size=3&page=1"` |
+| Detalhe de um local e atividades | `curl.exe "http://localhost:8081/api/v1/places/3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01"` |
+| Erro de validação (exemplo) | `curl.exe "http://localhost:8081/api/v1/places?lat=41.1496"` → 400 com `errors` |
+
+Respostas resumidas:
+
+```text
+GET /places?q=boxe            → 200, totalItems 4 (Bonfim, Ribeira, Antas, Boavista — por nome)
+GET /places?sport=boxe&lat=41.1496&lng=-8.6109&radiusKm=3
+                              → 200, Ribeira 1.02 km, Bonfim 1.04 km, … (por distância)
+GET /places/{id}              → 200, local + offerings[]; todos os "rating" com "status": "UNAVAILABLE"
+GET /places/0000…0000         → 404 application/problem+json, "title": "Não encontrado"
+```
+
+As avaliações vêm sempre `UNAVAILABLE` (`average` e `ratingsCount` a `null`) até existir o experiences-service; não significam zero estrelas.
+
+### Dados de demonstração (perfil `demo`)
+
+- O `docker-compose.yml` ativa o perfil com `SPRING_PROFILES_ACTIVE: demo`. Com ele, em cada arranque, o serviço carrega **10 locais e 19 atividades fictícios** (`is_demo = true`, "(fictício)" no nome). Os nomes e moradas são inventados; as coordenadas ficam em zonas do Porto só para a proximidade ser realista e **não assinalam estabelecimentos reais**.
+- O carregamento é repetível: ids fixos e `INSERT ... ON CONFLICT DO UPDATE`; reiniciar não cria duplicados.
+- As 8 modalidades vêm de uma migração normal (dados de referência), com ou sem o perfil.
+- Para arrancar sem dados fictícios, retirar a linha `SPRING_PROFILES_ACTIVE` do Compose. Dados já carregados mantêm-se até serem apagados (por `is_demo = true`) ou até o volume ser removido.
+
+### Testes automáticos
+
+```powershell
+cd backend\catalog-service
+.\gradlew.bat test
+```
+
+- 23 testes de integração (`CatalogApiIntegrationTest`) contra **PostgreSQL 18.6 real**, arrancado pelo Testcontainers (exige o Docker Desktop a correr). Aplicam as migrações Flyway e os dados do perfil `demo`.
+- Cobrem: modalidades; pesquisa por modalidade, nome do local e atividade; maiúsculas e acentos; `%`/`_` literais; filtro por modalidade e combinação com texto; paginação estável e página para além do fim; ordenação por nome e por distância; raio e distância em km; parâmetros inválidos; local inexistente e id mal formado; avaliações `UNAVAILABLE`; repetição do carregamento de demonstração sem duplicados.
+- Precisam de um JDK 25 completo (ex.: Temurin 25 no `PATH`). O build da imagem Docker não corre os testes.
+
+## 7. Configuração relevante
 
 | Aspeto | Valor | Onde |
 |---|---|---|
@@ -113,10 +166,12 @@ Resposta esperada (HTTP 200):
 
 Valores medidos nesta etapa: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Com seis serviços esse total poderá ser apertado; reavaliar os limites quando houver mais serviços.
 
-## 7. Limitações conhecidas
+## 8. Limitações conhecidas
 
 - **Uma única instância PostgreSQL** para todos os serviços (quando existirem): é um ponto comum de falha (ver [arquitetura.md §3.4](arquitetura.md#34-isolamento-dos-dados)).
 - As credenciais de administrador do PostgreSQL e a palavra-passe do `catalog_user` ficam nas variáveis de ambiente do contentor `postgres` (visíveis com `docker inspect`). Aceitável apenas em desenvolvimento local.
 - Sem HTTPS: tráfego em claro, limitado ao próprio computador.
 - O build do serviço foi verificado apenas dentro do Docker. Um build local (`.\gradlew.bat bootJar` em `backend/catalog-service`) precisa de um JDK 25 completo; o JRE embutido da extensão Java do VS Code não serve (ver o problema encontrado na etapa 0).
-- Ainda não há testes automáticos do serviço: o teste gerado pelo Initializr exigia uma base de dados e foi retirado. Os testes entram com as funcionalidades do catálogo.
+- Nos testes, o Testcontainers usa o utilizador administrador do contentor; os privilégios reduzidos do `catalog_user` só são verificados no ambiente Docker Compose.
+- A pesquisa por texto usa `LIKE '%…%'` sobre nomes normalizados, sem índice de texto: adequado para dezenas ou centenas de locais, não para catálogos grandes.
+- A normalização de acentos cobre os caracteres do português e de línguas próximas; não trata sinónimos (ex.: "yoga" não encontra "Ioga").

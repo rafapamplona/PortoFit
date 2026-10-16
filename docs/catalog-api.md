@@ -1,11 +1,11 @@
 # catalog-service — Contrato da API
 
 > Primeiro contrato detalhado do PortoFit. Contexto geral em [arquitetura.md](arquitetura.md).
-> Estado: **proposta v1**, a validar durante a etapa 3 (implementação do catálogo).
+> Estado: **v1 implementada no backend** (etapa 3): `GET /sports`, `GET /places` e `GET /places/{placeId}`. `GET /offerings/{offeringId}` continua pendente. Ajustes feitos durante a implementação em [§8](#8-registo-de-ajustes).
 
 ## 1. Responsabilidade
 
-O catalog-service é o dono de **modalidades**, **locais** e **atividades oferecidas**. Nesta fase o catálogo é **só de leitura** pela API: os dados são carregados por migrações da base de dados (dados fictícios de demonstração). Não há endpoints de criação ou edição, nem reservas, horários reserváveis ou preços.
+O catalog-service é o dono de **modalidades**, **locais** e **atividades oferecidas**. Nesta fase o catálogo é **só de leitura** pela API. O esquema e as modalidades (dados de referência) são criados por migrações Flyway; os locais e atividades de demonstração, **fictícios**, só são carregados com o perfil `demo` (ver §6). Não há endpoints de criação ou edição, nem reservas, horários reserváveis ou preços.
 
 Todos os endpoints deste documento são **públicos** (não exigem sessão).
 
@@ -81,7 +81,7 @@ As avaliações **não pertencem ao catálogo**: são calculadas pelo experience
 | GET | `/sports` | Listar modalidades |
 | GET | `/places` | Pesquisar locais (texto, modalidade, proximidade), paginado |
 | GET | `/places/{placeId}` | Detalhe de um local com atividades oferecidas |
-| GET | `/offerings/{offeringId}` | Detalhe de uma atividade oferecida |
+| GET | `/offerings/{offeringId}` | Detalhe de uma atividade oferecida — **pendente** (necessário quando o experiences-service for implementado) |
 | GET | `/actuator/health` | Estado do serviço (fora do prefixo `/api/v1`) |
 
 ### 3.1 `GET /sports`
@@ -131,8 +131,11 @@ Pesquisa locais. Todos os parâmetros são opcionais; sem parâmetros devolve to
 - `q` e `sport` combinam-se com **E** (ex.: `q=boavista&sport=boxe` → locais de boxe com "boavista" no nome).
 - Com `lat`/`lng`, só são devolvidos locais a uma distância ≤ `radiusKm` e cada resultado inclui `distanceKm`.
 - A distância é em linha reta (fórmula de Haversine), em **quilómetros**, arredondada a 2 casas decimais. Não é distância a pé nem de carro.
-- `sort=name`: nome do local A→Z (sem distinguir maiúsculas/minúsculas), desempate por `id`.
-- `sort=distance`: mais próximo primeiro, desempate por nome. Exige coordenadas.
+- Os caracteres `%` e `_` em `q` são procurados literalmente (não funcionam como curingas).
+- Parâmetros enviados vazios (ex.: `q=`, `sport=`) são tratados como ausentes.
+- `sort=name`: nome do local A→Z, sem distinguir maiúsculas/minúsculas nem acentos; desempate pelo `id`.
+- `sort=distance`: mais próximo primeiro; desempate pelo nome e, por fim, pelo `id`. Exige coordenadas.
+- As duas ordenações são totais (terminam no `id`), por isso a paginação é estável: percorrer as páginas devolve cada local exatamente uma vez.
 - **Ordenar por avaliação não é suportado nesta versão**: as avaliações pertencem ao experiences-service e podem estar indisponíveis, o que tornaria a ordem instável. Pode ser acrescentado mais tarde com uma cópia local das avaliações.
 
 **Paginação** — todas as listas paginadas usam o mesmo envelope:
@@ -147,135 +150,125 @@ Pesquisa locais. Todos os parâmetros são opcionais; sem parâmetros devolve to
 
 Uma página para além do fim devolve `items: []` (não é erro).
 
-**Exemplo 1 — pesquisa por texto**
+**Exemplo 1 — pesquisa por texto** (resposta real com os dados de demonstração; `size=2` para encurtar)
 
 ```http
-GET /api/v1/places?q=boxe&page=0&size=20
+GET /api/v1/places?q=boxe&size=2
 ```
 
 ```json
 {
   "items": [
+    {
+      "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e06",
+      "name": "Box Funcional Exemplo Bonfim (fictício)",
+      "address": {
+        "street": "Rua Exemplo, 77",
+        "postalCode": "4000-001",
+        "parish": "Bonfim",
+        "city": "Porto"
+      },
+      "location": { "latitude": 41.1478, "longitude": -8.5987 },
+      "sports": [
+        { "id": "boxe", "name": "Boxe" },
+        { "id": "crossfit", "name": "CrossFit" }
+      ],
+      "rating": { "status": "UNAVAILABLE", "average": null, "ratingsCount": null },
+      "demo": true
+    },
     {
       "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01",
       "name": "Clube de Combate Ribeira (fictício)",
       "address": {
         "street": "Rua Exemplo, 10",
         "postalCode": "4050-001",
-        "parish": "Ribeira",
+        "parish": "Centro Histórico",
         "city": "Porto"
       },
-      "location": { "latitude": 41.140600, "longitude": -8.613100 },
+      "location": { "latitude": 41.1406, "longitude": -8.6131 },
       "sports": [
         { "id": "boxe", "name": "Boxe" },
         { "id": "kickboxing", "name": "Kickboxing" }
       ],
-      "rating": { "status": "AVAILABLE", "average": 4.3, "ratingsCount": 12 },
-      "demo": true
-    },
-    {
-      "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e02",
-      "name": "Ginásio Exemplo Boavista (fictício)",
-      "address": {
-        "street": "Avenida Exemplo, 200",
-        "postalCode": "4100-001",
-        "parish": "Lordelo do Ouro e Massarelos",
-        "city": "Porto"
-      },
-      "location": { "latitude": 41.157900, "longitude": -8.629100 },
-      "sports": [
-        { "id": "boxe", "name": "Boxe" },
-        { "id": "ioga", "name": "Ioga" }
-      ],
-      "rating": { "status": "NO_RATINGS", "average": null, "ratingsCount": 0 },
-      "demo": true
-    }
-  ],
-  "page": 0,
-  "size": 20,
-  "totalItems": 2,
-  "totalPages": 1
-}
-```
-
-**Exemplo 2 — modalidade e proximidade**
-
-```http
-GET /api/v1/places?sport=boxe&lat=41.1496&lng=-8.6109&radiusKm=3
-```
-
-```json
-{
-  "items": [
-    {
-      "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01",
-      "name": "Clube de Combate Ribeira (fictício)",
-      "address": {
-        "street": "Rua Exemplo, 10",
-        "postalCode": "4050-001",
-        "parish": "Ribeira",
-        "city": "Porto"
-      },
-      "location": { "latitude": 41.140600, "longitude": -8.613100 },
-      "sports": [
-        { "id": "boxe", "name": "Boxe" },
-        { "id": "kickboxing", "name": "Kickboxing" }
-      ],
-      "distanceKm": 1.02,
-      "rating": { "status": "AVAILABLE", "average": 4.3, "ratingsCount": 12 },
-      "demo": true
-    },
-    {
-      "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e02",
-      "name": "Ginásio Exemplo Boavista (fictício)",
-      "address": {
-        "street": "Avenida Exemplo, 200",
-        "postalCode": "4100-001",
-        "parish": "Lordelo do Ouro e Massarelos",
-        "city": "Porto"
-      },
-      "location": { "latitude": 41.157900, "longitude": -8.629100 },
-      "sports": [
-        { "id": "boxe", "name": "Boxe" },
-        { "id": "ioga", "name": "Ioga" }
-      ],
-      "distanceKm": 1.79,
-      "rating": { "status": "NO_RATINGS", "average": null, "ratingsCount": 0 },
-      "demo": true
-    }
-  ],
-  "page": 0,
-  "size": 20,
-  "totalItems": 2,
-  "totalPages": 1
-}
-```
-
-**Exemplo 3 — experiences-service indisponível**
-
-O mesmo pedido do exemplo 1, com o experiences-service parado. Os dados do catálogo vêm completos; só as avaliações ficam indisponíveis:
-
-```json
-{
-  "items": [
-    {
-      "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01",
-      "name": "Clube de Combate Ribeira (fictício)",
-      "address": { "street": "Rua Exemplo, 10", "postalCode": "4050-001", "parish": "Ribeira", "city": "Porto" },
-      "location": { "latitude": 41.140600, "longitude": -8.613100 },
-      "sports": [ { "id": "boxe", "name": "Boxe" }, { "id": "kickboxing", "name": "Kickboxing" } ],
       "rating": { "status": "UNAVAILABLE", "average": null, "ratingsCount": null },
       "demo": true
     }
   ],
   "page": 0,
-  "size": 20,
-  "totalItems": 2,
-  "totalPages": 1
+  "size": 2,
+  "totalItems": 4,
+  "totalPages": 2
 }
 ```
 
-(Excerto: o segundo local vem igualmente com `"status": "UNAVAILABLE"`.)
+Os 4 resultados são os locais com a modalidade Boxe; por ordem de nome, os dois seguintes estão na página 1. Nesta versão todas as avaliações vêm `UNAVAILABLE` (ver §5).
+
+**Exemplo 2 — modalidade e proximidade** (resposta real; `size=2`)
+
+```http
+GET /api/v1/places?sport=boxe&lat=41.1496&lng=-8.6109&radiusKm=3&size=2
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01",
+      "name": "Clube de Combate Ribeira (fictício)",
+      "address": {
+        "street": "Rua Exemplo, 10",
+        "postalCode": "4050-001",
+        "parish": "Centro Histórico",
+        "city": "Porto"
+      },
+      "location": { "latitude": 41.1406, "longitude": -8.6131 },
+      "sports": [
+        { "id": "boxe", "name": "Boxe" },
+        { "id": "kickboxing", "name": "Kickboxing" }
+      ],
+      "distanceKm": 1.02,
+      "rating": { "status": "UNAVAILABLE", "average": null, "ratingsCount": null },
+      "demo": true
+    },
+    {
+      "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e06",
+      "name": "Box Funcional Exemplo Bonfim (fictício)",
+      "address": {
+        "street": "Rua Exemplo, 77",
+        "postalCode": "4000-001",
+        "parish": "Bonfim",
+        "city": "Porto"
+      },
+      "location": { "latitude": 41.1478, "longitude": -8.5987 },
+      "sports": [
+        { "id": "boxe", "name": "Boxe" },
+        { "id": "crossfit", "name": "CrossFit" }
+      ],
+      "distanceKm": 1.04,
+      "rating": { "status": "UNAVAILABLE", "average": null, "ratingsCount": null },
+      "demo": true
+    }
+  ],
+  "page": 0,
+  "size": 2,
+  "totalItems": 4,
+  "totalPages": 2
+}
+```
+
+**Exemplo 3 — avaliações quando o experiences-service existir**
+
+Os exemplos 1 e 2 mostram o comportamento atual e também o que acontece se o experiences-service falhar: os dados do catálogo vêm completos e só as avaliações ficam `UNAVAILABLE`. Quando as avaliações estiverem disponíveis, o mesmo campo passa a ter, por exemplo:
+
+```json
+"rating": { "status": "AVAILABLE", "average": 4.3, "ratingsCount": 12 }
+```
+
+ou, para um local ainda sem avaliações:
+
+```json
+"rating": { "status": "NO_RATINGS", "average": null, "ratingsCount": 0 }
+```
 
 ### 3.3 `GET /places/{placeId}`
 
@@ -287,17 +280,17 @@ Detalhe de um local, com as atividades oferecidas e a avaliação de cada uma.
 GET /api/v1/places/3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01
 ```
 
-**Resposta `200 OK`**
+**Resposta `200 OK`** — com avaliações como ficarão quando o experiences-service existir. Nesta versão os três `rating` vêm `{ "status": "UNAVAILABLE", "average": null, "ratingsCount": null }`; o resto da resposta é igual à real.
 
 ```json
 {
   "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01",
   "name": "Clube de Combate Ribeira (fictício)",
-  "description": "Local fictício criado para demonstração do PortoFit.",
+  "description": "Local fictício criado para demonstração do PortoFit. Não corresponde a nenhum estabelecimento real.",
   "address": {
     "street": "Rua Exemplo, 10",
     "postalCode": "4050-001",
-    "parish": "Ribeira",
+    "parish": "Centro Histórico",
     "city": "Porto"
   },
   "location": { "latitude": 41.140600, "longitude": -8.613100 },
@@ -368,8 +361,11 @@ Os erros seguem o formato **Problem Details** (RFC 9457, `Content-Type: applicat
 |---|---|
 | `400 Bad Request` | Parâmetro inválido, combinação inválida, modalidade inexistente em `sport`, UUID mal formado |
 | `404 Not Found` | Local ou atividade inexistente |
+| `405 Method Not Allowed` | Método diferente de GET |
 | `500 Internal Server Error` | Erro inesperado (sem detalhes internos na resposta) |
-| `503 Service Unavailable` | Base de dados do catálogo indisponível |
+| `503 Service Unavailable` | Base de dados do catálogo indisponível (resposta em ~5 s, o limite de espera por uma ligação) |
+
+O campo `type` é omitido: segundo o RFC 9457, um `type` ausente equivale a `"about:blank"`. A ordem dos campos no JSON não é significativa.
 
 A indisponibilidade do experiences-service **não** gera erro (ver §2.4).
 
@@ -381,7 +377,6 @@ GET /api/v1/places?lat=41.1496
 
 ```json
 {
-  "type": "about:blank",
   "title": "Pedido inválido",
   "status": 400,
   "detail": "Um ou mais parâmetros são inválidos.",
@@ -400,7 +395,6 @@ GET /api/v1/places?q=b&radiusKm=80&size=500
 
 ```json
 {
-  "type": "about:blank",
   "title": "Pedido inválido",
   "status": 400,
   "detail": "Um ou mais parâmetros são inválidos.",
@@ -422,7 +416,6 @@ GET /api/v1/places?sort=distance
 
 ```json
 {
-  "type": "about:blank",
   "title": "Pedido inválido",
   "status": 400,
   "detail": "Um ou mais parâmetros são inválidos.",
@@ -441,7 +434,6 @@ GET /api/v1/places?sport=quidditch
 
 ```json
 {
-  "type": "about:blank",
   "title": "Pedido inválido",
   "status": 400,
   "detail": "Um ou mais parâmetros são inválidos.",
@@ -460,7 +452,6 @@ GET /api/v1/places/00000000-0000-0000-0000-000000000000
 
 ```json
 {
-  "type": "about:blank",
   "title": "Não encontrado",
   "status": 404,
   "detail": "Não existe nenhum local com este identificador.",
@@ -469,6 +460,8 @@ GET /api/v1/places/00000000-0000-0000-0000-000000000000
 ```
 
 ## 5. Dependência do experiences-service
+
+**Estado atual:** o experiences-service ainda não existe. O catálogo **não faz nenhuma chamada** e devolve todas as avaliações com `"status": "UNAVAILABLE"` (componente `UnavailableRatingProvider`). Não há avaliações inventadas nem zeros. O comportamento abaixo é o planeado.
 
 O catálogo obtém as avaliações com **um único pedido por resposta** (nunca um pedido por local), através de um endpoint público do experiences-service. Este endpoint pertence ao contrato do experiences-service e será detalhado nesse documento; a forma prevista é:
 
@@ -490,10 +483,13 @@ Comportamento do catálogo:
 
 ## 6. Dados de demonstração
 
-- Carregados por migração ao arrancar o serviço numa base de dados vazia.
+- **Modalidades** (8: Boxe, Corrida, CrossFit, Escalada, Ioga, Kickboxing, Natação, Pilates): dados de referência reais, criados pela migração `V3__reference_sports.sql` em qualquer ambiente.
+- **Locais e atividades fictícios** (10 locais, 19 atividades): ficheiro `src/main/resources/demo/catalog-demo-data.sql`, carregado **só com o perfil Spring `demo`**, que o `docker-compose.yml` local ativa explicitamente. Não fazem parte das migrações normais.
+- O carregamento corre em cada arranque, depois das migrações, numa transação; usa ids fixos e `INSERT ... ON CONFLICT DO UPDATE`, pelo que reiniciar não cria duplicados e alterações ao ficheiro são aplicadas.
+- Desativar o perfil não apaga dados já carregados; podem ser identificados e removidos por `is_demo = true`.
 - Todos os locais têm `demo: true`, "(fictício)" no nome e uma descrição que os identifica como dados de demonstração.
 - Coordenadas em zonas do Porto, para a pesquisa por proximidade ser realista; moradas genéricas ("Rua Exemplo").
-- Volume previsto: cerca de 8–10 modalidades, 20–30 locais e 2–4 atividades por local.
+- Os nomes dos locais incluem "Exemplo" e "(fictício)"; as freguesias e coordenadas são reais apenas como zona aproximada.
 
 ## 7. Fora deste contrato
 
@@ -501,3 +497,20 @@ Comportamento do catálogo:
 - Horários estruturados, lotação, preços, reservas, pagamentos.
 - Ordenação de locais por avaliação.
 - Fotografias de locais.
+
+## 8. Registo de ajustes
+
+Ajustes feitos na implementação da etapa 3 (backend do catálogo), por ordem de importância.
+
+| # | Ajuste | Motivo |
+|---|---|---|
+| 1 | Os dados fictícios deixaram de vir de migrações e passaram a um perfil `demo` explícito (§6). As modalidades ficam numa migração normal. | Separar dados de demonstração das migrações usadas em qualquer ambiente; as modalidades são dados de referência reais, de que dependem os interesses no users-service. |
+| 2 | Todas as avaliações vêm `UNAVAILABLE`, sem chamadas a outros serviços (§5). | O experiences-service ainda não existe; não se inventam avaliações nem se mostram zeros. |
+| 3 | Os exemplos 1 e 2 passaram a ser respostas reais; o exemplo 3 e o detalhe mostram o formato futuro das avaliações. | Os exemplos anteriores não correspondiam aos dados de demonstração (freguesia, totais, ordem). |
+| 4 | `GET /offerings/{offeringId}` fica pendente. | Fora do âmbito desta etapa; será necessário quando o experiences-service validar publicações. |
+| 5 | Parâmetros vazios são ignorados; `%` e `_` em `q` são literais; ordenação por nome também ignora acentos; desempates explícitos até ao `id`. | Comportamento previsível para a app e paginação estável. |
+| 6 | Erros sem o campo `type` (equivale a `about:blank`); acrescentado o código 405. | Comportamento por omissão do Spring, equivalente pelo RFC 9457. |
+| 7 | O nome da modalidade é único sem distinguir maiúsculas/minúsculas **nem acentos**. | Coerente com a regra de pesquisa. |
+| 8 | A modalidade mantém-se "Ioga" (id `ioga`), como no contrato. Pesquisar "yoga" não encontra resultados. | Grafia em português europeu; sinónimos na pesquisa ficam como melhoria possível. |
+
+**Implementação da pesquisa sem maiúsculas/acentos:** função SQL `portofit_normalize(text)` (minúsculas + substituição dos caracteres acentuados), aplicada ao texto pesquisado e aos nomes. Usa só funções nativas do PostgreSQL, sem extensões nem privilégios adicionais, e é `IMMUTABLE`, por isso também serve nos índices únicos.

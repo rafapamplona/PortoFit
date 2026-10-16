@@ -44,6 +44,9 @@ services:
       DB_NAME: catalog_db
       DB_USER: ${CATALOG_DB_USER:?defina CATALOG_DB_USER no .env}
       DB_PASSWORD: ${CATALOG_DB_PASSWORD:?defina CATALOG_DB_PASSWORD no .env}
+      # Ambiente local: carrega os locais FICTÍCIOS de demonstração (ver docs/infraestrutura.md).
+      # Retirar "demo" para arrancar só com o esquema e as modalidades de referência.
+      SPRING_PROFILES_ACTIVE: demo
     ports:
       # Só no loopback do computador; o emulador Android chega aqui por 10.0.2.2:8081.
       - "127.0.0.1:8081:8081"
