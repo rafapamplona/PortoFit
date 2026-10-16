@@ -22,4 +22,5 @@ Thumbs.db
 keystore.properties
 .env
 .env.*
+!.env.example
 google-services.json

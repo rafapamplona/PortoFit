@@ -1,0 +1,79 @@
+# PortoFit — ambiente local de desenvolvimento.
+# Credenciais lidas do ficheiro .env (não versionado); ver .env.example e docs/infraestrutura.md.
+
+name: portofit
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:?defina POSTGRES_ADMIN_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?defina POSTGRES_ADMIN_PASSWORD no .env}
+      POSTGRES_DB: postgres
+      # Usados apenas pelo script de inicialização para criar catalog_db e o seu utilizador.
+      CATALOG_DB_USER: ${CATALOG_DB_USER:?defina CATALOG_DB_USER no .env}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?defina CATALOG_DB_PASSWORD no .env}
+    volumes:
+      # PostgreSQL 18+: o volume monta em /var/lib/postgresql (os dados ficam em 18/docker).
+      - postgres-data:/var/lib/postgresql
+      - ./backend/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - data
+    # Sem "ports": a base de dados só é acessível dentro da rede interna do Compose.
+    healthcheck:
+      # Por TCP: durante a inicialização o servidor temporário só aceita ligações locais por socket,
+      # por isso o estado "healthy" só aparece depois de os scripts de inicialização terminarem.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  catalog-service:
+    build: ./backend/catalog-service
+    image: portofit/catalog-service:0.1.0
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: catalog_db
+      DB_USER: ${CATALOG_DB_USER:?defina CATALOG_DB_USER no .env}
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD:?defina CATALOG_DB_PASSWORD no .env}
+    ports:
+      # Só no loopback do computador; o emulador Android chega aqui por 10.0.2.2:8081.
+      - "127.0.0.1:8081:8081"
+    networks:
+      - data
+      - public
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      # A imagem JRE não tem curl/wget; usa-se o /dev/tcp do bash para pedir o estado de saúde.
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8081 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+networks:
+  # Rede interna: sem acesso ao exterior nem portas publicadas.
+  data:
+    internal: true
+  # Rede usada para publicar a porta do catalog-service no computador.
+  public: {}
+
+volumes:
+  postgres-data:

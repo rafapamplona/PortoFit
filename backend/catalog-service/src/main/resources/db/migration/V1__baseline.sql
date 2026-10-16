@@ -1,0 +1,2 @@
+-- Migração inicial vazia: marca o início do histórico do Flyway para o catalog-service.
+-- As tabelas do catálogo (modalidades, locais, atividades oferecidas) são criadas em migrações seguintes.

@@ -487,7 +487,7 @@ Cada etapa termina com algo demonstrável. As versões de ferramentas e bibliote
 |---|---|---|
 | 0 ✅ | Preparação: Git, build do template, execução no emulador | "Hello Android!" no emulador |
 | 1 | Desenho: este documento e [catalog-api.md](catalog-api.md) | Documentos revistos pelo grupo |
-| 2 | **Infraestrutura base:** estrutura `backend/`, `docker-compose.yml`, PostgreSQL com uma base de dados e um utilizador por serviço, esqueleto do catalog-service com `/actuator/health` | `docker compose up` e `curl` ao health devolve `UP` |
+| 2 ✅ | **Infraestrutura base** ([infraestrutura.md](infraestrutura.md)): estrutura `backend/`, `docker-compose.yml`, PostgreSQL com uma base de dados e um utilizador por serviço, esqueleto do catalog-service com `/actuator/health` | `docker compose up` e `curl` ao health devolve `UP` |
 | 3 | catalog-service completo: migrações, dados fictícios, pesquisa, proximidade, detalhe (avaliações como `UNAVAILABLE` até haver EXP) | Pedidos do contrato respondem como documentado |
 | 4 | App: estrutura MVVM, navegação, ecrãs de pesquisa e de local ligados ao catálogo | Pesquisar "boxe" no emulador e abrir um local |
 | 5 | users-service: registo, login (JWT), perfil, interesses, pesquisa de utilizadores; app: login e perfil | Criar conta e editar perfil na app |

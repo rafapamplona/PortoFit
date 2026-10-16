@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: catalog-service
+  datasource:
+    # Valores fornecidos por variáveis de ambiente (docker-compose.yml + .env).
+    # DB_USER e DB_PASSWORD não têm valor por omissão: sem eles o serviço não arranca.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:catalog_db}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      # Tempo máximo (ms) à espera de uma ligação do pool antes de falhar o pedido.
+      connection-timeout: 5000
+      # Tempo máximo (ms) para validar uma ligação (também usado pela verificação de saúde).
+      validation-timeout: 3000
+      data-source-properties:
+        # Driver PostgreSQL, em segundos: estabelecer a ligação TCP e esperar por uma resposta.
+        connectTimeout: 5
+        socketTimeout: 30
+  flyway:
+    # O esquema é gerido só por migrações em src/main/resources/db/migration.
+    locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: 8081
+  shutdown: graceful
+  tomcat:
+    connection-timeout: 10s
+    threads:
+      max: 50
+
+management:
+  endpoints:
+    web:
+      # Só /actuator/health; sem a página de descoberta /actuator.
+      discovery:
+        enabled: false
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # Só o estado agregado (UP/DOWN): sem nomes de componentes, versões ou detalhes da base de dados.
+      show-details: never
+      show-components: never
