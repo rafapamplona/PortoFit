@@ -116,7 +116,36 @@ Com a app aberta no emulador:
 
 `stop`/`start` não apagam dados; não usar `docker compose down -v`.
 
-## 8. Problemas conhecidos neste ambiente
+## 8. Verificação da etapa 4 (2026-10-16)
+
+Emulador Pixel 9 (`sdk_gphone16k_x86_64`, Android 17 / API 37), backend em Docker Compose com os dados de demonstração.
+
+**Confirmado visualmente pelo utilizador**
+
+| Verificação | Resultado |
+|---|---|
+| Pesquisa "boxe" | 4 locais |
+| "natacao" e "natação" | os mesmos 2 locais |
+| Caracteres `ç` e `ã` no campo | aceites ao colar; escrevê-los com o teclado do emulador é difícil (limitação do emulador, não da app) |
+
+**Verificado pelo assistente na app em execução** (comandos `adb` e leitura da hierarquia do ecrã com `uiautomator`; não são capturas de imagem)
+
+| Verificação | Resultado |
+|---|---|
+| Filtro por modalidade | "boxe" → 4 locais; "boxe" + CrossFit → 2 (Bonfim, Antas), chip CrossFit selecionado |
+| Abrir detalhe e voltar | detalhe do Bonfim com morada, freguesia, modalidades e atividades; ao voltar mantêm-se "boxe", CrossFit e os 2 locais |
+| Rotação | horizontal (`ROTATION_90`) e de novo vertical: mantêm-se "boxe", CrossFit e "2 locais encontrados"; definições de rotação do emulador repostas no fim |
+| Falha do catalog-service | `docker compose stop catalog-service` + nova pesquisa (filtro "Todas") → "Sem ligação ao servidor…" + **Tentar novamente**; pesquisa e filtro mantidos |
+| Recuperação | `docker compose start catalog-service` (healthy) + **Tentar novamente** → "4 locais encontrados"; volume `portofit_postgres-data` preservado; backend saudável no fim |
+| Testes unitários | 19 testes (conversões, ViewModels) — `.\gradlew.bat testDebugUnitTest` |
+| Lint (`:app:lintDebug`) | 0 erros; 15 avisos: versões mais recentes disponíveis (7), recursos não usados do template (7), `android:label` redundante na activity (1). Nenhum na `MainActivity` |
+
+**Pendente**
+
+- Indicador vermelho "1 problema" na `MainActivity` no Android Studio: o código compila (Gradle) e o lint não aponta nada nesse ficheiro, logo não é um erro de compilação nem de lint. O registo do Studio mostra que a última sincronização Gradle do projeto foi a 2026-10-15, antes das alterações desta etapa (dependências, `buildConfig`, plugin de serialização). Falta ler a mensagem concreta no Studio; se for análise do editor, **File → Sync Project with Gradle Files** deve resolvê-la.
+- Pormenor de dados: o horário de demonstração já contém "(informativo)" e o ecrã acrescenta "Horário (informativo):", repetindo a palavra.
+
+## 9. Problemas conhecidos neste ambiente
 
 - **"Sem ligação ao servidor" no emulador, com o backend `UP` no PC:** falta a autorização de rede local (ver §3). Confirmar com o comando `run-as … nc` dessa secção.
 
