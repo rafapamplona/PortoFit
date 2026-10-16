@@ -8,6 +8,10 @@
 *.apk
 *.aab
 
+# --- Registos de erro da JVM (ex.: falta de memória) ---
+hs_err_pid*.log
+replay_pid*.log
+
 # --- Configuração local da máquina ---
 local.properties
 *.iml

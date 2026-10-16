@@ -1,7 +1,7 @@
 # PortoFit — Infraestrutura local
 
-> Como executar o backend em desenvolvimento. Desenho geral em [arquitetura.md](arquitetura.md).
-> Estado: etapa 3 — PostgreSQL e catalog-service com modalidades, pesquisa de locais e detalhe (backend). A integração na app Android está pendente.
+> Como executar o backend em desenvolvimento. Desenho geral em [arquitetura.md](arquitetura.md). Ligação da app Android ao backend em [app-android.md](app-android.md).
+> Estado: etapa 3 — PostgreSQL e catalog-service com modalidades, pesquisa de locais e detalhe. A app Android consome estes endpoints desde a etapa 4.
 
 ## 1. O que existe
 

@@ -489,7 +489,7 @@ Cada etapa termina com algo demonstrável. As versões de ferramentas e bibliote
 | 1 ✅ | Desenho: este documento e [catalog-api.md](catalog-api.md) | Documentos revistos pelo grupo |
 | 2 ✅ | **Infraestrutura base** ([infraestrutura.md](infraestrutura.md)): estrutura `backend/`, `docker-compose.yml`, PostgreSQL com uma base de dados e um utilizador por serviço, esqueleto do catalog-service com `/actuator/health` | `docker compose up` e `curl` ao health devolve `UP` |
 | 3 ✅ (backend) | catalog-service: migrações, dados fictícios (perfil `demo`), modalidades, pesquisa, proximidade, detalhe (avaliações como `UNAVAILABLE` até haver EXP). Pendente: `GET /offerings/{id}` | Pedidos do contrato respondem como documentado; 23 testes de integração |
-| 4 | App: estrutura MVVM, navegação, ecrãs de pesquisa e de local ligados ao catálogo (**integração Android pendente**) | Pesquisar "boxe" no emulador e abrir um local |
+| 4 (implementada; confirmação no emulador pendente) | App: estrutura MVVM, navegação, ecrãs de pesquisa e de local ligados ao catálogo ([app-android.md](app-android.md)) | Pesquisar "boxe" no emulador e abrir um local |
 | 5 | users-service: registo, login (JWT), perfil, interesses, pesquisa de utilizadores; app: login e perfil | Criar conta e editar perfil na app |
 | 6 | experiences-service (núcleo): publicar com estrelas e fotografia opcional da galeria, editar e apagar, listar por local/autor, avaliação agregada ligada ao catálogo | Publicar, editar estrelas e apagar, e ver a avaliação do local mudar conforme [3.7](#37-avaliação-geral-sem-distorção) |
 | 7 | Câmara (CameraX) no ecrã de publicação | Publicar uma fotografia tirada na app |

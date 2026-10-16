@@ -1,0 +1,72 @@
+package com.example.portofit.data.model
+
+// Modelos usados pela interface, independentes do formato JSON do backend.
+
+data class Sport(
+    val id: String,
+    val name: String,
+)
+
+/** Avaliação agregada de um local ou atividade (ver docs/catalog-api.md §2.4). */
+sealed interface Rating {
+    data class Available(val average: Double, val peopleCount: Int) : Rating
+
+    /** Ainda ninguém avaliou. */
+    data object NoRatings : Rating
+
+    /** Não foi possível obter a avaliação agora. Nunca é mostrada como zero estrelas. */
+    data object Unavailable : Rating
+}
+
+enum class ActivityLevel { BEGINNER, INTERMEDIATE, ADVANCED, ALL_LEVELS, UNKNOWN }
+
+data class PlaceSummary(
+    val id: String,
+    val name: String,
+    val parish: String?,
+    val city: String,
+    val sports: List<Sport>,
+    val rating: Rating,
+    val isDemo: Boolean,
+)
+
+data class Address(
+    val street: String,
+    val postalCode: String,
+    val parish: String?,
+    val city: String,
+)
+
+data class Offering(
+    val id: String,
+    val name: String,
+    val sport: Sport,
+    val description: String?,
+    val level: ActivityLevel,
+    val scheduleNotes: String?,
+    val rating: Rating,
+)
+
+data class PlaceDetail(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val address: Address,
+    val phone: String?,
+    val website: String?,
+    val rating: Rating,
+    /** Modalidades das atividades oferecidas, sem repetições, pela ordem das atividades. */
+    val sports: List<Sport>,
+    val offerings: List<Offering>,
+    val isDemo: Boolean,
+)
+
+/** Uma página de resultados; [page] começa em 0. */
+data class Page<T>(
+    val items: List<T>,
+    val page: Int,
+    val totalItems: Long,
+    val totalPages: Int,
+) {
+    val hasMore: Boolean get() = page + 1 < totalPages
+}

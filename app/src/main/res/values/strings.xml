@@ -1,3 +1,61 @@
 <resources>
     <string name="app_name">PortoFit</string>
+    <string name="app_tagline">Desporto no Porto</string>
+
+    <!-- Pesquisa -->
+    <string name="search_label">Pesquisar locais ou modalidades</string>
+    <string name="search_placeholder">Ex.: boxe</string>
+    <string name="search_action">Pesquisar</string>
+    <string name="search_too_short">Escreve pelo menos 2 caracteres, ou deixa vazio para ver todos.</string>
+    <string name="sports_all">Todas</string>
+    <string name="sports_loading">A carregar modalidades…</string>
+    <string name="sports_error">Não foi possível carregar as modalidades. A pesquisa por texto continua disponível.</string>
+    <plurals name="results_count">
+        <item quantity="one">%d local encontrado</item>
+        <item quantity="other">%d locais encontrados</item>
+    </plurals>
+    <string name="demo_notice">Dados de demonstração: estes locais são fictícios e não correspondem a estabelecimentos reais.</string>
+    <string name="results_empty">Nenhum local encontrado.</string>
+    <string name="results_empty_hint">Experimenta outra pesquisa ou outra modalidade.</string>
+    <string name="load_more">Carregar mais</string>
+    <string name="load_more_error">Não foi possível carregar mais locais.</string>
+
+    <!-- Detalhe -->
+    <string name="place_title">Local</string>
+    <string name="navigate_back">Voltar</string>
+    <string name="place_demo_label">Dados de demonstração</string>
+    <string name="section_address">Morada</string>
+    <string name="section_contacts">Contactos</string>
+    <string name="section_sports">Modalidades</string>
+    <string name="section_offerings">Atividades oferecidas</string>
+    <string name="offerings_empty">Este local ainda não tem atividades registadas.</string>
+    <string name="postal_code_city">%1$s %2$s</string>
+    <string name="parish">Freguesia: %1$s</string>
+    <string name="phone">Telefone: %1$s</string>
+    <string name="website">Site: %1$s</string>
+    <string name="offering_sport_level">%1$s · %2$s</string>
+    <string name="schedule_notes">Horário (informativo): %1$s</string>
+
+    <string name="level_beginner">Iniciação</string>
+    <string name="level_intermediate">Intermédio</string>
+    <string name="level_advanced">Avançado</string>
+    <string name="level_all">Todos os níveis</string>
+    <string name="level_unknown">Nível não indicado</string>
+
+    <!-- Avaliações -->
+    <plurals name="rating_available">
+        <item quantity="one">★ %1$s (%2$d pessoa)</item>
+        <item quantity="other">★ %1$s (%2$d pessoas)</item>
+    </plurals>
+    <string name="rating_none">Sem avaliações</string>
+    <string name="rating_unavailable">Avaliações temporariamente indisponíveis</string>
+
+    <!-- Erros -->
+    <string name="retry">Tentar novamente</string>
+    <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>
+    <string name="error_server">O serviço está temporariamente indisponível. Tenta novamente daqui a pouco.</string>
+    <string name="error_not_found">Este local já não existe.</string>
+    <string name="error_invalid_request">O pedido não foi aceite pelo servidor.</string>
+    <string name="error_not_configured">O endereço do serviço não está configurado nesta versão da app.</string>
+    <string name="error_unexpected">Ocorreu um erro inesperado.</string>
 </resources>

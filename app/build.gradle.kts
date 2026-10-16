@@ -1,7 +1,12 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
+
+// URL do catalog-service. Por omissão, em debug, o PC visto a partir do emulador Android (10.0.2.2).
+// Pode ser alterada sem editar código: ./gradlew assembleDebug -Pportofit.catalogBaseUrl=http://127.0.0.1:8081/
+val catalogBaseUrlOverride: String? = providers.gradleProperty("portofit.catalogBaseUrl").orNull
 
 android {
     namespace = "com.example.portofit"
@@ -20,10 +25,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "CATALOG_BASE_URL", "\"${catalogBaseUrlOverride ?: "http://10.0.2.2:8081/"}\"")
+        }
         release {
             optimization {
                 enable = false
             }
+            // Ainda não há backend publicado: sem URL, a app mostra "serviço não configurado".
+            buildConfigField("String", "CATALOG_BASE_URL", "\"${catalogBaseUrlOverride ?: ""}\"")
         }
     }
     compileOptions {
@@ -32,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -44,7 +55,15 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
