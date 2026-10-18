@@ -294,8 +294,8 @@ Os gostos **não** entram nesta conta.
 
 - **Leituras públicas:** pesquisa e consulta de locais, modalidades, experiências, comentários, perfis e avaliações não exigem sessão (requisito R1).
 - **Escritas exigem sessão:** publicar, comentar, gostar, seguir, editar perfil, listas, mensagens, notificações e dashboard.
-- O **users-service** autentica (username/email + palavra-passe guardada com hash BCrypt) e emite um **JWT assinado** com chave privada RSA. O token contém `sub` (id do utilizador) e `username`, com validade limitada (ex.: 1 hora).
-- Os outros serviços **validam o token localmente** com a chave pública (configurada no arranque), sem chamar o users-service em cada pedido.
+- O **users-service** autentica (email + palavra-passe guardada com hash BCrypt) e emite um **access token JWT** assinado com chave privada RSA (RS256), com `sub` (id do utilizador), `username`, emissor e destinatário, e validade de 15 min. A sessão é renovada com um **refresh token** opaco, com rotação a cada uso, prazo máximo de 30 dias por sessão e revogação no logout. Detalhes em [users-api.md](users-api.md).
+- Os outros serviços **validam o token localmente** com a chave pública (configurada no arranque) — assinatura, emissor, destinatário e expiração — sem chamar o users-service em cada pedido.
 - **Autorização por dono:** só o autor edita ou apaga a sua experiência ou comentário; só o dono vê e altera as suas listas, conversas e notificações. O `userId` vem sempre do token, nunca do corpo do pedido.
 - **Endpoints internos** (chamados apenas entre serviços, prefixo `/internal`) são protegidos por uma chave partilhada por serviço, definida em variáveis de ambiente do Docker Compose.
 
@@ -303,13 +303,13 @@ Os gostos **não** entram nesta conta.
 
 A validação local evita que o users-service seja chamado em todas as escritas, mas **não torna as escritas independentes dele**:
 
-- **Tokens expiram.** Um token válido continua a ser aceite até expirar; depois disso, o utilizador tem de voltar a autenticar-se, e isso exige o users-service. Uma falha mais longa do que a validade restante do token impede essa pessoa de escrever.
-- **Renovar ou obter sessão depende do users-service.** Login e registo ficam indisponíveis durante a falha; quem não tem sessão fica limitado às leituras públicas.
+- **Tokens expiram.** Um access token válido continua a ser aceite até expirar; depois disso, a app tem de o renovar com o refresh token, e isso exige o users-service. Uma falha mais longa do que a validade restante do access token impede essa pessoa de escrever (a sessão não se perde: volta a funcionar quando o users-service regressar, se o refresh token ainda for válido).
+- **Renovar ou obter sessão depende do users-service.** Login, registo e renovação ficam indisponíveis durante a falha; quem não tem sessão fica limitado às leituras públicas.
 - **Algumas operações precisam de dados do users-service**, mesmo com token válido: seguir alguém, editar perfil e interesses, enviar mensagem (validar o destinatário), o feed personalizado (seguidos e interesses) e mostrar perfis ou usernames atualizados.
 - **Operações que tipicamente continuam** com token ainda válido: publicar, editar e apagar experiências, comentar, gostar e gerir listas — desde que os serviços que essas operações usam (EXP, CAT para publicar, COL) estejam disponíveis.
-- **O token não reflete alterações posteriores** à sua emissão (ex.: conta desativada continua a funcionar até o token expirar), porque não há revogação.
+- **O access token não reflete alterações posteriores** à sua emissão (ex.: logout ou conta desativada): continua aceite até expirar, porque só os refresh tokens são revogáveis.
 
-Limitações aceites nesta fase: sem *refresh token* (ao expirar, novo login), sem revogação de tokens, HTTP sem TLS em desenvolvimento (a app só permite tráfego em claro para o endereço local do emulador). A validade do token é um compromisso: mais longa melhora a tolerância a falhas do users-service, mais curta limita o uso de tokens indevidos.
+Limitações aceites nesta fase: access tokens não revogáveis antes de expirar, HTTP sem TLS em desenvolvimento (a app só permite tráfego em claro para o endereço local do emulador). A validade do access token é um compromisso: mais longa melhora a tolerância a falhas do users-service, mais curta torna o logout e a revogação mais eficazes.
 
 ### 3.9 Fotografias e câmara
 
@@ -490,7 +490,7 @@ Cada etapa termina com algo demonstrável. As versões de ferramentas e bibliote
 | 2 ✅ | **Infraestrutura base** ([infraestrutura.md](infraestrutura.md)): estrutura `backend/`, `docker-compose.yml`, PostgreSQL com uma base de dados e um utilizador por serviço, esqueleto do catalog-service com `/actuator/health` | `docker compose up` e `curl` ao health devolve `UP` |
 | 3 ✅ (backend) | catalog-service: migrações, dados fictícios (perfil `demo`), modalidades, pesquisa, proximidade, detalhe (avaliações como `UNAVAILABLE` até haver EXP). Pendente: `GET /offerings/{id}` | Pedidos do contrato respondem como documentado; 23 testes de integração |
 | 4 ✅ (pesquisa, detalhe e voltar confirmados no emulador) | App: estrutura MVVM, navegação, ecrãs de pesquisa e de local ligados ao catálogo ([app-android.md](app-android.md)) | Pesquisar "boxe" no emulador e abrir um local |
-| 5 | users-service: registo, login (JWT), perfil, interesses, pesquisa de utilizadores; app: login e perfil | Criar conta e editar perfil na app |
+| 5 | users-service ([users-api.md](users-api.md)): registo, login (JWT + refresh token), perfil, interesses, pesquisa de utilizadores; app: login e perfil | Criar conta e editar perfil na app |
 | 6 | experiences-service (núcleo): publicar com estrelas e fotografia opcional da galeria, editar e apagar, listar por local/autor, avaliação agregada ligada ao catálogo | Publicar, editar estrelas e apagar, e ver a avaliação do local mudar conforme [3.7](#37-avaliação-geral-sem-distorção) |
 | 7 | Câmara (CameraX) no ecrã de publicação | Publicar uma fotografia tirada na app |
 | 8 | Comentários, gostos, visualizações, filtro por modalidade e ordenações | Sem sessão, mesma lista ordenada por data, gostos, interações e estrelas |
@@ -521,6 +521,7 @@ O contrato detalhado de cada serviço (como [catalog-api.md](catalog-api.md)) é
 | Avaliação geral: peso 1 por pessoa, avaliação vigente = experiência mais recente | [3.7](#37-avaliação-geral-sem-distorção) |
 | Ordenação por data, gostos, interações e estrelas acessível a visitantes | [3.6](#36-métricas-e-ordenações) |
 | Outbox para eventos de notificação, implementado na etapa 10 | [3.11](#311-notificações) |
+| Login por email; access token 15 min; refresh token com rotação e prazo máximo de 30 dias por sessão | [users-api.md](users-api.md) §11 |
 
 ### 6.2 Pontos em aberto
 
@@ -529,4 +530,3 @@ O contrato detalhado de cada serviço (como [catalog-api.md](catalog-api.md)) é
 | 1 | São exigidas notificações *push* reais (FCM)? | Primeira versão sem push (WorkManager com atraso + consulta com a app aberta); FCM como extensão | Docente |
 | 2 | A tecnologia escolhida (Spring Boot, PostgreSQL) é aceite? | Sim, por ser escolha do grupo | Docente |
 | 3 | É necessário API gateway? | Não nesta fase | Docente |
-| 4 | Validade do token JWT | Na ordem de uma hora; rever ao implementar o users-service | Grupo |
