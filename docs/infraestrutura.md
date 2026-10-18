@@ -1,22 +1,28 @@
 # PortoFit — Infraestrutura local
 
 > Como executar o backend em desenvolvimento. Desenho geral em [arquitetura.md](arquitetura.md). Ligação da app Android ao backend em [app-android.md](app-android.md).
-> Estado: etapa 3 — PostgreSQL e catalog-service com modalidades, pesquisa de locais e detalhe. A app Android consome estes endpoints desde a etapa 4.
+> Estado: etapa 5 (backend) — PostgreSQL, catalog-service (modalidades, pesquisa e detalhe de locais, usado pela app desde a etapa 4) e users-service (contas, sessões e perfis; ainda sem integração na app).
 
 ## 1. O que existe
 
 | Componente | Função | Acesso |
 |---|---|---|
-| `postgres` | PostgreSQL com a base `catalog_db` e o utilizador próprio do catalog-service | Só na rede interna do Compose (sem porta no computador) |
+| `postgres` | PostgreSQL com as bases `catalog_db` e `users_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
 | `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
+| `users-service` | Contas, sessões (JWT + refresh tokens) e perfis ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
 
 ```
 PortoFit/
 ├── docker-compose.yml            serviços, redes, volume, healthchecks, limites de memória
 ├── .env.example                  modelo das credenciais locais (o .env real não é versionado)
+├── scripts/
+│   └── generate-jwt-keys.sh      gera uma vez as chaves de assinatura dos JWT (não substitui existentes)
+├── secrets/                      chaves locais (ignorada pelo Git; não entra nas imagens)
 ├── backend/
 │   ├── postgres/init/
-│   │   └── 01-catalog-db.sh      cria catalog_db e o seu utilizador (1.ª inicialização)
+│   │   ├── 01-catalog-db.sh      cria catalog_db e o seu utilizador (1.ª inicialização)
+│   │   └── 02-users-db.sh        cria users_db e o seu utilizador (idempotente; ver §3.1)
+│   ├── users-service/            projeto Gradle independente: auth/, user/, security/, catalog/, api/
 │   └── catalog-service/          projeto Gradle independente da app Android
 │       ├── Dockerfile            build em duas etapas (JDK → JRE)
 │       ├── build.gradle.kts, settings.gradle.kts, gradlew, gradle/wrapper/
@@ -54,7 +60,9 @@ Confirmadas a 2026-10-16 no Spring Initializr (start.spring.io) e na documentaç
 | Testcontainers (testes) | 2.0.5 | Gerido pelo Spring Boot 4.1.1; dependências iguais às geradas pelo Initializr; compatível com o Docker Engine 29 |
 | Docker Desktop / Engine / Compose | 4.95.0 / 29.8.2 / v5.6.0 | Instalação local usada na verificação |
 
-Dependências do serviço: `spring-boot-starter-webmvc`, `-actuator`, `-jdbc`, `-flyway`, `flyway-database-postgresql`, driver PostgreSQL e Jackson para Kotlin. Usa-se Spring JDBC (sem JPA/Hibernate): o esquema é criado **só** pelas migrações Flyway, nunca automaticamente.
+Dependências do catalog-service: `spring-boot-starter-webmvc`, `-actuator`, `-jdbc`, `-flyway`, `flyway-database-postgresql`, driver PostgreSQL e Jackson para Kotlin. Usa-se Spring JDBC (sem JPA/Hibernate): o esquema é criado **só** pelas migrações Flyway, nunca automaticamente.
+
+O users-service usa as mesmas versões (gerado pelo Initializr com as mesmas opções) e acrescenta `spring-boot-starter-security` e `spring-boot-starter-security-oauth2-resource-server` (Spring Security com a biblioteca Nimbus JOSE para assinar e validar JWT, e BCrypt para palavras-passe). Nos testes: `spring-boot-starter-security-test` e `-security-oauth2-resource-server-test`.
 
 ## 3. Primeira utilização
 
@@ -64,34 +72,56 @@ Dependências do serviço: `spring-boot-starter-webmvc`, `-actuator`, `-jdbc`, `
    notepad .env
    ```
    O `.env` é ignorado pelo Git e não entra nas imagens Docker.
-2. Construir e arrancar:
+2. Gerar as chaves de assinatura dos JWT (uma única vez; usa o `openssl` incluído no Git para Windows):
+   ```powershell
+   bash scripts/generate-jwt-keys.sh
+   ```
+   Cria `secrets/users-jwt/private.pem` e `public.pem`. Se já existirem, o script não faz nada: gerar chaves novas terminaria todas as sessões. A pasta `secrets/` é ignorada pelo Git e é montada só de leitura no users-service; não é copiada para nenhuma imagem.
+3. Construir e arrancar:
    ```powershell
    docker compose up -d --build --wait
    ```
-   A primeira construção demora alguns minutos (descarrega o Gradle e as dependências). `--wait` só termina quando os dois contentores estão saudáveis.
+   A primeira construção demora alguns minutos (descarrega o Gradle e as dependências). `--wait` só termina quando todos os contentores estão saudáveis.
 
-O script `backend/postgres/init/01-catalog-db.sh` só corre quando o volume de dados está **vazio**. Alterar as credenciais no `.env` depois disso não altera os utilizadores já criados na base de dados.
+Os scripts de `backend/postgres/init/` só correm quando o volume de dados está **vazio**. Alterar as credenciais no `.env` depois disso não altera os utilizadores já criados (ver §3.1).
+
+### 3.1 Acrescentar a base de um serviço novo a um volume existente
+
+Num volume que já tem dados (ex.: criado antes do users-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh` é **idempotente** e pode ser corrido à mão sem apagar nada:
+
+1. Acrescentar `USERS_DB_USER` e `USERS_DB_PASSWORD` ao `.env` (ver `.env.example`).
+2. Aplicar a configuração ao PostgreSQL (o contentor é recriado com as novas variáveis; **o volume e os dados mantêm-se**; os outros serviços perdem a ligação alguns segundos e recuperam sozinhos):
+   ```powershell
+   docker compose up -d --wait postgres
+   ```
+3. Criar a base de dados e o utilizador (repetir não faz mal; num utilizador existente só sincroniza a palavra-passe com o `.env`):
+   ```powershell
+   docker compose exec -T postgres bash /docker-entrypoint-initdb.d/02-users-db.sh
+   ```
+   Em Git Bash, prefixar com `MSYS_NO_PATHCONV=1`, senão o caminho do contentor é convertido num caminho Windows.
+4. Arrancar o serviço: `docker compose up -d --build --wait users-service`.
 
 ## 4. Operação diária
 
 | Ação | Comando |
 |---|---|
 | Arrancar (sem reconstruir) | `docker compose up -d --wait` |
-| Reconstruir após alterar o código do serviço | `docker compose up -d --build --wait catalog-service` |
+| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`) |
 | Estado e saúde | `docker compose ps` |
-| Logs (seguir em direto) | `docker compose logs -f catalog-service` |
+| Logs (seguir em direto) | `docker compose logs -f catalog-service` (ou `users-service`) |
 | Logs da base de dados | `docker compose logs postgres` |
-| Reiniciar só o serviço | `docker compose restart catalog-service` |
+| Reiniciar só um serviço | `docker compose restart users-service` |
 | Parar tudo (mantém contentores e dados) | `docker compose stop` |
 | Parar e remover contentores (mantém dados) | `docker compose down` |
 | ⚠️ Remover contentores **e apagar os dados** | `docker compose down -v` |
 
 **Dados:** a base de dados vive no volume Docker `portofit_postgres-data`. `stop`, `restart` e `down` **preservam** os dados. Só `down -v` (ou `docker volume rm`) remove o volume e **apaga todos os dados**; na próxima subida o PostgreSQL é inicializado de novo e o script de criação volta a correr.
 
-## 5. Verificar o serviço
+## 5. Verificar os serviços
 
 ```powershell
-curl.exe http://localhost:8081/actuator/health
+curl.exe http://localhost:8081/actuator/health   # catalog-service
+curl.exe http://localhost:8082/actuator/health   # users-service
 ```
 
 Resposta esperada (HTTP 200):
@@ -148,6 +178,25 @@ cd backend\catalog-service
 - Cobrem: modalidades; pesquisa por modalidade, nome do local e atividade; maiúsculas e acentos; `%`/`_` literais; filtro por modalidade e combinação com texto; paginação estável e página para além do fim; ordenação por nome e por distância; raio e distância em km; parâmetros inválidos; local inexistente e id mal formado; avaliações `UNAVAILABLE`; repetição do carregamento de demonstração sem duplicados.
 - Precisam de um JDK 25 completo (ex.: Temurin 25 no `PATH`). O build da imagem Docker não corre os testes.
 
+### users-service
+
+Contrato completo em [users-api.md](users-api.md). Não há contas de demonstração: cria-se uma conta com o registo.
+
+```powershell
+# Registo (devolve accessToken e refreshToken; não os partilhes nem os guardes em ficheiros versionados)
+curl.exe -X POST http://localhost:8082/api/v1/auth/register -H "Content-Type: application/json" `
+  -d '{\"username\":\"ana.silva\",\"email\":\"ana@example.org\",\"password\":\"uma frase longa e minha\"}'
+# Perfil próprio (substituir <access> pelo accessToken)
+curl.exe http://localhost:8082/api/v1/me -H "Authorization: Bearer <access>"
+# Pesquisa pública
+curl.exe "http://localhost:8082/api/v1/users?q=ana"
+```
+
+- Chaves: `secrets/users-jwt/` (§3, passo 2). Reiniciar o serviço mantém as chaves e, por isso, as sessões; as contas vivem em `users_db`, no mesmo volume do PostgreSQL.
+- Os interesses são validados no catalog-service pela rede interna do Compose (`http://catalog-service:8081`); se o catálogo falhar, só acrescentar interesses novos devolve `503 CATALOG_UNAVAILABLE`.
+- Limites de tentativas (`portofit.rate-limit.*` em `application.yaml`): em memória, por conta e por origem; reiniciar o serviço apaga-os.
+- Testes: `cd backend\users-service; .\gradlew.bat test` (19 testes; PostgreSQL real via Testcontainers; chaves e catálogo falsos gerados pelos próprios testes).
+
 ## 7. Configuração relevante
 
 | Aspeto | Valor | Onde |
@@ -172,6 +221,8 @@ Valores medidos nesta etapa: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB
 - As credenciais de administrador do PostgreSQL e a palavra-passe do `catalog_user` ficam nas variáveis de ambiente do contentor `postgres` (visíveis com `docker inspect`). Aceitável apenas em desenvolvimento local.
 - Sem HTTPS: tráfego em claro, limitado ao próprio computador.
 - O build do serviço foi verificado apenas dentro do Docker. Um build local (`.\gradlew.bat bootJar` em `backend/catalog-service`) precisa de um JDK 25 completo; o JRE embutido da extensão Java do VS Code não serve (ver o problema encontrado na etapa 0).
-- Nos testes, o Testcontainers usa o utilizador administrador do contentor; os privilégios reduzidos do `catalog_user` só são verificados no ambiente Docker Compose.
+- Nos testes, o Testcontainers usa o utilizador administrador do contentor; os privilégios reduzidos do `catalog_user` e do `users_user` só são verificados no ambiente Docker Compose.
+- `secrets/users-jwt/private.pem` fica no disco sem cifra; no Windows as permissões de ficheiro do script (`umask 077`) não se aplicam. Aceitável só em desenvolvimento local.
+- Com o PC quase sem memória livre, o BCrypt (custo 12) leva cerca de 2 s por login (ver [users-api.md §12](users-api.md#12-estado-da-implementação)).
 - A pesquisa por texto usa `LIKE '%…%'` sobre nomes normalizados, sem índice de texto: adequado para dezenas ou centenas de locais, não para catálogos grandes.
 - A normalização de acentos cobre os caracteres do português e de línguas próximas; não trata sinónimos (ex.: "yoga" não encontra "Ioga").

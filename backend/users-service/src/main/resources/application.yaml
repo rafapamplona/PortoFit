@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: users-service
+  datasource:
+    # Valores fornecidos por variáveis de ambiente (docker-compose.yml + .env).
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:users_db}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 5000
+      validation-timeout: 3000
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 30
+  flyway:
+    locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: 8082
+  shutdown: graceful
+  tomcat:
+    connection-timeout: 10s
+    threads:
+      max: 50
+
+management:
+  endpoints:
+    web:
+      discovery:
+        enabled: false
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
+portofit:
+  security:
+    issuer: portofit-users
+    audience: portofit-api
+    access-token-ttl: 15m
+    # Prazo máximo de cada sessão, fixado no login; a rotação não o prolonga.
+    session-ttl: 30d
+    bcrypt-strength: 12
+    # Chaves RSA em PEM, montadas só de leitura (nunca no Git nem na imagem). Ver docs/infraestrutura.md.
+    private-key-location: ${JWT_PRIVATE_KEY_PATH:/run/secrets/users-jwt/private.pem}
+    public-key-location: ${JWT_PUBLIC_KEY_PATH:/run/secrets/users-jwt/public.pem}
+  rate-limit:
+    window: 15m
+    login-failures-per-account: 5
+    login-attempts-per-origin: 30
+    register-per-origin: 10
+    refresh-per-origin: 60
+  catalog:
+    base-url: ${CATALOG_BASE_URL:http://localhost:8081}
+    timeout: 2s
+    cache-ttl: 10m

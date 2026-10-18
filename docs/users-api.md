@@ -512,4 +512,20 @@ Base de dados `users_db` com utilizador próprio sem privilégios de administra�
 
 ## 12. Estado da implementação
 
-A preencher na implementação do users-service (etapa 5).
+Etapa 5 (backend), `backend/users-service`. Operação em [infraestrutura.md](infraestrutura.md).
+
+**Implementado:** `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET /me`, `PATCH /me`, `PUT /me/interests`; `GET /users?q=`, `GET /users/{userId}`; `GET /.well-known/jwks.json`; `/actuator/health`. Erros, validações, limites de tentativas e interesses como descrito neste contrato.
+
+**Ainda não implementado (próxima tarefa):** seguir e deixar de seguir, `GET /users/{userId}/followers` e `/following`, os campos `followersCount`, `followingCount` e `followedByMe`, `GET /internal/users/{userId}/feed-context` e os eventos de "novo seguidor". Até lá, as respostas de perfil **não incluem** estes campos (não são devolvidos a zero).
+
+**Notas da implementação**
+
+- JWT com a biblioteca Nimbus através do Spring Security (`NimbusJwtEncoder` / `NimbusJwtDecoder`); `kid` = impressão digital RFC 7638 da chave pública; chave RSA de 3072 bits gerada uma vez (`scripts/generate-jwt-keys.sh`).
+- Palavras-passe com `DelegatingPasswordEncoder` + `BCryptPasswordEncoder` do Spring Security.
+- Renovação: `UPDATE refresh_token SET used_at = now() WHERE token_hash = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now() RETURNING …`, e inserção do novo token na mesma transação; a revogação por reutilização é gravada antes de responder `401`.
+- Os pedidos a `/api/v1/auth/` ignoram o cabeçalho `Authorization` (um access token expirado não impede login, renovação nem logout).
+- Cache das modalidades do catálogo: 10 min (`portofit.catalog.cache-ttl`).
+
+**Medição do BCrypt (custo 12)** no ambiente de desenvolvimento (contentor Docker; PC com ~8 GB de RAM, quase sem memória livre durante a medição): login com cerca de **2,3 s** por pedido, quando um pedido simples ao mesmo serviço demora ~0,22 s — ou seja, ~2 s só no BCrypt. É bastante acima dos ~0,25 s habituais para custo 12 num computador sem esta pressão de memória. O custo mantém-se em 12 (decisão da revisão) e é configurável em `portofit.security.bcrypt-strength`; baixar para 10 dividiria o tempo por cerca de 4. Os login com email inexistente e com palavra-passe errada demoraram o mesmo (2,31 s vs 2,29 s).
+
+**Testes** (`.\gradlew.bat test` em `backend/users-service`, PostgreSQL 18.6 real via Testcontainers, BCrypt custo 4 só nos testes): 19 testes — registo e validações (incluindo 72 bytes), unicidade sem distinguir maiúsculas, 8 registos simultâneos com o mesmo username (1 criado, 7 recusados), login correto, respostas iguais para email inexistente e palavra-passe errada, limite por conta, access token ausente/inválido/expirado/emissor ou destinatário errados/outra chave/sem assinatura, edição só do próprio perfil e só da descrição, privacidade do perfil público e da pesquisa, rotação, reutilização (família revogada), logout idempotente com access token expirado no cabeçalho, sessão expirada, renovações simultâneas (no máximo uma com sucesso), interesses com o catálogo disponível e em falha, JWKS sem parâmetros privados, e contadores de tentativas por origem e por conta.

@@ -21,6 +21,8 @@ local.properties
 Thumbs.db
 
 # --- Credenciais e segredos ---
+# Chaves privadas e públicas de desenvolvimento (ex.: assinatura de JWT); ver docs/infraestrutura.md
+/secrets/
 *.jks
 *.keystore
 keystore.properties

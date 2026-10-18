@@ -13,6 +13,8 @@ services:
       # Usados apenas pelo script de inicialização para criar catalog_db e o seu utilizador.
       CATALOG_DB_USER: ${CATALOG_DB_USER:?defina CATALOG_DB_USER no .env}
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?defina CATALOG_DB_PASSWORD no .env}
+      USERS_DB_USER: ${USERS_DB_USER:?defina USERS_DB_USER no .env}
+      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:?defina USERS_DB_PASSWORD no .env}
     volumes:
       # PostgreSQL 18+: o volume monta em /var/lib/postgresql (os dados ficam em 18/docker).
       - postgres-data:/var/lib/postgresql
@@ -60,6 +62,45 @@ services:
     healthcheck:
       # A imagem JRE não tem curl/wget; usa-se o /dev/tcp do bash para pedir o estado de saúde.
       test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8081 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  users-service:
+    build: ./backend/users-service
+    image: portofit/users-service:0.1.0
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: users_db
+      DB_USER: ${USERS_DB_USER:?defina USERS_DB_USER no .env}
+      DB_PASSWORD: ${USERS_DB_PASSWORD:?defina USERS_DB_PASSWORD no .env}
+      # Chaves de assinatura dos JWT, geradas uma vez com scripts/generate-jwt-keys.sh.
+      JWT_PRIVATE_KEY_PATH: /run/secrets/users-jwt/private.pem
+      JWT_PUBLIC_KEY_PATH: /run/secrets/users-jwt/public.pem
+      # Validação de interesses (GET /api/v1/sports), pela rede interna do Compose.
+      CATALOG_BASE_URL: http://catalog-service:8081
+    volumes:
+      # Só de leitura e fora da imagem; a pasta secrets/ não está no Git.
+      - ./secrets/users-jwt:/run/secrets/users-jwt:ro
+    ports:
+      - "127.0.0.1:8082:8082"
+    networks:
+      - data
+      - public
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8082 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
       interval: 10s
       timeout: 5s
       retries: 5
