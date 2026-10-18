@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.Locale
+import com.example.portofit.ui.components.SportNames
 
 sealed interface ProfileLoad {
     data object Loading : ProfileLoad
@@ -112,8 +112,7 @@ data class ProfileUiState(
         fun normalizeDescription(text: String): String? = text.trim().ifEmpty { null }
 
         /** Nome legível a partir do id quando o catálogo não o indica (ex.: "artes-marciais" → "Artes marciais"). */
-        fun fallbackSportName(id: String): String =
-            id.replace('-', ' ').replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+        fun fallbackSportName(id: String): String = SportNames.fallback(id)
     }
 }
 

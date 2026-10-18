@@ -31,6 +31,7 @@ class SearchViewModel(
 
     private val _uiState = MutableStateFlow(
         SearchUiState(
+            mode = savedState.get<String>(KEY_MODE)?.let { runCatching { SearchMode.valueOf(it) }.getOrNull() } ?: SearchMode.PLACES,
             queryInput = savedState[KEY_INPUT] ?: "",
             activeQuery = savedState[KEY_QUERY],
             selectedSportId = savedState[KEY_SPORT],
@@ -45,6 +46,12 @@ class SearchViewModel(
     init {
         loadSports()
         startSearch()
+    }
+
+    /** Alternar entre Locais e Pessoas não altera a pesquisa de locais (texto, filtro, resultados). */
+    fun onModeChange(mode: SearchMode) {
+        savedState[KEY_MODE] = mode.name
+        _uiState.update { it.copy(mode = mode) }
     }
 
     fun onQueryInputChange(text: String) {
@@ -157,6 +164,7 @@ class SearchViewModel(
         private const val KEY_INPUT = "search.input"
         private const val KEY_QUERY = "search.query"
         private const val KEY_SPORT = "search.sport"
+        private const val KEY_MODE = "search.mode"
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

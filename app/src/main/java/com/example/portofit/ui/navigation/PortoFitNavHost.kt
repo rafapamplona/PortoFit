@@ -11,6 +11,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.portofit.ui.feature.auth.LoginScreen
 import com.example.portofit.ui.feature.auth.RegisterScreen
+import com.example.portofit.ui.feature.people.PublicProfileScreen
+import com.example.portofit.ui.feature.people.PublicProfileViewModel
 import com.example.portofit.ui.feature.place.PlaceDetailScreen
 import com.example.portofit.ui.feature.profile.ProfileScreen
 import com.example.portofit.ui.feature.place.PlaceDetailViewModel
@@ -22,10 +24,12 @@ private object Routes {
     const val LOGIN = "login"
     const val REGISTER = "register"
     const val PROFILE = "profile"
+    const val PERSON = "user/{${PublicProfileViewModel.USER_ID_ARG}}"
+    fun person(userId: String) = "user/${Uri.encode(userId)}"
     fun place(placeId: String) = "place/${Uri.encode(placeId)}"
 }
 
-/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta; pesquisa → o meu perfil. Voltar regressa à lista com a pesquisa intacta. */
+/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta; pesquisa → o meu perfil; pesquisa de pessoas → perfil público. Voltar regressa à lista com a pesquisa intacta. */
 @Composable
 fun PortoFitNavHost() {
     val navController = rememberNavController()
@@ -38,6 +42,7 @@ fun PortoFitNavHost() {
                 },
                 onLoginClick = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                 onProfileClick = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
+                onPersonClick = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
             )
         }
         composable(Routes.LOGIN) { entry ->
@@ -48,6 +53,15 @@ fun PortoFitNavHost() {
                     if (entry.isResumed()) navController.navigate(Routes.REGISTER) { popUpTo(Routes.LOGIN) { inclusive = true } }
                 },
                 onDone = { navController.popBackStack(Routes.SEARCH, inclusive = false) },
+            )
+        }
+        composable(
+            route = Routes.PERSON,
+            arguments = listOf(navArgument(PublicProfileViewModel.USER_ID_ARG) { type = NavType.StringType }),
+        ) { entry ->
+            PublicProfileScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onEditOwnProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
             )
         }
         composable(Routes.PROFILE) { entry ->

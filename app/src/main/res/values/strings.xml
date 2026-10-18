@@ -124,6 +124,26 @@
     <string name="profile_error_unknown_interests">Uma das modalidades escolhidas já não existe no catálogo.</string>
     <string name="profile_error_validation">Os dados não foram aceites pelo servidor.</string>
 
+    <!-- Pesquisa de pessoas e perfis públicos -->
+    <string name="search_mode_places">Locais</string>
+    <string name="search_mode_people">Pessoas</string>
+    <string name="people_search_label">Nome de utilizador</string>
+    <string name="people_search_invalid">Escreve entre 2 e 50 caracteres.</string>
+    <string name="people_idle">Escreve parte de um nome de utilizador e toca em Pesquisar.</string>
+    <plurals name="people_count">
+        <item quantity="one">%d pessoa encontrada</item>
+        <item quantity="other">%d pessoas encontradas</item>
+    </plurals>
+    <string name="people_empty">Nenhuma pessoa encontrada.</string>
+    <string name="people_empty_hint">Experimenta outra parte do nome de utilizador.</string>
+    <string name="people_load_more_error">Não foi possível carregar mais pessoas.</string>
+    <string name="people_error_network">Sem ligação ao serviço de contas. A pesquisa de locais continua disponível.</string>
+    <string name="public_profile_title">Perfil</string>
+    <string name="public_profile_no_description">Sem descrição.</string>
+    <string name="public_profile_no_interests">Sem interesses indicados.</string>
+    <string name="public_profile_not_found">Esta pessoa já não existe.</string>
+    <string name="public_profile_edit_own">Editar o meu perfil</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

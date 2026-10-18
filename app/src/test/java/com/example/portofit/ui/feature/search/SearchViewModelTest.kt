@@ -194,6 +194,25 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun `alternar para pessoas e voltar mantem a pesquisa de locais`() {
+        val saved = SavedStateHandle()
+        val viewModel = createViewModel(saved)
+        viewModel.onQueryInputChange("boxe")
+        viewModel.onSearchSubmit()
+        viewModel.onSportSelected("boxe")
+        val calls = repository.searchCalls.size
+        val before = viewModel.uiState.value
+
+        viewModel.onModeChange(SearchMode.PEOPLE)
+        viewModel.onModeChange(SearchMode.PLACES)
+
+        assertEquals(before, viewModel.uiState.value)
+        assertEquals(calls, repository.searchCalls.size) // alternar não repete a pesquisa
+        viewModel.onModeChange(SearchMode.PEOPLE)
+        assertEquals(SearchMode.PEOPLE, createViewModel(saved).uiState.value.mode) // modo reposto ao recriar
+    }
+
+    @Test
     fun `pesquisa e filtro guardados sao repostos ao recriar`() {
         val viewModel = createViewModel()
         viewModel.onQueryInputChange("boxe")

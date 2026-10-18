@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,6 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,17 +53,22 @@ import com.example.portofit.ui.components.ratingText
 import com.example.portofit.ui.feature.auth.AccountAction
 import com.example.portofit.ui.feature.auth.AccountViewModel
 import com.example.portofit.ui.feature.auth.SessionBanner
+import com.example.portofit.ui.feature.people.PeopleSearchViewModel
+import com.example.portofit.ui.feature.people.peopleSearchItems
 
 @Composable
 fun SearchScreen(
     onPlaceClick: (placeId: String) -> Unit,
     onLoginClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onPersonClick: (userId: String) -> Unit,
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory),
+    peopleViewModel: PeopleSearchViewModel = viewModel(factory = PeopleSearchViewModel.Factory),
     accountViewModel: AccountViewModel = viewModel(factory = AccountViewModel.Factory),
 ) {
     // Só recolhe o estado enquanto o ecrã está visível (STARTED).
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val people by peopleViewModel.uiState.collectAsStateWithLifecycle()
     val session by accountViewModel.sessionState.collectAsStateWithLifecycle()
     SearchContent(
         state = state,
@@ -72,6 +81,17 @@ fun SearchScreen(
         onPlaceClick = onPlaceClick,
         accountActions = { AccountAction(session, onLoginClick, onProfileClick, accountViewModel::logout) },
         sessionBanner = { SessionBanner(session, onLoginClick, accountViewModel::retry, accountViewModel::dismissNotice) },
+        onModeChange = viewModel::onModeChange,
+        peopleItems = {
+            peopleSearchItems(
+                state = people,
+                onQueryChange = peopleViewModel::onQueryInputChange,
+                onSubmit = peopleViewModel::onSubmit,
+                onRetry = peopleViewModel::retry,
+                onLoadMore = peopleViewModel::loadMore,
+                onPersonClick = onPersonClick,
+            )
+        },
     )
 }
 
@@ -88,6 +108,8 @@ fun SearchContent(
     onPlaceClick: (String) -> Unit,
     accountActions: @Composable RowScope.() -> Unit = {},
     sessionBanner: @Composable () -> Unit = {},
+    onModeChange: (SearchMode) -> Unit = {},
+    peopleItems: LazyListScope.() -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -118,6 +140,11 @@ fun SearchContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "session") { sessionBanner() }
+            item(key = "mode") { ModeSelector(state.mode, onModeChange) }
+            if (state.mode == SearchMode.PEOPLE) {
+                peopleItems()
+                return@LazyColumn
+            }
             item(key = "search") {
                 SearchField(state.queryInput, state.showQueryTooShort, onQueryChange, onSubmit)
             }
@@ -131,6 +158,21 @@ fun SearchContent(
                 }
                 is ResultsState.Loaded -> loadedResults(results, onPlaceClick, onLoadMore)
             }
+        }
+    }
+}
+
+/** Escolha entre pesquisar locais e pessoas (cada modo mantém o seu estado). */
+@Composable
+private fun ModeSelector(mode: SearchMode, onModeChange: (SearchMode) -> Unit) {
+    val options = listOf(SearchMode.PLACES to R.string.search_mode_places, SearchMode.PEOPLE to R.string.search_mode_people)
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, (option, label) ->
+            SegmentedButton(
+                selected = mode == option,
+                onClick = { onModeChange(option) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+            ) { Text(stringResource(label)) }
         }
     }
 }

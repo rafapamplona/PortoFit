@@ -251,7 +251,7 @@ GET /api/v1/users?q=ana&size=2
 ```
 
 - `followedByMe` só aparece com um access token válido de **outro** utilizador. Sem token, ou no próprio perfil, o campo é omitido.
-- `interests` são ids do catálogo. A app mostra os nomes com a lista de `GET /api/v1/sports` do catalog-service, que já carrega; se um id não existir nessa lista, não o mostra. O users-service **não** chama o catálogo para ler perfis.
+- `interests` são ids do catálogo. A app mostra os nomes com a lista de `GET /api/v1/sports` do catalog-service, que já carrega; se o catálogo estiver indisponível ou um id não existir nessa lista, mostra um nome feito a partir do id (ex.: `artes-marciais` → "Artes marciais"), para os interesses continuarem legíveis. O users-service **não** chama o catálogo para ler perfis.
 - `404` se o utilizador não existir; `400` se o id não for um UUID válido.
 
 ### 3.9 Seguir

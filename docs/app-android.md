@@ -1,6 +1,6 @@
 # PortoFit — App Android
 
-> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout e "O meu perfil" (descrição e interesses) no users-service. Sem perfis públicos, pesquisa de pessoas, seguidores, publicações, mapas nem GPS.
+> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout e "O meu perfil" (descrição e interesses) no users-service; pesquisa de pessoas e perfis públicos (sem sessão). Sem seguidores, publicações, mapas nem GPS.
 > Backend: [infraestrutura.md](infraestrutura.md) · Contratos: [catalog-api.md](catalog-api.md), [users-api.md](users-api.md) · Desenho: [arquitetura.md](arquitetura.md)
 
 ## 1. Percurso disponível
@@ -292,3 +292,61 @@ Feita com uma **conta temporária de verificação** criada pela própria app (a
 | Final | serviços reiniciados e saudáveis; sessão da conta de verificação terminada e conta apagada; resta só `pamplona` |
 
 Nota: o teclado do emulador duplica por vezes o primeiro carácter escrito por `adb shell input text` (ex.: `vverif_…`, `!!`); é uma limitação do método de teste, não da app.
+
+### Revisão do cliente HTTP (2026-10-18)
+
+A correção da pool de ligações foi revista e passou a estar em `di/HttpClients.kt`, com testes próprios:
+
+| Cliente | Usado por | Novas tentativas automáticas do OkHttp | Porquê |
+|---|---|---|---|
+| `catalog()` | catálogo (só `GET`) | ligadas | leituras |
+| `users(...)` | perfil (`GET /me`, `PATCH /me`, `PUT /me/interests`) e pessoas (`GET /users…`) | ligadas | leituras, e escritas idempotentes: repetir o mesmo `PATCH` da descrição ou o mesmo `PUT` (substitui a lista) deixa o mesmo resultado |
+| `session(...)` | registo, login, refresh, logout (`POST`) | **desligadas** (inclui a repetição automática de respostas `408`) | um refresh repetido às cegas pode reenviar um token já consumido; o registo não é idempotente |
+
+`users` e `session` partilham a pool de ligações que descarta ligações paradas ao fim de 5 s (o servidor fecha-as aos 10 s). `HttpClientsTest` verifica estas regras. **Os testes Android voltaram a ser executados depois desta alteração**: 68/68 (antes das funcionalidades da secção seguinte) e 80/80 no fim desta etapa.
+
+## 12. Pesquisa de pessoas e perfis públicos (etapa 5, continuação)
+
+Sem sessão. A pesquisa tem uma escolha **Locais | Pessoas** (botões segmentados). Cada modo tem o seu próprio texto, filtros e resultados: alternar não apaga nem repete nada, e o modo escolhido sobrevive à recriação.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `PeopleApi` + DTOs | `data/remote/PeopleApi.kt` | `GET /api/v1/users?q=&page=&size=` e `GET /api/v1/users/{userId}` (sem token) |
+| `NetworkPeopleRepository` | `data/repository/PeopleRepository.kt` | resultados como `DataResult` (via `apiCall`, partilhado com o catálogo) |
+| `PeopleSearchViewModel` | `ui/feature/people/PeopleViewModels.kt` | texto, pesquisa submetida, resultados e paginação próprios |
+| `PublicProfileViewModel` | idem | perfil público + nomes das modalidades + regra de "Editar o meu perfil" |
+| Ecrãs | `ui/feature/people/PeopleScreens.kt`, `ui/feature/search/SearchScreen.kt` | itens do modo Pessoas na lista de pesquisa; ecrã do perfil público (`user/{userId}`) |
+
+### Regras
+
+- **Pesquisa de pessoas:** submissão explícita (botão ou tecla), 2–50 caracteres (minúsculas, espaços removidos), sem pedido antes da primeira pesquisa (o contrato exige texto); paginação "Carregar mais" (20 por página); respostas de pesquisas antigas ignoradas; estados de carregamento, vazio ("Nenhuma pessoa encontrada."), erro com **Tentar novamente**.
+- **Perfil público:** username, descrição (ou "Sem descrição."), interesses (ou "Sem interesses indicados.") e "Publicações: ainda não disponíveis". **Nunca** email nem outros dados privados — o modelo `PublicProfile` nem tem esses campos, mesmo quando é o próprio utilizador.
+- **"Editar o meu perfil"** só aparece com sessão **ativa** do próprio utilizador (não aparece sem sessão, com outro utilizador ou com a sessão por confirmar) e leva a "O meu perfil".
+- **Interesses legíveis sem catálogo:** nomes do catálogo quando disponível; caso contrário, nome feito a partir do id (`artes-marciais` → "Artes marciais") com uma nota.
+- **Voltar** do perfil público regressa à lista de pessoas com a pesquisa e os resultados intactos (o estado fica no ViewModel do ecrã de pesquisa).
+- **Falha do users-service** só afeta o modo Pessoas ("Sem ligação ao serviço de contas. A pesquisa de locais continua disponível."); a pesquisa de locais não depende dele.
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest` — **80 testes, 0 falhas**, executados no código final desta etapa. Novos:
+
+- `HttpClientsTest` (4): sessão sem novas tentativas; catálogo e users-service com; pool partilhada entre sessão e perfil, separada do catálogo; tempos de espera.
+- `PeopleViewModelsTest` (11): sem pedido antes de pesquisar; validação 2–50 e normalização; "Carregar mais" até ao fim; resposta antiga ignorada; erro, nova tentativa e lista vazia; pesquisa reposta ao recriar; perfil público com nomes do catálogo e alternativos; interesses legíveis com o catálogo indisponível; "Editar o meu perfil" só com sessão ativa do próprio; pessoa inexistente e nova tentativa; **privacidade** (JSON com `email` não chega ao modelo; `PublicProfile` só tem `userId`, `username`, `description`, `interests`).
+- `SearchViewModelTest` (+1): alternar para Pessoas e voltar mantém a pesquisa de locais, sem repetir pedidos; modo reposto ao recriar.
+
+### Verificação no emulador (2026-10-18, pelo assistente, sem sessão)
+
+| Verificação | Resultado |
+|---|---|
+| Barra superior com **Locais / Pessoas** | presente |
+| Locais: "boxe" | 4 locais |
+| Pessoas: indicação inicial; "pamp" | "Escreve parte de um nome de utilizador…"; "1 pessoa encontrada", `@pamplona` |
+| Alternar Locais ↔ Pessoas (duas vezes) | cada modo mantém o seu texto e resultados ("boxe"/4 locais; "pamp"/`@pamplona`) |
+| Abrir `@pamplona` | "Sem descrição.", "Sem interesses indicados.", "Publicações… ainda não estão disponíveis"; sem email, sem "Dados privados", sem "Editar o meu perfil" |
+| Voltar | lista de pessoas com "pamp" e o resultado |
+| `users-service` parado | Pessoas: "Sem ligação ao serviço de contas. A pesquisa de locais continua disponível." + **Tentar novamente**; Locais: nova pesquisa (filtro Boxe) → 4 locais |
+| Reiniciar o serviço + **Tentar novamente** | `@pamplona` de novo; três serviços saudáveis no fim |
+
+Não verificado na interface (coberto pelos testes automáticos): "Editar o meu perfil" no próprio perfil com sessão, e interesses com nomes alternativos num perfil público (a conta `pamplona` não tem interesses e não foi alterada; não foi criada conta temporária nesta etapa).

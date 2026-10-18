@@ -8,25 +8,27 @@ import com.example.portofit.data.auth.RetrofitAuthGateway
 import com.example.portofit.data.auth.SessionManager
 import com.example.portofit.data.auth.UnconfiguredAuthGateway
 import com.example.portofit.data.remote.CatalogApi
+import com.example.portofit.data.remote.PeopleApi
 import com.example.portofit.data.remote.ProfileApi
 import com.example.portofit.data.remote.UsersApi
 import com.example.portofit.data.repository.CatalogRepository
 import com.example.portofit.data.repository.NetworkCatalogRepository
+import com.example.portofit.data.repository.NetworkPeopleRepository
+import com.example.portofit.data.repository.PeopleRepository
 import com.example.portofit.data.repository.NetworkProfileRepository
 import com.example.portofit.data.repository.ProfileRepository
 import com.example.portofit.data.repository.UnconfiguredCatalogRepository
+import com.example.portofit.data.repository.UnconfiguredPeopleRepository
 import com.example.portofit.data.repository.UnconfiguredProfileRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
-import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 /**
  * Injeção de dependências manual: cria uma única vez os objetos partilhados pela app.
@@ -39,31 +41,10 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
         ignoreUnknownKeys = true
     }
 
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .callTimeout(15, TimeUnit.SECONDS)
-        .build()
-
-    /**
-     * Cliente do users-service (perfil). Ligações paradas são descartadas ao fim de 5 s, antes de o
-     * servidor as fechar (Tomcat: 10 s); sem isto, um pedido depois de uns segundos parado reutilizava
-     * uma ligação já fechada e falhava. Mais tempo de leitura: o BCrypt demora no login.
-     * Sem registo de pedidos: nunca escrever palavras-passe nem tokens em logs.
-     */
-    private val usersHttpClient = httpClient.newBuilder()
-        .connectionPool(ConnectionPool(2, 5, TimeUnit.SECONDS))
-        .readTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(25, TimeUnit.SECONDS)
-        .build()
-
-    /**
-     * Cliente das chamadas de sessão (registo, login, refresh, logout): o mesmo, mas sem novas tentativas
-     * automáticas — uma renovação repetida às cegas pode reenviar um refresh token já consumido.
-     */
-    private val sessionHttpClient = usersHttpClient.newBuilder()
-        .retryOnConnectionFailure(false)
-        .build()
+    // Regras de cada cliente (novas tentativas, ligações paradas, tempos) em HttpClients.kt.
+    private val httpClient = HttpClients.catalog()
+    private val usersHttpClient = HttpClients.users(httpClient)
+    private val sessionHttpClient = HttpClients.session(usersHttpClient)
 
     /** Sessão da app: corre num âmbito próprio, independente de ecrãs e ViewModels. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -91,6 +72,11 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
     val profileRepository: ProfileRepository =
         usersUrl?.let { NetworkProfileRepository(retrofit(it, usersHttpClient).create(ProfileApi::class.java), sessionManager, json) }
             ?: UnconfiguredProfileRepository()
+
+    /** Pesquisa de pessoas e perfis públicos: pedidos sem token. */
+    val peopleRepository: PeopleRepository =
+        usersUrl?.let { NetworkPeopleRepository(retrofit(it, usersHttpClient).create(PeopleApi::class.java)) }
+            ?: UnconfiguredPeopleRepository()
 
     private fun retrofit(baseUrl: String, client: OkHttpClient) = Retrofit.Builder()
         .baseUrl(baseUrl.trimEnd('/') + "/")
