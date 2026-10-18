@@ -11,6 +11,10 @@ class PortoFitApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        container = AppContainer(catalogBaseUrl = BuildConfig.CATALOG_BASE_URL)
+        container = AppContainer(
+            context = this,
+            catalogBaseUrl = BuildConfig.CATALOG_BASE_URL,
+            usersBaseUrl = BuildConfig.USERS_BASE_URL,
+        )
     }
 }

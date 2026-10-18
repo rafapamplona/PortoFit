@@ -50,6 +50,48 @@
     <string name="rating_none">Sem avaliações</string>
     <string name="rating_unavailable">Avaliações temporariamente indisponíveis</string>
 
+    <!-- Conta e sessão -->
+    <string name="account_login">Entrar</string>
+    <string name="account_menu_signed_in_as">Sessão iniciada como %1$s</string>
+    <string name="account_logout">Terminar sessão</string>
+    <string name="session_unverified">Não foi possível confirmar a tua sessão (sem ligação ao servidor). Continuas com sessão iniciada; a pesquisa funciona normalmente.</string>
+    <string name="session_unconfirmed">Não foi possível confirmar a tua sessão. Se tentares novamente, pode ser preciso entrar outra vez.</string>
+    <string name="session_ended">A tua sessão terminou. Entra novamente para continuar com a tua conta.</string>
+    <string name="session_logged_out_offline">Terminaste sessão neste dispositivo, mas não foi possível avisar o servidor. A sessão no servidor deixa de valer quando expirar (no máximo 30 dias após o início).</string>
+    <string name="dismiss">OK</string>
+
+    <string name="login_title">Entrar</string>
+    <string name="login_action">Entrar</string>
+    <string name="login_go_register">Ainda não tens conta? Criar conta</string>
+    <string name="register_title">Criar conta</string>
+    <string name="register_action">Criar conta</string>
+    <string name="field_username">Nome de utilizador</string>
+    <string name="field_email">Email</string>
+    <string name="field_password">Palavra-passe</string>
+    <string name="password_show">Mostrar</string>
+    <string name="password_hide">Ocultar</string>
+    <string name="hint_username">3 a 30 caracteres: letras minúsculas, números, \'.\' ou \'_\'.</string>
+    <string name="hint_password">10 a 64 caracteres. Uma frase é uma boa escolha.</string>
+
+    <string name="error_username_required">Indica um nome de utilizador.</string>
+    <string name="error_username_format">O nome de utilizador deve ter 3 a 30 caracteres: letras minúsculas, números, \'.\' ou \'_\', a começar e acabar em letra ou número.</string>
+    <string name="error_username_reserved">Este nome de utilizador está reservado.</string>
+    <string name="error_username_taken">Este nome de utilizador já está a ser usado.</string>
+    <string name="error_email_required">Indica o teu email.</string>
+    <string name="error_email_format">Indica um email válido.</string>
+    <string name="error_email_taken">Não é possível criar uma conta com este email.</string>
+    <string name="error_password_required">Indica a palavra-passe.</string>
+    <string name="error_password_length">A palavra-passe deve ter entre 10 e 64 caracteres (alguns caracteres especiais contam a dobrar).</string>
+    <string name="error_password_same">A palavra-passe não pode ser igual ao nome de utilizador nem ao email.</string>
+    <string name="error_invalid_credentials">Email ou palavra-passe incorretos.</string>
+    <string name="error_too_many_attempts">Demasiadas tentativas. Tenta novamente mais tarde.</string>
+    <plurals name="error_too_many_attempts_minutes">
+        <item quantity="one">Demasiadas tentativas. Tenta novamente daqui a %d minuto.</item>
+        <item quantity="other">Demasiadas tentativas. Tenta novamente daqui a %d minutos.</item>
+    </plurals>
+    <string name="error_auth_server">O serviço de contas está temporariamente indisponível. Tenta novamente daqui a pouco.</string>
+    <string name="error_auth_not_configured">As contas não estão disponíveis nesta versão da app.</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

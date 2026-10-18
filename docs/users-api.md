@@ -461,7 +461,7 @@ Se uma modalidade deixar de existir no catálogo, os perfis que a tinham continu
 ### 8.3 Comportamento da sessão
 
 - Um `SessionRepository` (no `AppContainer`) expõe o estado da sessão como `StateFlow`: **Visitante** ou **Com sessão** (`userId`, `username`).
-- **Access token só em memória.** **Refresh token** guardado cifrado: chave AES-GCM no **Android Keystore** (não exportável) e o texto cifrado no **DataStore**. O ficheiro fica excluído das cópias de segurança (`backup_rules.xml` / `data_extraction_rules.xml`), porque a chave do Keystore não é restaurada noutro aparelho. (Não se usa `EncryptedSharedPreferences`, que foi descontinuado.)
+- **Access token só em memória.** **Refresh token** guardado cifrado: chave AES-GCM no **Android Keystore** (não exportável) e o texto cifrado num **ficheiro privado da app** (`files/session/`; na implementação optou-se por um ficheiro com escrita atómica em vez do DataStore, sem dependências novas). O ficheiro fica excluído das cópias de segurança (`backup_rules.xml` / `data_extraction_rules.xml`), porque a chave do Keystore não é restaurada noutro aparelho. (Não se usa `EncryptedSharedPreferences`, que foi descontinuado.)
 - Pedidos autenticados levam `Authorization: Bearer`. Perante um `401 INVALID_ACCESS_TOKEN`, um `Authenticator` do OkHttp renova a sessão e repete o pedido **uma vez**.
 - **Uma única renovação partilhada:** a renovação está protegida por exclusão mútua. Se vários pedidos recebem `401` ao mesmo tempo, só o primeiro renova; os outros esperam e usam o novo access token (se, ao obterem a vez, o token guardado já for mais recente do que o que causou o `401`, não renovam de novo).
 - O cliente HTTP da renovação não faz novas tentativas automáticas (`retryOnConnectionFailure = false`).

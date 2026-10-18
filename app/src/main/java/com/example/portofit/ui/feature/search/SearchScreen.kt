@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -45,14 +46,20 @@ import com.example.portofit.ui.components.ErrorMessage
 import com.example.portofit.ui.components.LoadingIndicator
 import com.example.portofit.ui.components.errorMessageRes
 import com.example.portofit.ui.components.ratingText
+import com.example.portofit.ui.feature.auth.AccountAction
+import com.example.portofit.ui.feature.auth.AccountViewModel
+import com.example.portofit.ui.feature.auth.SessionBanner
 
 @Composable
 fun SearchScreen(
     onPlaceClick: (placeId: String) -> Unit,
+    onLoginClick: () -> Unit,
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory),
+    accountViewModel: AccountViewModel = viewModel(factory = AccountViewModel.Factory),
 ) {
     // Só recolhe o estado enquanto o ecrã está visível (STARTED).
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val session by accountViewModel.sessionState.collectAsStateWithLifecycle()
     SearchContent(
         state = state,
         onQueryChange = viewModel::onQueryInputChange,
@@ -62,6 +69,8 @@ fun SearchScreen(
         onRetrySearch = viewModel::retrySearch,
         onLoadMore = viewModel::loadMore,
         onPlaceClick = onPlaceClick,
+        accountActions = { AccountAction(session, onLoginClick, accountViewModel::logout) },
+        sessionBanner = { SessionBanner(session, onLoginClick, accountViewModel::retry, accountViewModel::dismissNotice) },
     )
 }
 
@@ -76,6 +85,8 @@ fun SearchContent(
     onRetrySearch: () -> Unit,
     onLoadMore: () -> Unit,
     onPlaceClick: (String) -> Unit,
+    accountActions: @Composable RowScope.() -> Unit = {},
+    sessionBanner: @Composable () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -90,6 +101,7 @@ fun SearchContent(
                         )
                     }
                 },
+                actions = accountActions,
             )
         },
     ) { innerPadding ->
@@ -104,6 +116,7 @@ fun SearchContent(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item(key = "session") { sessionBanner() }
             item(key = "search") {
                 SearchField(state.queryInput, state.showQueryTooShort, onQueryChange, onSubmit)
             }

@@ -9,6 +9,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.portofit.ui.feature.auth.LoginScreen
+import com.example.portofit.ui.feature.auth.RegisterScreen
 import com.example.portofit.ui.feature.place.PlaceDetailScreen
 import com.example.portofit.ui.feature.place.PlaceDetailViewModel
 import com.example.portofit.ui.feature.search.SearchScreen
@@ -16,10 +18,12 @@ import com.example.portofit.ui.feature.search.SearchScreen
 private object Routes {
     const val SEARCH = "search"
     const val PLACE = "place/{${PlaceDetailViewModel.PLACE_ID_ARG}}"
+    const val LOGIN = "login"
+    const val REGISTER = "register"
     fun place(placeId: String) = "place/${Uri.encode(placeId)}"
 }
 
-/** Navegação: pesquisa → detalhe do local. Voltar regressa à lista com a pesquisa intacta. */
+/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta. Voltar regressa à lista com a pesquisa intacta. */
 @Composable
 fun PortoFitNavHost() {
     val navController = rememberNavController()
@@ -30,6 +34,23 @@ fun PortoFitNavHost() {
                     // Evita abrir o detalhe duas vezes com toques repetidos durante a transição.
                     if (entry.isResumed()) navController.navigate(Routes.place(placeId))
                 },
+                onLoginClick = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+            )
+        }
+        composable(Routes.LOGIN) { entry ->
+            LoginScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onRegisterClick = {
+                    // O registo substitui o login na pilha: voltar regressa à pesquisa.
+                    if (entry.isResumed()) navController.navigate(Routes.REGISTER) { popUpTo(Routes.LOGIN) { inclusive = true } }
+                },
+                onDone = { navController.popBackStack(Routes.SEARCH, inclusive = false) },
+            )
+        }
+        composable(Routes.REGISTER) { entry ->
+            RegisterScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onDone = { navController.popBackStack(Routes.SEARCH, inclusive = false) },
             )
         }
         composable(
