@@ -1,6 +1,6 @@
 # PortoFit — App Android
 
-> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão e logout no users-service. Sem perfis, interesses, seguidores, publicações, mapas nem GPS.
+> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout e "O meu perfil" (descrição e interesses) no users-service. Sem perfis públicos, pesquisa de pessoas, seguidores, publicações, mapas nem GPS.
 > Backend: [infraestrutura.md](infraestrutura.md) · Contratos: [catalog-api.md](catalog-api.md), [users-api.md](users-api.md) · Desenho: [arquitetura.md](arquitetura.md)
 
 ## 1. Percurso disponível
@@ -233,3 +233,62 @@ A cifra real (Android Keystore) só existe num aparelho; nos testes JVM é subst
 | Final | `users-service` arrancado; os três serviços healthy; health 8081/8082 → 200; continua 1 conta em `users_db` |
 
 Consequência esperada do último passo (docs/users-api.md §6.5): o refresh token dessa sessão continua válido no servidor até expirar, porque o logout não chegou ao serviço. Para voltar a usar a conta na app é preciso entrar de novo.
+
+## 11. O meu perfil (etapa 5, continuação)
+
+Aberto pelo menu `@username` → **O meu perfil** (só com sessão). Mostra o username, a descrição, os interesses, o email numa secção "Dados privados" (só o próprio o vê) e uma secção "Publicações" que diz explicitamente que ainda não estão disponíveis — não é mostrada uma lista vazia como se tivesse sido consultada.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `ProfileApi` + DTOs | `data/remote/ProfileApi.kt` | `GET /api/v1/me`, `PATCH /api/v1/me` (`{"description": …}`, `null` apaga), `PUT /api/v1/me/interests` |
+| `NetworkProfileRepository` | `data/repository/ProfileRepository.kt` | pedidos com o access token do `SessionManager`; perante `401`, renovação partilhada e **uma** repetição; classifica `CATALOG_UNAVAILABLE`, `UNKNOWN_INTERESTS`, sessão terminada/por confirmar, rede e servidor |
+| `ProfileViewModel` | `ui/feature/profile/ProfileViewModel.kt` | perfil do servidor e edições locais separados; gravações independentes |
+| `ProfileScreen` | `ui/feature/profile/ProfileScreen.kt` | secções, botões "Guardar descrição" e "Guardar interesses", confirmação ao sair |
+
+### Regras
+
+- **Descrição e interesses gravam-se em separado**, cada um com o seu estado (a guardar, guardado, erro); uma falha num não bloqueia o outro. Botões desativados enquanto a gravação decorre (sem envios duplicados).
+- **Edições locais nunca são sobrescritas** por respostas de carregamento: o perfil do servidor e as edições ficam em campos diferentes; cada carregamento tem um número de geração (respostas antigas são ignoradas) e uma gravação bem sucedida invalida carregamentos em curso. Uma resposta de gravação só limpa a edição se o utilizador não a tiver alterado entretanto.
+- **Rotação e recriação:** as edições por guardar ficam no `SavedStateHandle`. Ao sair com alterações por guardar (seta ou gesto do sistema) aparece "Descartar alterações?" com **Descartar** / **Continuar a editar**.
+- **Interesses:** chips com as modalidades do catálogo (`GET /api/v1/sports`, ids como `boxe`), no máximo 10, pela ordem escolhida. Os interesses guardados aparecem **sempre**, mesmo sem catálogo; sem nome do catálogo, o nome é feito a partir do id (`artes-marciais` → "Artes marciais") com uma nota a explicá-lo.
+- **Catálogo indisponível:** aviso com **Tentar novamente**; só aparecem os interesses existentes, que podem ser removidos (e voltar a ser escolhidos), mas não se podem acrescentar novos. Nada é apagado por falha de carregamento. Se o users-service recusar modalidades novas com `CATALOG_UNAVAILABLE`, a edição mantém-se e o erro é explicado.
+- **Descrição:** 0–300 caracteres (contador), espaços nas pontas removidos ao guardar, vazio → `null`.
+- **Texto ampliado e teclado:** conteúdo em coluna com deslocamento e `imePadding`; chips em `FlowRow`, que passam à linha seguinte.
+
+### Correção encontrada na verificação: ligações HTTP paradas
+
+No emulador, o primeiro pedido ao perfil depois de alguns segundos sem atividade falhava com "Sem ligação…" e o seguinte funcionava. Causa: o servidor (Tomcat) fecha ligações paradas ao fim de 10 s, o OkHttp mantinha-as na pool durante minutos e, como o cliente do users-service tinha `retryOnConnectionFailure = false`, um pedido numa ligação já fechada falhava sem nova tentativa. A mesma causa podia fazer uma renovação de sessão parecer **ambígua** e deixar a sessão "por confirmar" sem motivo.
+
+Correção em `di/AppContainer.kt` (sem alterar o backend):
+
+- a pool de ligações do users-service descarta ligações paradas ao fim de **5 s** (antes dos 10 s do servidor);
+- as chamadas de **sessão** (registo, login, refresh, logout) usam um cliente sem novas tentativas automáticas, como exige o contrato; as do **perfil** (`GET`, `PUT` e `PATCH` da descrição, idempotentes) usam o comportamento normal do OkHttp.
+
+Confirmado no emulador: três aberturas do perfil, duas delas depois de 15 s sem pedidos, carregaram todas (antes falhava a primeira depois de uma pausa).
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest` — 64 testes, dos quais 17 desta funcionalidade (executados antes da correção do cliente HTTP, que só alterou `AppContainer.kt`, sem testes JVM; a app foi recompilada com `assembleDebug` depois da correção):
+
+- `ProfileViewModelTest` (14): carregamento e nomes alternativos; erro e nova tentativa; resposta de carregamento não substitui edições; resposta antiga ignorada; guardar descrição (aparar, confirmar, envios repetidos ignorados); descrição vazia → `null` e texto demasiado longo não enviado; edição feita durante a gravação não se perde; falha da descrição não afeta os interesses; selecionar/remover/guardar pela ordem; limite de 10; catálogo indisponível mostra os guardados e só permite remover; `CATALOG_UNAVAILABLE` do servidor mantém a edição; confirmação ao sair e descartar; edições sobrevivem à recriação.
+- `NetworkProfileRepositoryTest` (3): sem sessão não faz pedidos; `401` → uma renovação e uma repetição com o novo token; classificação de erros (`CATALOG_UNAVAILABLE`, `UNKNOWN_INTERESTS`, 5xx, rede).
+
+### Verificação no emulador (2026-10-18, pelo assistente)
+
+Feita com uma **conta temporária de verificação** criada pela própria app (a conta `pamplona` não foi usada nem alterada), apagada no fim; com `adb` e leitura da hierarquia do ecrã (`uiautomator`).
+
+| Verificação | Resultado |
+|---|---|
+| Abrir "O meu perfil" pelo menu `@username` | username, descrição, interesses, email em "Dados privados", "Publicações: ainda não disponíveis" |
+| Editar e guardar a descrição | "Descrição guardada." |
+| Escolher Boxe e Ioga e guardar | "Interesses guardados.", "2 de 10" |
+| Sair e reabrir o perfil; fechar e reabrir a app | descrição e 2 interesses mantidos (vindos do servidor); sair sem alterações não pede confirmação |
+| Rotação com edição por guardar | texto mantido em horizontal e de novo em vertical |
+| Voltar com edição por guardar | "Descartar alterações?"; **Continuar a editar** mantém o texto; **Descartar** sai |
+| `catalog-service` parado | aviso de modalidades indisponíveis e nota dos nomes alternativos; interesses guardados mantidos ("Boxe" a partir do id); remover Ioga e guardar → "Interesses guardados."; guardar a descrição → "Descrição guardada." |
+| `users-service` parado | guardar → "Sem ligação ao serviço de contas…" e a edição mantém-se; abrir o perfil → erro com **Tentar novamente**; a pesquisa continua (10 locais); depois de reiniciar, guardar e **Tentar novamente** funcionam |
+| Final | serviços reiniciados e saudáveis; sessão da conta de verificação terminada e conta apagada; resta só `pamplona` |
+
+Nota: o teclado do emulador duplica por vezes o primeiro carácter escrito por `adb shell input text` (ex.: `vverif_…`, `!!`); é uma limitação do método de teste, não da app.

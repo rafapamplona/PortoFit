@@ -12,6 +12,7 @@ import androidx.navigation.navArgument
 import com.example.portofit.ui.feature.auth.LoginScreen
 import com.example.portofit.ui.feature.auth.RegisterScreen
 import com.example.portofit.ui.feature.place.PlaceDetailScreen
+import com.example.portofit.ui.feature.profile.ProfileScreen
 import com.example.portofit.ui.feature.place.PlaceDetailViewModel
 import com.example.portofit.ui.feature.search.SearchScreen
 
@@ -20,10 +21,11 @@ private object Routes {
     const val PLACE = "place/{${PlaceDetailViewModel.PLACE_ID_ARG}}"
     const val LOGIN = "login"
     const val REGISTER = "register"
+    const val PROFILE = "profile"
     fun place(placeId: String) = "place/${Uri.encode(placeId)}"
 }
 
-/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta. Voltar regressa à lista com a pesquisa intacta. */
+/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta; pesquisa → o meu perfil. Voltar regressa à lista com a pesquisa intacta. */
 @Composable
 fun PortoFitNavHost() {
     val navController = rememberNavController()
@@ -35,6 +37,7 @@ fun PortoFitNavHost() {
                     if (entry.isResumed()) navController.navigate(Routes.place(placeId))
                 },
                 onLoginClick = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+                onProfileClick = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
             )
         }
         composable(Routes.LOGIN) { entry ->
@@ -46,6 +49,9 @@ fun PortoFitNavHost() {
                 },
                 onDone = { navController.popBackStack(Routes.SEARCH, inclusive = false) },
             )
+        }
+        composable(Routes.PROFILE) { entry ->
+            ProfileScreen(onBack = { if (entry.isResumed()) navController.navigateUp() })
         }
         composable(Routes.REGISTER) { entry ->
             RegisterScreen(

@@ -92,6 +92,38 @@
     <string name="error_auth_server">O serviço de contas está temporariamente indisponível. Tenta novamente daqui a pouco.</string>
     <string name="error_auth_not_configured">As contas não estão disponíveis nesta versão da app.</string>
 
+    <!-- O meu perfil -->
+    <string name="account_profile">O meu perfil</string>
+    <string name="profile_title">O meu perfil</string>
+    <string name="profile_description">Descrição</string>
+    <string name="profile_description_label">Fala um pouco sobre ti</string>
+    <string name="profile_description_counter">%1$d/%2$d caracteres</string>
+    <string name="profile_description_too_long">A descrição pode ter no máximo 300 caracteres.</string>
+    <string name="profile_save_description">Guardar descrição</string>
+    <string name="profile_description_saved">Descrição guardada.</string>
+    <string name="profile_interests">Interesses</string>
+    <string name="profile_interests_counter">%1$d de %2$d modalidades escolhidas</string>
+    <string name="profile_interests_empty">Ainda não escolheste modalidades.</string>
+    <string name="profile_interests_fallback_names">Alguns nomes de modalidades não estão disponíveis agora e são mostrados a partir do identificador.</string>
+    <string name="profile_sports_unavailable">Não foi possível carregar as modalidades. Podes remover interesses e voltar a escolher os que já tinhas, mas não acrescentar novos.</string>
+    <string name="profile_save_interests">Guardar interesses</string>
+    <string name="profile_interests_saved">Interesses guardados.</string>
+    <string name="profile_private">Dados privados</string>
+    <string name="profile_email">Email: %1$s</string>
+    <string name="profile_private_note">Só tu vês o teu email; não aparece no perfil público.</string>
+    <string name="profile_posts">Publicações</string>
+    <string name="profile_posts_unavailable">As publicações ainda não estão disponíveis nesta versão da app.</string>
+    <string name="profile_discard_title">Descartar alterações?</string>
+    <string name="profile_discard_message">Tens alterações que ainda não foram guardadas.</string>
+    <string name="profile_discard_confirm">Descartar</string>
+    <string name="profile_discard_keep">Continuar a editar</string>
+    <string name="profile_error_network">Sem ligação ao serviço de contas. As alterações não foram guardadas; tenta novamente.</string>
+    <string name="profile_error_session_ended">A tua sessão terminou. Entra novamente para veres o teu perfil.</string>
+    <string name="profile_error_session_unverified">Não foi possível confirmar a tua sessão agora. Tenta novamente daqui a pouco.</string>
+    <string name="profile_error_catalog_unavailable">Não foi possível validar as modalidades novas agora. Os interesses não foram alterados; tenta novamente (remover interesses continua a funcionar).</string>
+    <string name="profile_error_unknown_interests">Uma das modalidades escolhidas já não existe no catálogo.</string>
+    <string name="profile_error_validation">Os dados não foram aceites pelo servidor.</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

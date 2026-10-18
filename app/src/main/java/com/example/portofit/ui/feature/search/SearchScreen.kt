@@ -54,6 +54,7 @@ import com.example.portofit.ui.feature.auth.SessionBanner
 fun SearchScreen(
     onPlaceClick: (placeId: String) -> Unit,
     onLoginClick: () -> Unit,
+    onProfileClick: () -> Unit,
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory),
     accountViewModel: AccountViewModel = viewModel(factory = AccountViewModel.Factory),
 ) {
@@ -69,7 +70,7 @@ fun SearchScreen(
         onRetrySearch = viewModel::retrySearch,
         onLoadMore = viewModel::loadMore,
         onPlaceClick = onPlaceClick,
-        accountActions = { AccountAction(session, onLoginClick, accountViewModel::logout) },
+        accountActions = { AccountAction(session, onLoginClick, onProfileClick, accountViewModel::logout) },
         sessionBanner = { SessionBanner(session, onLoginClick, accountViewModel::retry, accountViewModel::dismissNotice) },
     )
 }

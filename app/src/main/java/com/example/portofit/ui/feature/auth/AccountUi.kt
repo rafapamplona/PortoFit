@@ -26,9 +26,9 @@ import com.example.portofit.data.auth.SessionNotice
 import com.example.portofit.data.auth.SessionState
 import com.example.portofit.data.auth.SessionStatus
 
-/** Ação na barra superior: "Entrar" sem sessão; o username, com "Terminar sessão", com sessão. */
+/** Ação na barra superior: "Entrar" sem sessão; com sessão, o username com "O meu perfil" e "Terminar sessão". */
 @Composable
-fun AccountAction(session: SessionState, onLoginClick: () -> Unit, onLogout: () -> Unit) {
+fun AccountAction(session: SessionState, onLoginClick: () -> Unit, onProfileClick: () -> Unit, onLogout: () -> Unit) {
     when (session) {
         SessionState.Loading -> Unit
         is SessionState.SignedOut -> TextButton(onClick = onLoginClick) { Text(stringResource(R.string.account_login)) }
@@ -43,6 +43,13 @@ fun AccountAction(session: SessionState, onLoginClick: () -> Unit, onLogout: () 
                         text = { Text(stringResource(R.string.account_menu_signed_in_as, session.username)) },
                         onClick = {},
                         enabled = false,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.account_profile)) },
+                        onClick = {
+                            menuOpen = false
+                            onProfileClick()
+                        },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.account_logout)) },
