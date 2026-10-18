@@ -209,16 +209,27 @@ A cifra real (Android Keystore) só existe num aparelho; nos testes JVM é subst
 | Build | `assembleDebug` | passou |
 | Variantes | manifestos e `BuildConfig` gerados | debug: `USERS_BASE_URL = http://10.0.2.2:8082/`, configuração de rede local; release: sem URL, sem HTTP em claro, sem `ACCESS_LOCAL_NETWORK` |
 | Serviços só no computador | portas à escuta | 8081 e 8082 só em `127.0.0.1`; recusadas por outro endereço do PC; PostgreSQL sem porta publicada |
-| **Na interface (emulador)** | — | **pendente**: não foi possível arrancar o emulador (≈1,3 GB de RAM livre) |
+| Na interface (emulador) | ver abaixo | confirmado pelo utilizador e pelo assistente |
 
-**Por confirmar no emulador** (com `docker compose up -d --wait`):
+**Confirmado manualmente pelo utilizador no emulador** (Pixel 9, Android 17)
 
-1. Sem sessão: a pesquisa e o detalhe funcionam; a barra mostra **Entrar**.
-2. **Criar conta** com dados inválidos (ex.: username `A`, palavra-passe curta): erros por campo, sem pedido ao servidor.
-3. Criar conta válida: volta à pesquisa com `@username` na barra.
-4. Terminar sessão (menu `@username`): volta a **Entrar**.
-5. **Entrar** com palavra-passe errada: "Email ou palavra-passe incorretos." (o pedido demora ~2 s).
-6. Entrar com os dados certos: `@username` na barra.
-7. Fechar a app (deslizar nas recentes) e abri-la: `@username` aparece e a sessão é confirmada sem pedir login.
-8. `docker compose stop users-service`, fechar e abrir a app: aparece o aviso "Não foi possível confirmar a tua sessão…" com **Tentar novamente**, `@username` mantém-se e a pesquisa funciona; `docker compose start users-service` e **Tentar novamente** → o aviso desaparece.
-9. Com o users-service parado, **Terminar sessão**: a sessão local termina e aparece o aviso de que o servidor não foi avisado; voltar a arrancar o serviço no fim.
+| Verificação | Resultado |
+|---|---|
+| Catálogo sem sessão | pesquisa e detalhe acessíveis |
+| Conta autenticada | `@pamplona` na barra superior |
+| Fechar a app nas recentes e reabrir | sessão recuperada sem pedir login |
+| Terminar sessão | funciona |
+| Login com palavra-passe errada / correta | mostra o erro / entra |
+
+**Falha e recuperação do users-service — verificado pelo assistente** (2026-10-18, `adb` + leitura da hierarquia do ecrã com `uiautomator`; o ficheiro de sessão foi observado só pelo tamanho e data, com `run-as … ls -l files/session/`, nunca pelo conteúdo)
+
+| Passo | Resultado |
+|---|---|
+| Ponto de partida | 1 conta em `users_db`; sessão `@pamplona`; `session.bin` com 162 bytes (21:01) |
+| `docker compose stop users-service` | catálogo funcional: `GET /places?q=boxe` 200 no PC; na app, "boxe" → 4 locais, `@pamplona` mantém-se |
+| Fechar à força e reabrir a app com o serviço parado | aviso "Não foi possível confirmar a tua sessão (sem ligação ao servidor)…" com **Tentar novamente**; `@pamplona` mantém-se; catálogo com 10 locais; **`session.bin` inalterado (162 bytes, 21:01)** — a falha temporária não apagou o refresh token |
+| `docker compose start users-service` (healthy) + **Tentar novamente** | aviso desaparece; `@pamplona` mantém-se; `session.bin` regravado às 21:05 (novo refresh token da rotação) |
+| Serviço parado de novo + `@pamplona` → **Terminar sessão** | barra passa a **Entrar**; aviso "Terminaste sessão neste dispositivo, mas não foi possível avisar o servidor…"; **`session.bin` apagado**; catálogo funcional |
+| Final | `users-service` arrancado; os três serviços healthy; health 8081/8082 → 200; continua 1 conta em `users_db` |
+
+Consequência esperada do último passo (docs/users-api.md §6.5): o refresh token dessa sessão continua válido no servidor até expirar, porque o logout não chegou ao serviço. Para voltar a usar a conta na app é preciso entrar de novo.
