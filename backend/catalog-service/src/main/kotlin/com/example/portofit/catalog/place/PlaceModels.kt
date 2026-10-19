@@ -47,6 +47,8 @@ data class Offering(
 	val description: String?,
 	val level: String,
 	val scheduleNotes: String?,
+	/** Estado efetivo: RETIRED se a atividade ou o local tiverem sido retirados (docs/catalog-api.md §2.3). */
+	val status: String,
 	val rating: Rating,
 )
 
@@ -60,5 +62,7 @@ data class PlaceDetail(
 	val contacts: Contacts,
 	val rating: Rating,
 	val offerings: List<Offering>,
+	/** ACTIVE ou RETIRED: o detalhe continua acessível pelo id para referências históricas. */
+	val status: String,
 	val demo: Boolean,
 )

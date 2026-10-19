@@ -59,9 +59,11 @@ class PlaceService(
 					description = it.description,
 					level = it.level,
 					scheduleNotes = it.scheduleNotes,
+					status = it.status,
 					rating = placeRatings.offering(it.id),
 				)
 			},
+			status = row.status,
 			demo = row.demo,
 		)
 	}

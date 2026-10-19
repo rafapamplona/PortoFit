@@ -49,7 +49,7 @@ O id é um *slug* (e não um UUID) porque é usado como filtro em URLs (`sport=b
 | `contacts.phone` | string | não | até 20 caracteres |
 | `contacts.website` | string | não | URL `http(s)://`, até 200 caracteres |
 | `demo` | booleano | sim | `true` em todos os dados fictícios |
-| `status` | enum | sim | `ACTIVE` (por omissão) ou `RETIRED`. Um local retirado deixa de aceitar publicações, mas continua a existir e a responder pelo id (ver [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração)). Nesta fase nenhum local está retirado, e a pesquisa e o detalhe não o filtram |
+| `status` | enum | sim | `ACTIVE` (por omissão) ou `RETIRED`. Um local retirado não aparece na pesquisa pública e deixa de aceitar publicações, mas continua a existir e a responder pelo id em `GET /places/{id}`, com o estado (ver [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração)). Não há endpoints para retirar: é uma operação de quem gere os dados |
 
 ### 2.3 ActivityOffering — atividade oferecida
 
@@ -62,7 +62,7 @@ O id é um *slug* (e não um UUID) porque é usado como filtro em URLs (`sport=b
 | `description` | string | não | até 1000 caracteres |
 | `level` | enum | sim | `BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `ALL_LEVELS` |
 | `scheduleNotes` | string | não | até 300 caracteres. **Texto informativo** (ex.: "Seg. e qua., 19h–20h"); não é um horário reservável |
-| `status` | enum | sim | `ACTIVE` (por omissão) ou `RETIRED`, como no local. Em `GET /offerings/{id}` é o estado **efetivo**: `RETIRED` se a atividade ou o seu local estiverem retirados |
+| `status` | enum | sim | `ACTIVE` (por omissão) ou `RETIRED`, como no local. Nas respostas é sempre o estado **efetivo**: `RETIRED` se a atividade ou o seu local estiverem retirados. Atividades retiradas não contam para a pesquisa pública |
 
 ### 2.4 Rating — avaliação agregada (complemento)
 
@@ -131,6 +131,7 @@ Pesquisa locais. Todos os parâmetros são opcionais; sem parâmetros devolve to
 - `q` encontra locais cujo **nome do local**, **nome de uma modalidade** oferecida ou **nome de uma atividade oferecida** contenha o texto, **sem distinguir maiúsculas de minúsculas nem acentos**. Ex.: `q=boxe`, `q=BOXE` e `q=Boxe` dão o mesmo resultado; `q=natacao` encontra "Natação".
 - Este é o comportamento pretendido; a forma de o implementar é escolhida na implementação do serviço (ver [arquitetura.md §3.2](arquitetura.md#32-responsabilidades)).
 - `q` e `sport` combinam-se com **E** (ex.: `q=boavista&sport=boxe` → locais de boxe com "boavista" no nome).
+- **Só dados ativos:** a pesquisa devolve apenas locais `ACTIVE`; o filtro `sport`, a pesquisa pelo nome da modalidade ou da atividade e a lista `sports` de cada resultado só consideram atividades `ACTIVE`. Um local retirado continua acessível em `GET /places/{id}` (§3.3).
 - Com `lat`/`lng`, só são devolvidos locais a uma distância ≤ `radiusKm` e cada resultado inclui `distanceKm`.
 - A distância é em linha reta (fórmula de Haversine), em **quilómetros**, arredondada a 2 casas decimais. Não é distância a pé nem de carro.
 - Os caracteres `%` e `_` em `q` são procurados literalmente (não funcionam como curingas).
@@ -274,7 +275,7 @@ ou, para um local ainda sem avaliações:
 
 ### 3.3 `GET /places/{placeId}`
 
-Detalhe de um local, com as atividades oferecidas e a avaliação de cada uma.
+Detalhe de um local, com as atividades oferecidas e a avaliação de cada uma. Responde também para locais **retirados** (referências históricas de experiências antigas): `status` do local e de cada atividade indica se estão disponíveis. A lista `offerings` inclui as atividades retiradas, com `"status": "RETIRED"`; a app não as apresenta como disponíveis e não permite publicar nelas.
 
 **Pedido**
 
@@ -306,6 +307,7 @@ GET /api/v1/places/3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01
       "description": "Técnica base, condição física e sparring leve.",
       "level": "BEGINNER",
       "scheduleNotes": "Seg. e qua., 19h–20h (informativo)",
+      "status": "ACTIVE",
       "rating": { "status": "AVAILABLE", "average": 4.2, "ratingsCount": 9 }
     },
     {
@@ -315,9 +317,11 @@ GET /api/v1/places/3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01
       "description": null,
       "level": "ALL_LEVELS",
       "scheduleNotes": null,
+      "status": "ACTIVE",
       "rating": { "status": "AVAILABLE", "average": 4.5, "ratingsCount": 5 }
     }
   ],
+  "status": "ACTIVE",
   "demo": true
 }
 ```
@@ -526,5 +530,6 @@ Ajustes feitos na implementação da etapa 3 (backend do catálogo), por ordem d
 | 7 | O nome da modalidade é único sem distinguir maiúsculas/minúsculas **nem acentos**. | Coerente com a regra de pesquisa. |
 | 8 | A modalidade mantém-se "Ioga" (id `ioga`), como no contrato. Pesquisar "yoga" não encontra resultados. | Grafia em português europeu; sinónimos na pesquisa ficam como melhoria possível. |
 | 9 | Etapa 6: `GET /offerings/{id}` com `includeRating` e `status`; migração `V4__catalog_status.sql` com `status` em locais e atividades (todos `ACTIVE`); o detalhe do local pede local e atividades num só pedido (antes eram duas chamadas ao fornecedor de avaliações). | Validação de publicações sem chamada de volta; retirar em vez de apagar ([experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração)). |
+| 10 | Etapa 6 (integração na app): a pesquisa pública só mostra locais `ACTIVE` e só considera atividades `ACTIVE`; `GET /places/{id}` acrescenta `status` ao local e a cada atividade (efetivo) e continua a responder para locais retirados. | Não apresentar dados retirados como disponíveis, mantendo legível o conteúdo histórico. |
 
 **Implementação da pesquisa sem maiúsculas/acentos:** função SQL `portofit_normalize(text)` (minúsculas + substituição dos caracteres acentuados), aplicada ao texto pesquisado e aos nomes. Usa só funções nativas do PostgreSQL, sem extensões nem privilégios adicionais, e é `IMMUTABLE`, por isso também serve nos índices únicos.

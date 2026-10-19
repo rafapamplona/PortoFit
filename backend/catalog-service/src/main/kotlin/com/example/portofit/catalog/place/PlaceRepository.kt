@@ -14,6 +14,7 @@ data class PlaceRow(
 	val location: Location,
 	val contacts: Contacts,
 	val demo: Boolean,
+	val status: String,
 	val distanceKm: Double?,
 )
 
@@ -24,6 +25,8 @@ data class OfferingRow(
 	val description: String?,
 	val level: String,
 	val scheduleNotes: String?,
+	/** Estado efetivo (RETIRED se a atividade ou o local estiverem retirados). */
+	val status: String,
 )
 
 /**
@@ -35,7 +38,8 @@ class PlaceRepository(private val jdbc: JdbcClient) {
 
 	fun search(criteria: PlaceSearchCriteria): Pair<List<PlaceRow>, Long> {
 		val params = mutableMapOf<String, Any>()
-		val conditions = mutableListOf<String>()
+		// A pesquisa pública só mostra locais ativos e só considera atividades ativas (docs/catalog-api.md §3.2).
+		val conditions = mutableListOf("p.status = 'ACTIVE'")
 
 		criteria.text?.let { text ->
 			params["pattern"] = "%" + escapeLike(text) + "%"
@@ -43,14 +47,14 @@ class PlaceRepository(private val jdbc: JdbcClient) {
 				(portofit_normalize(p.name) LIKE portofit_normalize(:pattern) ESCAPE '\'
 				 OR EXISTS (
 					SELECT 1 FROM activity_offering o JOIN sport s ON s.id = o.sport_id
-					WHERE o.place_id = p.id
+					WHERE o.place_id = p.id AND o.status = 'ACTIVE'
 					  AND (portofit_normalize(o.name) LIKE portofit_normalize(:pattern) ESCAPE '\'
 					       OR portofit_normalize(s.name) LIKE portofit_normalize(:pattern) ESCAPE '\')))
 			"""
 		}
 		criteria.sportId?.let { sportId ->
 			params["sportId"] = sportId
-			conditions += "EXISTS (SELECT 1 FROM activity_offering o WHERE o.place_id = p.id AND o.sport_id = :sportId)"
+			conditions += "EXISTS (SELECT 1 FROM activity_offering o WHERE o.place_id = p.id AND o.sport_id = :sportId AND o.status = 'ACTIVE')"
 		}
 
 		val distanceColumn = criteria.origin?.let { origin ->
@@ -59,7 +63,7 @@ class PlaceRepository(private val jdbc: JdbcClient) {
 			HAVERSINE_KM
 		} ?: "CAST(NULL AS double precision)"
 
-		val where = if (conditions.isEmpty()) "" else conditions.joinToString(" AND ", prefix = "WHERE ")
+		val where = conditions.joinToString(" AND ", prefix = "WHERE ")
 		val filtered = """
 			SELECT * FROM (
 				SELECT p.*, $distanceColumn AS distance_km
@@ -98,14 +102,14 @@ class PlaceRepository(private val jdbc: JdbcClient) {
 			.optional()
 			.orElse(null)
 
-	/** Modalidades de cada local, sem repetições, por nome. */
+	/** Modalidades das atividades ativas de cada local, sem repetições, por nome. */
 	fun sportsByPlace(placeIds: Collection<UUID>): Map<UUID, List<SportRef>> {
 		if (placeIds.isEmpty()) return emptyMap()
 		val pairs = jdbc.sql(
 			"""
 			SELECT o.place_id, s.id, s.name
 			FROM activity_offering o JOIN sport s ON s.id = o.sport_id
-			WHERE o.place_id IN (:placeIds)
+			WHERE o.place_id IN (:placeIds) AND o.status = 'ACTIVE'
 			GROUP BY o.place_id, s.id, s.name
 			ORDER BY o.place_id, portofit_normalize(s.name), s.id
 			""",
@@ -116,12 +120,13 @@ class PlaceRepository(private val jdbc: JdbcClient) {
 		return pairs.groupBy({ it.first }, { it.second })
 	}
 
-	/** Atividades de um local, por modalidade e nome. */
+	/** Todas as atividades de um local (também as retiradas, com o estado efetivo), por modalidade e nome. */
 	fun offeringsOf(placeId: UUID): List<OfferingRow> =
 		jdbc.sql(
 			"""
-			SELECT o.id, o.name, o.description, o.level, o.schedule_notes, s.id AS sport_id, s.name AS sport_name
-			FROM activity_offering o JOIN sport s ON s.id = o.sport_id
+			SELECT o.id, o.name, o.description, o.level, o.schedule_notes, s.id AS sport_id, s.name AS sport_name,
+			       CASE WHEN o.status = 'RETIRED' OR p.status = 'RETIRED' THEN 'RETIRED' ELSE 'ACTIVE' END AS effective_status
+			FROM activity_offering o JOIN sport s ON s.id = o.sport_id JOIN place p ON p.id = o.place_id
 			WHERE o.place_id = :placeId
 			ORDER BY portofit_normalize(s.name), portofit_normalize(o.name), o.id
 			""",
@@ -135,6 +140,7 @@ class PlaceRepository(private val jdbc: JdbcClient) {
 					description = rs.getString("description"),
 					level = rs.getString("level"),
 					scheduleNotes = rs.getString("schedule_notes"),
+					status = rs.getString("effective_status"),
 				)
 			}
 			.list()
@@ -147,6 +153,7 @@ class PlaceRepository(private val jdbc: JdbcClient) {
 		location = Location(getBigDecimal("latitude").toDouble(), getBigDecimal("longitude").toDouble()),
 		contacts = Contacts(getString("phone"), getString("website")),
 		demo = getBoolean("is_demo"),
+		status = getString("status"),
 		distanceKm = getDouble("distance_km").takeUnless { wasNull() },
 	)
 

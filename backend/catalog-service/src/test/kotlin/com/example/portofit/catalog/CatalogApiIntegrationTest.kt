@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.get
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -358,6 +359,46 @@ class CatalogApiIntegrationTest {
 			jdbc.sql("UPDATE activity_offering SET status = 'ACTIVE' WHERE id = CAST(:id AS uuid)").param("id", boxeRibeira).update()
 			jdbc.sql("UPDATE place SET status = 'ACTIVE' WHERE id = CAST(:id AS uuid)").param("id", ribeira).update()
 		}
+	}
+
+	@Test
+	fun `pesquisa publica so mostra locais ativos e atividades ativas, o detalhe mostra o estado`() {
+		val crossfitBonfim = "8a7b6c5d-4e3f-4a1b-9c8d-000000000601"
+		experiences.reset(ExperiencesStub.Mode.ERROR)
+		assertTrue(ids("/api/v1/places?sport=crossfit").contains(bonfim))
+		mvc.get("/api/v1/places/$ribeira").andExpect {
+			jsonPath("$.status") { value("ACTIVE") }
+			jsonPath("$.offerings[*].status") { value(everyItem(org.hamcrest.Matchers.equalTo("ACTIVE"))) }
+		}
+		try {
+			// Atividade retirada: deixa de contar para a modalidade e para a pesquisa por texto do local.
+			jdbc.sql("UPDATE activity_offering SET status = 'RETIRED' WHERE id = CAST(:id AS uuid)").param("id", crossfitBonfim).update()
+			assertFalse(ids("/api/v1/places?sport=crossfit").contains(bonfim))
+			assertFalse(ids("/api/v1/places?q=crossfit").contains(bonfim))
+			val summary = json("/api/v1/places?q=bonfim")["items"].elements.single { it["id"].asString() == bonfim }
+			assertEquals(listOf("boxe"), summary["sports"].elements.map { it["id"].asString() })
+			mvc.get("/api/v1/places/$bonfim").andExpect {
+				status { isOk() }
+				jsonPath("$.status") { value("ACTIVE") }
+				jsonPath("$.offerings[?(@.id == '$crossfitBonfim')].status") { value(hasItem("RETIRED")) }
+			}
+
+			// Local retirado: sai da pesquisa pública, mas continua acessível pelo id, com o estado.
+			jdbc.sql("UPDATE place SET status = 'RETIRED' WHERE id = CAST(:id AS uuid)").param("id", ribeira).update()
+			assertFalse(ids("/api/v1/places?size=50").contains(ribeira))
+			assertFalse(ids("/api/v1/places?q=ribeira").contains(ribeira))
+			assertFalse(ids("/api/v1/places?sport=kickboxing&size=50").contains(ribeira))
+			mvc.get("/api/v1/places/$ribeira").andExpect {
+				status { isOk() }
+				jsonPath("$.status") { value("RETIRED") }
+				jsonPath("$.offerings[*].status") { value(everyItem(org.hamcrest.Matchers.equalTo("RETIRED"))) }
+			}
+			mvc.get("/api/v1/offerings/$boxeRibeira?includeRating=false").andExpect { jsonPath("$.status") { value("RETIRED") } }
+		} finally {
+			jdbc.sql("UPDATE activity_offering SET status = 'ACTIVE' WHERE id = CAST(:id AS uuid)").param("id", crossfitBonfim).update()
+			jdbc.sql("UPDATE place SET status = 'ACTIVE' WHERE id = CAST(:id AS uuid)").param("id", ribeira).update()
+		}
+		assertTrue(ids("/api/v1/places?q=ribeira").contains(ribeira))
 	}
 
 	// --- Avaliações do experiences-service ---
