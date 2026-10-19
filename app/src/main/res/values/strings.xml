@@ -144,6 +144,26 @@
     <string name="public_profile_not_found">Esta pessoa já não existe.</string>
     <string name="public_profile_edit_own">Editar o meu perfil</string>
 
+    <!-- Seguir -->
+    <plurals name="followers_count">
+        <item quantity="one">%d seguidor</item>
+        <item quantity="other">%d seguidores</item>
+    </plurals>
+    <string name="following_count">%d a seguir</string>
+    <string name="follow_follow">Seguir</string>
+    <string name="follow_unfollow">Deixar de seguir</string>
+    <string name="follow_login_hint">Entra na tua conta para seguir esta pessoa.</string>
+    <string name="follow_relation_unconfirmed">Não foi possível confirmar se segues esta pessoa.</string>
+    <string name="follow_result_unconfirmed">O pedido foi aceite, mas não foi possível confirmar o resultado. Atualiza para ver o estado atual.</string>
+    <string name="follow_refresh">Atualizar</string>
+    <string name="follow_error_network">Sem ligação ao serviço de contas. Nada foi alterado; tenta novamente.</string>
+    <string name="follow_error_session_ended">A tua sessão terminou. Entra novamente para seguir pessoas.</string>
+    <string name="follow_error_self">Não te podes seguir a ti próprio.</string>
+    <string name="follow_list_followers">Seguidores</string>
+    <string name="follow_list_following">A seguir</string>
+    <string name="follow_list_followers_empty">Ainda ninguém segue esta pessoa.</string>
+    <string name="follow_list_following_empty">Esta pessoa ainda não segue ninguém.</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

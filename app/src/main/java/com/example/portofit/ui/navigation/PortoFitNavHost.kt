@@ -11,6 +11,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.portofit.ui.feature.auth.LoginScreen
 import com.example.portofit.ui.feature.auth.RegisterScreen
+import com.example.portofit.ui.feature.people.FollowListKind
+import com.example.portofit.ui.feature.people.FollowListScreen
+import com.example.portofit.ui.feature.people.FollowListViewModel
 import com.example.portofit.ui.feature.people.PublicProfileScreen
 import com.example.portofit.ui.feature.people.PublicProfileViewModel
 import com.example.portofit.ui.feature.place.PlaceDetailScreen
@@ -26,10 +29,12 @@ private object Routes {
     const val PROFILE = "profile"
     const val PERSON = "user/{${PublicProfileViewModel.USER_ID_ARG}}"
     fun person(userId: String) = "user/${Uri.encode(userId)}"
+    const val FOLLOW_LIST = "user/{${FollowListViewModel.USER_ID_ARG}}/list/{${FollowListViewModel.KIND_ARG}}"
+    fun followList(userId: String, kind: FollowListKind) = "user/${Uri.encode(userId)}/list/${kind.name}"
     fun place(placeId: String) = "place/${Uri.encode(placeId)}"
 }
 
-/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta; pesquisa → o meu perfil; pesquisa de pessoas → perfil público. Voltar regressa à lista com a pesquisa intacta. */
+/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta; pesquisa → o meu perfil; pesquisa de pessoas → perfil público ↔ seguidores/seguidos; o login regressa ao ecrã que o abriu. Voltar regressa à lista com a pesquisa intacta. */
 @Composable
 fun PortoFitNavHost() {
     val navController = rememberNavController()
@@ -49,10 +54,11 @@ fun PortoFitNavHost() {
             LoginScreen(
                 onBack = { if (entry.isResumed()) navController.navigateUp() },
                 onRegisterClick = {
-                    // O registo substitui o login na pilha: voltar regressa à pesquisa.
+                    // O registo substitui o login na pilha: voltar regressa ao ecrã que abriu o login.
                     if (entry.isResumed()) navController.navigate(Routes.REGISTER) { popUpTo(Routes.LOGIN) { inclusive = true } }
                 },
-                onDone = { navController.popBackStack(Routes.SEARCH, inclusive = false) },
+                // Regressa ao ecrã que abriu o login (pesquisa ou perfil público); só uma vez.
+                onDone = { if (navController.currentBackStackEntry == entry) navController.popBackStack() },
             )
         }
         composable(
@@ -62,6 +68,21 @@ fun PortoFitNavHost() {
             PublicProfileScreen(
                 onBack = { if (entry.isResumed()) navController.navigateUp() },
                 onEditOwnProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
+                // Depois de entrar, o login regressa a este perfil; seguir exige novo toque.
+                onLoginRequired = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+                onOpenList = { userId, kind -> if (entry.isResumed()) navController.navigate(Routes.followList(userId, kind)) },
+            )
+        }
+        composable(
+            route = Routes.FOLLOW_LIST,
+            arguments = listOf(
+                navArgument(FollowListViewModel.USER_ID_ARG) { type = NavType.StringType },
+                navArgument(FollowListViewModel.KIND_ARG) { type = NavType.StringType },
+            ),
+        ) { entry ->
+            FollowListScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onPersonClick = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
             )
         }
         composable(Routes.PROFILE) { entry ->
@@ -70,7 +91,8 @@ fun PortoFitNavHost() {
         composable(Routes.REGISTER) { entry ->
             RegisterScreen(
                 onBack = { if (entry.isResumed()) navController.navigateUp() },
-                onDone = { navController.popBackStack(Routes.SEARCH, inclusive = false) },
+                // Regressa ao ecrã que abriu o login (pesquisa ou perfil público); só uma vez.
+                onDone = { if (navController.currentBackStackEntry == entry) navController.popBackStack() },
             )
         }
         composable(

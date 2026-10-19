@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -22,11 +24,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,10 +43,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.portofit.R
 import com.example.portofit.data.repository.DataError
+import com.example.portofit.data.repository.FollowError
 import com.example.portofit.data.repository.UserSummary
 import com.example.portofit.ui.components.ErrorMessage
 import com.example.portofit.ui.components.LoadingIndicator
@@ -152,15 +159,36 @@ private fun PersonCard(person: UserSummary, onClick: () -> Unit) {
 fun PublicProfileScreen(
     onBack: () -> Unit,
     onEditOwnProfile: () -> Unit,
+    onLoginRequired: () -> Unit,
+    onOpenList: (userId: String, kind: FollowListKind) -> Unit,
     viewModel: PublicProfileViewModel = viewModel(factory = PublicProfileViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    PublicProfileContent(state, onBack, viewModel::retry, onEditOwnProfile)
+    // Ao voltar de outro perfil, de uma lista ou do login, a relação e as contagens são atualizadas.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResumed() }
+    PublicProfileContent(
+        state = state,
+        onBack = onBack,
+        onRetry = viewModel::retry,
+        onEditOwnProfile = onEditOwnProfile,
+        // Visitante: vai para o login; ao regressar, seguir exige um novo toque.
+        onFollowClick = { if (state.followButton == FollowButton.LOGIN_REQUIRED) onLoginRequired() else viewModel.toggleFollow() },
+        onRefreshRelation = viewModel::refreshRelation,
+        onOpenList = { kind -> state.profile?.let { onOpenList(it.userId, kind) } },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun PublicProfileContent(state: PublicProfileUiState, onBack: () -> Unit, onRetry: () -> Unit, onEditOwnProfile: () -> Unit) {
+fun PublicProfileContent(
+    state: PublicProfileUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onEditOwnProfile: () -> Unit,
+    onFollowClick: () -> Unit,
+    onRefreshRelation: () -> Unit,
+    onOpenList: (FollowListKind) -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -189,9 +217,19 @@ fun PublicProfileContent(state: PublicProfileUiState, onBack: () -> Unit, onRetr
             ) {
                 // Só campos públicos: username, descrição e interesses (nunca email, mesmo no próprio perfil).
                 Text("@${load.profile.username}", style = MaterialTheme.typography.headlineSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val followers = load.profile.followersCount.toInt()
+                    TextButton(onClick = { onOpenList(FollowListKind.FOLLOWERS) }) {
+                        Text(pluralStringResource(R.plurals.followers_count, followers, followers))
+                    }
+                    TextButton(onClick = { onOpenList(FollowListKind.FOLLOWING) }) {
+                        Text(stringResource(R.string.following_count, load.profile.followingCount.toInt()))
+                    }
+                }
                 if (state.isOwnProfile) {
                     OutlinedButton(onClick = onEditOwnProfile) { Text(stringResource(R.string.public_profile_edit_own)) }
                 }
+                FollowSection(state, onFollowClick, onRefreshRelation)
                 Text(
                     load.profile.description ?: stringResource(R.string.public_profile_no_description),
                     style = MaterialTheme.typography.bodyLarge,
@@ -224,6 +262,136 @@ fun PublicProfileContent(state: PublicProfileUiState, onBack: () -> Unit, onRetr
             }
         }
     }
+}
+
+/** Seguir / Deixar de seguir conforme a relação confirmada pelo servidor; nada no próprio perfil. */
+@Composable
+private fun FollowSection(state: PublicProfileUiState, onFollowClick: () -> Unit, onRefreshRelation: () -> Unit) {
+    val inProgress = state.followAction == FollowAction.InProgress
+    when (state.followButton) {
+        FollowButton.HIDDEN -> return
+        FollowButton.UNCONFIRMED -> {
+            Column {
+                Text(stringResource(R.string.follow_relation_unconfirmed), style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onRefreshRelation) { Text(stringResource(R.string.retry)) }
+            }
+            return
+        }
+        FollowButton.UNFOLLOW -> OutlinedButton(onClick = onFollowClick, enabled = !inProgress) {
+            Text(stringResource(R.string.follow_unfollow))
+        }
+        FollowButton.FOLLOW, FollowButton.LOGIN_REQUIRED -> Button(onClick = onFollowClick, enabled = !inProgress) {
+            Text(stringResource(R.string.follow_follow))
+        }
+    }
+    if (state.followButton == FollowButton.LOGIN_REQUIRED) {
+        Text(
+            stringResource(R.string.follow_login_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    when (val action = state.followAction) {
+        FollowAction.InProgress -> LinearProgressIndicator(Modifier.fillMaxWidth())
+        is FollowAction.Failed -> Text(
+            stringResource(followErrorMessage(action.error)),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        FollowAction.ResultUnconfirmed -> Column {
+            Text(
+                stringResource(R.string.follow_result_unconfirmed),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = onRefreshRelation) { Text(stringResource(R.string.follow_refresh)) }
+        }
+        FollowAction.Idle -> Unit
+    }
+}
+
+@Composable
+fun FollowListScreen(
+    onBack: () -> Unit,
+    onPersonClick: (String) -> Unit,
+    viewModel: FollowListViewModel = viewModel(factory = FollowListViewModel.Factory),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    FollowListContent(viewModel.kind, state, onBack, viewModel::retry, viewModel::loadMore, onPersonClick)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FollowListContent(
+    kind: FollowListKind,
+    state: FollowListState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
+    onPersonClick: (String) -> Unit,
+) {
+    val followers = kind == FollowListKind.FOLLOWERS
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(if (followers) R.string.follow_list_followers else R.string.follow_list_following)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.navigate_back))
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when (state) {
+                FollowListState.Loading -> item(key = "loading") { LoadingIndicator() }
+                is FollowListState.Error -> item(key = "error") {
+                    ErrorMessage(stringResource(peopleErrorMessage(state.error, profile = true)), onRetry)
+                }
+                is FollowListState.Loaded -> {
+                    if (state.people.isEmpty()) {
+                        item(key = "empty") {
+                            Text(
+                                stringResource(if (followers) R.string.follow_list_followers_empty else R.string.follow_list_following_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    items(state.people, key = { "follow-${it.userId}" }) { person -> PersonCard(person) { onPersonClick(person.userId) } }
+                    item(key = "footer") {
+                        when {
+                            state.isLoadingMore -> LoadingIndicator()
+                            state.loadMoreError != null -> ErrorMessage(
+                                stringResource(R.string.people_load_more_error) + "\n" + stringResource(peopleErrorMessage(state.loadMoreError)),
+                                onRetry = onLoadMore,
+                            )
+                            state.hasMore -> OutlinedButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.load_more))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@StringRes
+private fun followErrorMessage(error: FollowError): Int = when (error) {
+    FollowError.NETWORK -> R.string.follow_error_network
+    FollowError.SERVER -> R.string.error_auth_server
+    FollowError.SESSION_ENDED -> R.string.follow_error_session_ended
+    FollowError.SESSION_UNVERIFIED -> R.string.profile_error_session_unverified
+    FollowError.NOT_FOUND -> R.string.public_profile_not_found
+    FollowError.CANNOT_FOLLOW_SELF -> R.string.follow_error_self
+    FollowError.NOT_CONFIGURED -> R.string.error_auth_not_configured
+    FollowError.UNEXPECTED -> R.string.error_unexpected
 }
 
 @StringRes

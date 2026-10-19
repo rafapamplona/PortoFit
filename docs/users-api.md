@@ -519,6 +519,8 @@ Etapa 5 (backend), `backend/users-service`. Operação em [infraestrutura.md](in
 
 **Seguir (implementado depois, migração `V2__follows.sql`):** `PUT`/`DELETE /users/{userId}/follow` (idempotentes, `204`; `CANNOT_FOLLOW_SELF`; `404` para utilizador inexistente), `GET /users/{userId}/followers` e `/following` (públicos, paginados, relação mais antiga primeiro e desempate pelo `userId`, só `userId`, `username`, `description` e `since`), `followersCount`/`followingCount` em `GET /me` e no perfil público, `followedByMe` como descrito em §3.8. Unicidade garantida pela chave primária `(follower_id, followed_id)` e `INSERT … ON CONFLICT DO NOTHING`; seguir-se a si próprio também é impedido por uma restrição na base de dados.
 
+Na app: botão Seguir / Deixar de seguir, contagens e listas, ver [app-android.md §13](app-android.md#13-seguir-utilizadores-e-listas-de-seguidoresseguidos-etapa-5-continuação).
+
 **Ainda não implementado:** `GET /internal/users/{userId}/feed-context` (feeds) e os eventos de "novo seguidor" (notificações, etapa 10).
 
 **Notas da implementação**

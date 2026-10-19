@@ -73,9 +73,9 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
         usersUrl?.let { NetworkProfileRepository(retrofit(it, usersHttpClient).create(ProfileApi::class.java), sessionManager, json) }
             ?: UnconfiguredProfileRepository()
 
-    /** Pesquisa de pessoas e perfis públicos: pedidos sem token. */
+    /** Pessoas: pesquisa, perfis e listas públicos; com sessão, o perfil inclui a relação e é possível seguir. */
     val peopleRepository: PeopleRepository =
-        usersUrl?.let { NetworkPeopleRepository(retrofit(it, usersHttpClient).create(PeopleApi::class.java)) }
+        usersUrl?.let { NetworkPeopleRepository(retrofit(it, usersHttpClient).create(PeopleApi::class.java), sessionManager, json) }
             ?: UnconfiguredPeopleRepository()
 
     private fun retrofit(baseUrl: String, client: OkHttpClient) = Retrofit.Builder()

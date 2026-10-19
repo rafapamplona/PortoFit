@@ -350,3 +350,77 @@ Sem sessão. A pesquisa tem uma escolha **Locais | Pessoas** (botões segmentado
 | Reiniciar o serviço + **Tentar novamente** | `@pamplona` de novo; três serviços saudáveis no fim |
 
 Não verificado na interface (coberto pelos testes automáticos): "Editar o meu perfil" no próprio perfil com sessão, e interesses com nomes alternativos num perfil público (a conta `pamplona` não tem interesses e não foi alterada; não foi criada conta temporária nesta etapa).
+
+## 13. Seguir utilizadores e listas de seguidores/seguidos (etapa 5, continuação)
+
+Contrato: [users-api.md](users-api.md) §3.8–3.10. Sem feed nem notificações (etapas seguintes).
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `PeopleApi` | `data/remote/PeopleApi.kt` | perfil público com token opcional; `PUT`/`DELETE /users/{userId}/follow`; `GET …/followers` e `…/following` |
+| `NetworkPeopleRepository` | `data/repository/PeopleRepository.kt` | com sessão, pede o perfil com o access token (para `followedByMe`); `setFollowing` com renovação única após `401`; erros como `FollowError` |
+| `PublicProfileViewModel` | `ui/feature/people/PeopleViewModels.kt` | contagens, relação e estado do botão (`FollowButton`), ação em curso/falhada/por confirmar (`FollowAction`) |
+| `FollowListViewModel` | idem | lista paginada de seguidores ou seguidos (20 por página) |
+| Ecrãs | `ui/feature/people/PeopleScreens.kt` | botão e contagens no perfil; `FollowListScreen` (`user/{userId}/list/{FOLLOWERS|FOLLOWING}`) |
+
+### Regras
+
+- **Relação só a confirmada pelo servidor.** "Seguir" / "Deixar de seguir" depende de `followedByMe` devolvido pelo servidor. Se, com sessão, a resposta não trouxer a relação, não há botão: aparece "Não foi possível confirmar se segues esta pessoa." + **Tentar novamente**.
+- **Depois de seguir/deixar de seguir com sucesso** (o servidor responde `204` sem corpo), o perfil é pedido de novo para confirmar a relação e as contagens. Se esse pedido falhar, mantém-se o último estado confirmado com "O pedido foi aceite, mas não foi possível confirmar o resultado…" + **Atualizar**. O novo estado nunca é inventado.
+- **Falha** (rede, servidor, sessão): o botão e as contagens ficam como estavam, com mensagem, e um novo toque repete a ação (`PUT`/`DELETE` são idempotentes).
+- **Sem pedidos duplicados:** enquanto a ação está em curso o botão fica desativado e o ViewModel ignora novos toques.
+- **Visitante:** vê as contagens e "Seguir" com "Entra na tua conta para seguir esta pessoa.". O toque abre o login sem pedir nada ao servidor. Depois de entrar (ou de criar conta a partir do login), a app regressa ao perfil, que é recarregado com a sessão; seguir exige um **novo toque**.
+- **Próprio perfil:** sem botão de seguir (continua "Editar o meu perfil").
+- **Estado atualizado ao regressar:** ao voltar a um perfil (de outro perfil, de uma lista ou do login) a relação e as contagens são pedidas de novo sem esconder o conteúdo. Uma falha nessa atualização mantém o perfil. Respostas de pedidos antigos são ignoradas.
+- **Listas:** tocar nas contagens abre "Seguidores" ou "A seguir" (públicas), com "Carregar mais", lista vazia, erro e **Tentar novamente**. Abrir um perfil a partir da lista e voltar mantém a lista (estado no ViewModel da entrada de navegação).
+- **Login regressa a quem o abriu:** `onDone` do login e do registo faz `popBackStack()` (o registo substitui o login na pilha). Assim, a partir da pesquisa volta-se à pesquisa e a partir de um perfil volta-se ao perfil.
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest`: **100 testes, 0 falhas**, executados depois da última alteração ao código. Novos:
+
+- `PeopleViewModelsTest` (+13):
+  - visitante com contagens, cujo toque não faz pedidos;
+  - seguir e deixar de seguir conforme a relação confirmada (contagens atualizadas);
+  - toques repetidos durante o pedido resultam num só pedido;
+  - falha que mantém o estado e permite repetir;
+  - ação aceite sem confirmação, seguida de "Atualizar";
+  - sem botão no próprio perfil nem com a relação por confirmar;
+  - recarga depois de entrar e de terminar sessão, sem seguir automaticamente;
+  - atualização ao regressar ao ecrã (uma falha mantém o perfil);
+  - resposta antiga do perfil ignorada;
+  - listas: paginação até ao fim, pedido certo para seguidos, erro e nova tentativa, falha ao carregar mais que mantém a lista, resposta antiga ignorada.
+
+  O teste de privacidade passou a admitir as contagens e `followedByMe`, e continua a excluir o email.
+- `NetworkPeopleRepositoryTest` (7):
+  - visitante sem cabeçalho `Authorization`;
+  - com sessão envia o token, e um `401` renova uma vez e repete;
+  - seguir sem sessão não faz pedidos;
+  - `PUT`/`DELETE` com token;
+  - `401` ao seguir renova e repete;
+  - erros classificados (`CANNOT_FOLLOW_SELF`, `404`, `503`, rede);
+  - listas públicas convertidas em resumos.
+
+`assembleDebug` e `lintDebug` concluídos, sem avisos novos (os existentes são versões mais recentes e cores não usadas, não alterados).
+
+### Verificação no emulador (2026-10-19, pelo assistente)
+
+Duas contas temporárias criadas por HTTP (A e B, palavras-passe aleatórias não mostradas). B tem descrição e interesses `boxe`, `corrida`. A conta `pamplona` não foi usada nem alterada. No fim, as duas contas foram apagadas (as relações apagam-se em cascata) e só `pamplona` ficou. O volume foi preservado e os três serviços ficaram saudáveis.
+
+| Verificação | Resultado |
+|---|---|
+| Visitante abre o perfil de B | "0 seguidores", "0 a seguir", **Seguir** + "Entra na tua conta para seguir esta pessoa." |
+| Visitante toca **Seguir** | abre "Entrar"; nenhum pedido de seguir |
+| Entrar como A | regressa ao perfil de B: **Seguir**, 0 seguidores (sem ação automática), sem o aviso de visitante |
+| Toque em **Seguir** | "1 seguidor", **Deixar de seguir**; no servidor, seguidores de B = [A] |
+| "1 seguidor" → lista → A → Voltar → Voltar | lista "Seguidores" com A; perfil de A com "Editar o meu perfil" e sem botão de seguir; voltar mantém a lista e depois o perfil de B |
+| B → seguidores → A → "1 a seguir" → B (2.ª vez) → **Deixar de seguir** → voltar 4× | o perfil original de B atualizou ao regressar: **Seguir**, 0 seguidores |
+| Lista de seguidores vazia | "Ainda ninguém segue esta pessoa." |
+| "Editar o meu perfil" (com sessão) | abre "O meu perfil" (descrição e interesses) |
+| `catalog-service` parado, perfil de B | "Boxe", "Corrida" + nota de nomes alternativos; **Seguir** funciona ("1 seguidor") |
+| `users-service` parado, **Deixar de seguir** | "Sem ligação ao serviço de contas. Nada foi alterado; tenta novamente."; mantém "1 seguidor" e **Deixar de seguir** |
+| Serviço reiniciado, novo toque | **Seguir**, 0 seguidores (a sessão sobreviveu ao reinício) |
+
+Não verificado na interface (coberto pelos testes automáticos): duplo toque rápido, resultado aceite mas não confirmado, relação por confirmar e "Carregar mais" nas listas (eram precisas mais de 20 contas).
