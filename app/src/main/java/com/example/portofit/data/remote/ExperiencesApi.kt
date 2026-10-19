@@ -11,13 +11,15 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * experiences-service, etapa E1 (docs/experiences-api.md §4). Consultas públicas (sem token); publicar,
- * editar e eliminar com o access token. Parâmetros a null não são enviados.
+ * experiences-service (docs/experiences-api.md §4, §12, §13). Consultas públicas; o detalhe aceita um token
+ * opcional (para `likedByMe`). Publicar, editar, eliminar, comentar e gostar com o access token. Parâmetros e
+ * cabeçalhos a null não são enviados.
  */
 interface ExperiencesApi {
 
@@ -31,7 +33,10 @@ interface ExperiencesApi {
     ): PageDto<ExperienceDto>
 
     @GET("api/v1/experiences/{experienceId}")
-    suspend fun get(@Path("experienceId") experienceId: String): ExperienceDto
+    suspend fun get(
+        @Path("experienceId") experienceId: String,
+        @Header("Authorization") authorization: String? = null,
+    ): Response<ExperienceDto>
 
     @POST("api/v1/experiences")
     suspend fun publish(
@@ -61,7 +66,70 @@ interface ExperiencesApi {
         @Header("Authorization") authorization: String,
         @Path("experienceId") experienceId: String,
     ): Response<Unit>
+
+    // --- E3: comentários, gostos e visualizações (§13) ---
+
+    @GET("api/v1/experiences/{experienceId}/comments")
+    suspend fun comments(
+        @Path("experienceId") experienceId: String,
+        @Query("page") page: Int,
+        @Query("size") size: Int,
+    ): PageDto<CommentDto>
+
+    @POST("api/v1/experiences/{experienceId}/comments")
+    suspend fun postComment(
+        @Header("Authorization") authorization: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Path("experienceId") experienceId: String,
+        @Body body: CommentBodyDto,
+    ): Response<CommentDto>
+
+    @PATCH("api/v1/comments/{commentId}")
+    suspend fun editComment(
+        @Header("Authorization") authorization: String,
+        @Path("commentId") commentId: String,
+        @Body body: CommentBodyDto,
+    ): Response<CommentDto>
+
+    @DELETE("api/v1/comments/{commentId}")
+    suspend fun deleteComment(
+        @Header("Authorization") authorization: String,
+        @Path("commentId") commentId: String,
+    ): Response<Unit>
+
+    @PUT("api/v1/experiences/{experienceId}/like")
+    suspend fun like(
+        @Header("Authorization") authorization: String,
+        @Path("experienceId") experienceId: String,
+    ): Response<Unit>
+
+    @DELETE("api/v1/experiences/{experienceId}/like")
+    suspend fun unlike(
+        @Header("Authorization") authorization: String,
+        @Path("experienceId") experienceId: String,
+    ): Response<Unit>
+
+    /** Com sessão, o token; sem sessão, a chave aleatória da instalação. O servidor elimina as repetições. */
+    @POST("api/v1/experiences/{experienceId}/views")
+    suspend fun registerView(
+        @Path("experienceId") experienceId: String,
+        @Header("Authorization") authorization: String?,
+        @Header("X-Viewer-Key") viewerKey: String?,
+    ): Response<Unit>
 }
+
+@Serializable
+data class CommentDto(
+    val id: String,
+    val experienceId: String,
+    val author: ExperienceAuthorDto,
+    val text: String,
+    val createdAt: String,
+    val editedAt: String? = null,
+)
+
+@Serializable
+data class CommentBodyDto(val text: String)
 
 @Serializable
 data class ExperienceDto(
@@ -75,6 +143,10 @@ data class ExperienceDto(
     val createdAt: String,
     val editedAt: String? = null,
     val photo: ExperiencePhotoDto? = null,
+    // E3: ausentes num servidor anterior (ficam a 0); likedByMe ausente = relação não consultada.
+    val likesCount: Long = 0,
+    val commentsCount: Long = 0,
+    val likedByMe: Boolean? = null,
 )
 
 @Serializable

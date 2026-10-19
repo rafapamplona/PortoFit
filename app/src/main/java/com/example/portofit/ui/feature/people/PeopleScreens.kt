@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.portofit.R
 import com.example.portofit.data.repository.DataError
 import com.example.portofit.ui.feature.experience.ExperienceListSection
+import com.example.portofit.ui.feature.experience.ExperienceSortSelector
 import com.example.portofit.ui.feature.profile.PublicationsSection
 import com.example.portofit.data.repository.FollowError
 import com.example.portofit.data.repository.UserSummary
@@ -168,6 +169,7 @@ fun PublicProfileScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val publications by viewModel.publications.collectAsStateWithLifecycle()
+    val publicationSort by viewModel.publicationSort.collectAsStateWithLifecycle()
     // Ao voltar de outro perfil, de uma lista ou do login, a relação e as contagens são atualizadas.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResumed() }
     PublicProfileContent(
@@ -184,6 +186,8 @@ fun PublicProfileScreen(
             onOpen = { onOpenExperience(it.id) },
             onRetry = viewModel::retryPublications,
             onLoadMore = viewModel::loadMorePublications,
+            sort = publicationSort,
+            onSortChange = viewModel::setPublicationSort,
         ),
     )
 }
@@ -265,6 +269,7 @@ fun PublicProfileContent(
                 HorizontalDivider()
                 // Publicações (experiences-service): uma falha só afeta esta secção.
                 Text(stringResource(R.string.profile_posts), style = MaterialTheme.typography.titleMedium)
+                ExperienceSortSelector(publications.sort, publications.onSortChange)
                 ExperienceListSection(
                     state = publications.state,
                     showPlace = true,

@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.portofit.PortoFitApplication
 import com.example.portofit.data.auth.SessionState
 import com.example.portofit.data.auth.SessionStatus
+import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.data.model.Sport
 import com.example.portofit.data.repository.CatalogRepository
 import com.example.portofit.data.repository.DataError
@@ -240,14 +241,21 @@ class PublicProfileViewModel(
     private val session: StateFlow<SessionState>,
     experiences: ExperiencesRepository,
     changes: ExperienceChanges,
-    savedState: SavedStateHandle,
+    private val savedState: SavedStateHandle,
 ) : ViewModel() {
 
     private val userId: String = checkNotNull(savedState[USER_ID_ARG]) { "Falta o argumento $USER_ID_ARG" }
 
     /** Publicações da pessoa (experiences-service): independentes do perfil (users-service). */
-    private val publicationList = ExperienceListLoader(viewModelScope, experiences, authorId = userId)
+    private val publicationList = ExperienceListLoader(
+        viewModelScope,
+        experiences,
+        authorId = userId,
+        initialSort = savedState.get<String>(KEY_PUBLICATION_SORT)?.let { name -> ExperienceSort.entries.firstOrNull { it.name == name } } ?: ExperienceSort.RECENT,
+        counts = changes.counts,
+    )
     val publications: StateFlow<ExperienceListState> = publicationList.state
+    val publicationSort: StateFlow<ExperienceSort> = publicationList.sort
 
     private val content = MutableStateFlow(PublicProfileUiState())
 
@@ -340,6 +348,7 @@ class PublicProfileViewModel(
 
     companion object {
         const val USER_ID_ARG = "userId"
+        const val KEY_PUBLICATION_SORT = "person.publicationSort"
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -357,6 +366,12 @@ class PublicProfileViewModel(
     }
 
     fun retryPublications() = publicationList.load()
+
+    /** Recomeça na primeira página com a nova ordenação (guardada para a rotação). */
+    fun setPublicationSort(sort: ExperienceSort) {
+        savedState[KEY_PUBLICATION_SORT] = sort.name
+        publicationList.setSort(sort)
+    }
 
     fun loadMorePublications() = publicationList.loadMore()
 }

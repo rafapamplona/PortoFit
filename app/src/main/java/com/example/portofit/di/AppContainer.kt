@@ -18,6 +18,7 @@ import com.example.portofit.data.repository.CatalogRepository
 import com.example.portofit.data.repository.ExperienceChanges
 import com.example.portofit.data.repository.ExperiencesRepository
 import com.example.portofit.data.repository.NetworkExperiencesRepository
+import com.example.portofit.data.repository.PreferencesViewerKeys
 import com.example.portofit.data.repository.UnconfiguredExperiencesRepository
 import com.example.portofit.data.repository.NetworkCatalogRepository
 import com.example.portofit.data.repository.NetworkPeopleRepository
@@ -87,10 +88,20 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
         usersUrl?.let { NetworkPeopleRepository(retrofit(it, usersHttpClient).create(PeopleApi::class.java), sessionManager, json) }
             ?: UnconfiguredPeopleRepository()
 
-    /** Experiências (docs/experiences-api.md): consulta pública; publicar, editar e eliminar com sessão. */
+    /**
+     * Experiências (docs/experiences-api.md): consulta pública; publicar, editar, eliminar, comentar e gostar com
+     * sessão; visualizações com sessão ou com a chave aleatória da instalação.
+     */
     val experiencesRepository: ExperiencesRepository =
         experiencesBaseUrl.takeIf { it.isNotBlank() }
-            ?.let { NetworkExperiencesRepository(retrofit(it, experiencesHttpClient).create(ExperiencesApi::class.java), sessionManager, json) }
+            ?.let {
+                NetworkExperiencesRepository(
+                    retrofit(it, experiencesHttpClient).create(ExperiencesApi::class.java),
+                    sessionManager,
+                    json,
+                    PreferencesViewerKeys(context),
+                )
+            }
             ?: UnconfiguredExperiencesRepository()
 
     /** Avisos de publicação/edição/eliminação, para atualizar listas e avaliações noutros ecrãs. */

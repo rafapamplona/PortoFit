@@ -33,8 +33,10 @@ object HttpClients {
 
     /**
      * experiences-service: pool própria de ligações curtas (o servidor fecha-as aos 10 s, como o users-service).
-     * As novas tentativas automáticas ficam ligadas: as leituras, o PATCH e o DELETE são idempotentes, e a
-     * publicação leva sempre uma Idempotency-Key, pelo que uma repetição nunca cria uma segunda experiência.
+     * As novas tentativas automáticas (só de ligação, antes de haver resposta) ficam ligadas: as leituras, o PATCH,
+     * o DELETE e os gostos (PUT/DELETE) são idempotentes; a publicação e os comentários levam sempre uma
+     * Idempotency-Key, pelo que uma repetição nunca cria um duplicado; e uma visualização repetida no mesmo período
+     * não volta a contar no servidor. A app nunca repete estes POST por iniciativa própria.
      */
     fun experiences(base: OkHttpClient): OkHttpClient = base.newBuilder()
         .connectionPool(ConnectionPool(2, USERS_IDLE_SECONDS, TimeUnit.SECONDS))

@@ -2,10 +2,13 @@ package com.example.portofit.data.repository
 
 import com.example.portofit.data.auth.SessionManager
 import com.example.portofit.data.auth.SessionState
+import com.example.portofit.data.model.Comment
 import com.example.portofit.data.model.Experience
 import com.example.portofit.data.model.ExperiencePhoto
 import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.data.model.Page
+import com.example.portofit.data.remote.CommentBodyDto
+import com.example.portofit.data.remote.CommentDto
 import com.example.portofit.data.remote.ExperienceDto
 import com.example.portofit.data.remote.ExperiencesApi
 import com.example.portofit.data.remote.ProblemDto
@@ -101,6 +104,38 @@ sealed interface PublishOutcome {
 
 enum class MutationError { NETWORK, SERVER, SESSION_ENDED, SESSION_UNVERIFIED, FORBIDDEN, NOT_FOUND, VALIDATION, MEDIA_NOT_USABLE, NOT_CONFIGURED, UNEXPECTED }
 
+/** Por que motivo um comentário **não** foi publicado (nada ficou gravado). */
+enum class CommentRejection { VALIDATION, EXPERIENCE_GONE, TOO_MANY, SESSION_ENDED, SESSION_UNVERIFIED, NOT_CONFIGURED, UNEXPECTED }
+
+/** Resultado de publicar um comentário (mesma política da publicação, docs/experiences-api.md §13.1). */
+sealed interface CommentOutcome {
+    /** 201, ou 200 com `Idempotent-Replayed` ([replayed]). */
+    data class Posted(val comment: Comment, val replayed: Boolean) : CommentOutcome
+
+    /** Resultado desconhecido: pode ter sido publicado. Só é seguro repetir com a mesma chave e o mesmo texto. */
+    data object Unconfirmed : CommentOutcome
+
+    data class Rejected(val reason: CommentRejection, val retryAfterSeconds: Long? = null) : CommentOutcome
+
+    /** 409 DIFFERENT_CONTENT: esta chave já tinha publicado outro texto. */
+    data class AlreadyPosted(val commentId: String?) : CommentOutcome
+
+    /** 409 COMMENT_DELETED: foi publicado e entretanto eliminado. */
+    data object PostedThenDeleted : CommentOutcome
+}
+
+/**
+ * Falha de um gosto. [UNCONFIRMED]: sem resposta ou erro do servidor, não se sabe se mudou; o estado mostrado
+ * continua o último confirmado e pode ser reconciliado com uma nova leitura.
+ */
+enum class LikeError { UNCONFIRMED, CANNOT_LIKE_OWN, EXPERIENCE_GONE, TOO_MANY, SESSION_ENDED, SESSION_UNVERIFIED, NOT_CONFIGURED, UNEXPECTED }
+
+sealed interface LikeResult {
+    /** 204: o servidor confirmou o estado pedido. */
+    data object Confirmed : LikeResult
+    data class Failed(val error: LikeError, val retryAfterSeconds: Long? = null) : LikeResult
+}
+
 sealed interface MutationResult<out T> {
     data class Success<T>(val value: T) : MutationResult<T>
     data class Failure(val error: MutationError) : MutationResult<Nothing>
@@ -122,6 +157,27 @@ interface ExperiencesRepository {
     suspend fun uploadPhoto(file: File): UploadOutcome
 
     suspend fun delete(experienceId: String): MutationResult<Unit>
+
+    // --- E3 (docs/experiences-api.md §13) ---
+
+    /** Comentários ativos, mais antigos primeiro. NOT_FOUND = a experiência já não existe. */
+    suspend fun comments(experienceId: String, page: Int, pageSize: Int): DataResult<Page<Comment>>
+
+    /** [idempotencyKey] identifica a tentativa lógica; [text] já normalizado. */
+    suspend fun postComment(idempotencyKey: String, experienceId: String, text: String): CommentOutcome
+
+    suspend fun editComment(commentId: String, text: String): MutationResult<Comment>
+
+    suspend fun deleteComment(commentId: String): MutationResult<Unit>
+
+    /** Gostar (true) ou retirar o gosto (false); idempotente no servidor. */
+    suspend fun setLiked(experienceId: String, liked: Boolean): LikeResult
+
+    /**
+     * Regista uma visualização: com sessão, pelo token; sem sessão, pela chave da instalação. Um único pedido,
+     * sem novas tentativas; true se o servidor respondeu 204 (conte ou não).
+     */
+    suspend fun registerView(experienceId: String): Boolean
 }
 
 /**
@@ -132,12 +188,25 @@ class NetworkExperiencesRepository(
     private val api: ExperiencesApi,
     private val session: SessionManager,
     private val json: Json,
+    private val viewerKeys: ViewerKeys,
 ) : ExperiencesRepository {
 
     override suspend fun list(placeId: String?, authorId: String?, sort: ExperienceSort, page: Int, pageSize: Int) =
         apiCall { api.list(placeId, authorId, sort.apiValue, page, pageSize).toModel { it.toModel() } }
 
-    override suspend fun get(experienceId: String) = apiCall { api.get(experienceId).toModel() }
+    /**
+     * Com sessão, pedido com o token (para `likedByMe`); um 401 renova uma vez. Sem token disponível, pedido como
+     * visitante: a relação fica por confirmar (null), nunca false.
+     */
+    override suspend fun get(experienceId: String) = apiCall {
+        val token = if (session.state.value is SessionState.SignedIn) session.accessToken() else null
+        var response = api.get(experienceId, token?.let { "Bearer $it" })
+        if (response.code() == 401 && token != null) {
+            val fresh = session.accessTokenAfterUnauthorized(token)
+            response = api.get(experienceId, fresh?.let { "Bearer $it" })
+        }
+        response.bodyOrThrow().toModel()
+    }
 
     override suspend fun publish(idempotencyKey: String, draft: ExperienceDraft): PublishOutcome {
         val body = PublishExperienceDto(draft.placeId, draft.offeringId, draft.text, draft.stars, draft.mediaId)
@@ -205,6 +274,83 @@ class NetworkExperiencesRepository(
 
     override suspend fun delete(experienceId: String): MutationResult<Unit> = mutation({ api.delete(it, experienceId) }) { }
 
+    override suspend fun comments(experienceId: String, page: Int, pageSize: Int) =
+        apiCall { api.comments(experienceId, page, pageSize).toModel { it.toModel() } }
+
+    override suspend fun postComment(idempotencyKey: String, experienceId: String, text: String): CommentOutcome {
+        val body = CommentBodyDto(text)
+        val response = try {
+            authorized { api.postComment(it, idempotencyKey, experienceId, body) }
+                ?: return CommentOutcome.Rejected(if (session.state.value is SessionState.SignedOut) CommentRejection.SESSION_ENDED else CommentRejection.SESSION_UNVERIFIED)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            // Pode ter chegado ao servidor: só a repetição com a mesma chave é segura.
+            return CommentOutcome.Unconfirmed
+        }
+        if (response.isSuccessful) {
+            val comment = response.body()?.let { runCatching { it.toModel() }.getOrNull() } ?: return CommentOutcome.Unconfirmed
+            return CommentOutcome.Posted(comment, replayed = response.code() == 200 || response.headers()["Idempotent-Replayed"] == "true")
+        }
+        val problem = problem(response)
+        return when {
+            response.code() == 409 && problem?.reason == "COMMENT_DELETED" -> CommentOutcome.PostedThenDeleted
+            response.code() == 409 -> CommentOutcome.AlreadyPosted(problem?.commentId)
+            response.code() == 401 -> CommentOutcome.Rejected(CommentRejection.SESSION_ENDED)
+            response.code() == 404 -> CommentOutcome.Rejected(CommentRejection.EXPERIENCE_GONE)
+            response.code() == 429 -> CommentOutcome.Rejected(CommentRejection.TOO_MANY, response.headers()["Retry-After"]?.toLongOrNull())
+            response.code() == 400 || response.code() == 413 -> CommentOutcome.Rejected(CommentRejection.VALIDATION)
+            // O servidor pode ter gravado antes de falhar.
+            response.code() in 500..599 -> CommentOutcome.Unconfirmed
+            else -> CommentOutcome.Rejected(CommentRejection.UNEXPECTED)
+        }
+    }
+
+    override suspend fun editComment(commentId: String, text: String): MutationResult<Comment> =
+        mutation({ api.editComment(it, commentId, CommentBodyDto(text)) }) { it.body()!!.toModel() }
+
+    override suspend fun deleteComment(commentId: String): MutationResult<Unit> = mutation({ api.deleteComment(it, commentId) }) { }
+
+    override suspend fun setLiked(experienceId: String, liked: Boolean): LikeResult {
+        val response = try {
+            authorized { if (liked) api.like(it, experienceId) else api.unlike(it, experienceId) }
+                ?: return LikeResult.Failed(if (session.state.value is SessionState.SignedOut) LikeError.SESSION_ENDED else LikeError.SESSION_UNVERIFIED)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            return LikeResult.Failed(LikeError.UNCONFIRMED)
+        }
+        if (response.isSuccessful) return LikeResult.Confirmed
+        return LikeResult.Failed(
+            when {
+                problem(response)?.code == "CANNOT_LIKE_OWN" -> LikeError.CANNOT_LIKE_OWN
+                response.code() == 401 -> LikeError.SESSION_ENDED
+                response.code() == 404 -> LikeError.EXPERIENCE_GONE
+                response.code() == 429 -> LikeError.TOO_MANY
+                response.code() in 500..599 -> LikeError.UNCONFIRMED
+                else -> LikeError.UNEXPECTED
+            },
+            retryAfterSeconds = response.headers()["Retry-After"]?.toLongOrNull()?.takeIf { response.code() == 429 },
+        )
+    }
+
+    override suspend fun registerView(experienceId: String): Boolean = try {
+        val response = if (session.state.value is SessionState.SignedIn) {
+            // Com sessão conta a pessoa; sem token disponível agora, não se regista (nem como visitante).
+            val token = session.accessToken() ?: return false
+            api.registerView(experienceId, "Bearer $token", null)
+        } else {
+            api.registerView(experienceId, null, viewerKeys.key())
+        }
+        response.isSuccessful
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        false
+    } catch (e: RuntimeException) {
+        false
+    }
+
     private suspend fun <R, T> mutation(call: suspend (String) -> Response<R>, onSuccess: (Response<R>) -> T): MutationResult<T> =
         try {
             val response = authorized(call) ?: return MutationResult.Failure(mutationSessionError())
@@ -249,6 +395,9 @@ class NetworkExperiencesRepository(
 
     private fun problem(response: Response<*>): ProblemDto? =
         runCatching { response.errorBody()?.string()?.let { json.decodeFromString<ProblemDto>(it) } }.getOrNull()
+
+    /** Para o apiCall classificar erros HTTP como nas restantes chamadas públicas. */
+    private fun <T> Response<T>.bodyOrThrow(): T = if (isSuccessful) body()!! else throw retrofit2.HttpException(this)
 }
 
 fun ExperienceDto.toModel(): Experience = try {
@@ -267,7 +416,16 @@ fun ExperienceDto.toModel(): Experience = try {
         createdAt = Instant.parse(createdAt),
         editedAt = editedAt?.let(Instant::parse),
         photo = photo?.let { ExperiencePhoto(it.mediaId, it.url, it.width, it.height) },
+        likesCount = likesCount,
+        commentsCount = commentsCount,
+        likedByMe = likedByMe,
     )
+} catch (e: DateTimeParseException) {
+    throw SerializationException("Data inválida")
+}
+
+fun CommentDto.toModel(): Comment = try {
+    Comment(id, experienceId, author.userId, author.username, text, Instant.parse(createdAt), editedAt?.let(Instant::parse))
 } catch (e: DateTimeParseException) {
     throw SerializationException("Data inválida")
 }
@@ -280,6 +438,12 @@ class UnconfiguredExperiencesRepository : ExperiencesRepository {
     override suspend fun edit(experienceId: String, text: String?, stars: Int?, photo: PhotoChange) = MutationResult.Failure(MutationError.NOT_CONFIGURED)
     override suspend fun uploadPhoto(file: File) = UploadOutcome.Failed(UploadError.NOT_CONFIGURED)
     override suspend fun delete(experienceId: String) = MutationResult.Failure(MutationError.NOT_CONFIGURED)
+    override suspend fun comments(experienceId: String, page: Int, pageSize: Int) = failure
+    override suspend fun postComment(idempotencyKey: String, experienceId: String, text: String) = CommentOutcome.Rejected(CommentRejection.NOT_CONFIGURED)
+    override suspend fun editComment(commentId: String, text: String) = MutationResult.Failure(MutationError.NOT_CONFIGURED)
+    override suspend fun deleteComment(commentId: String) = MutationResult.Failure(MutationError.NOT_CONFIGURED)
+    override suspend fun setLiked(experienceId: String, liked: Boolean) = LikeResult.Failed(LikeError.NOT_CONFIGURED)
+    override suspend fun registerView(experienceId: String) = false
 }
 
 /** Uma experiência foi publicada, editada ou eliminada: listas e avaliações do local e do autor mudaram. */
@@ -293,7 +457,19 @@ class ExperienceChanges {
     private val _events = MutableSharedFlow<ExperienceChange>(extraBufferCapacity = 16)
     val events: SharedFlow<ExperienceChange> = _events.asSharedFlow()
 
+    private val _counts = MutableSharedFlow<ExperienceCounts>(extraBufferCapacity = 16)
+
+    /** Contagens confirmadas no detalhe (E3): as listas atualizam o item sem recarregar nem perder a posição. */
+    val counts: SharedFlow<ExperienceCounts> = _counts.asSharedFlow()
+
     fun notify(change: ExperienceChange) {
         _events.tryEmit(change)
     }
+
+    fun notifyCounts(counts: ExperienceCounts) {
+        _counts.tryEmit(counts)
+    }
 }
+
+/** Gostos e comentários de uma experiência, tal como o servidor os devolveu. */
+data class ExperienceCounts(val experienceId: String, val likesCount: Long, val commentsCount: Long)

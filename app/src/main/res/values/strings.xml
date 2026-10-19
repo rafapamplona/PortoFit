@@ -277,6 +277,71 @@
     <string name="upload_error_invalid">O servidor não aceitou esta imagem. Escolhe outra.</string>
     <string name="upload_error_too_many">Tens demasiadas fotografias enviadas por usar. Tenta novamente mais tarde.</string>
 
+    <!-- Comentários, gostos e visualizações (E3) -->
+    <string name="experience_sort_likes">Mais gostadas</string>
+    <string name="experience_sort_interactions">Mais interações (gostos e comentários)</string>
+    <plurals name="likes_count">
+        <item quantity="one">%d gosto</item>
+        <item quantity="other">%d gostos</item>
+    </plurals>
+    <plurals name="comments_count">
+        <item quantity="one">%d comentário</item>
+        <item quantity="other">%d comentários</item>
+    </plurals>
+    <string name="like_action">Gostar</string>
+    <string name="unlike_action">Retirar o gosto</string>
+    <string name="like_liked">Gostaste desta experiência.</string>
+    <string name="like_login">Entrar para gostar</string>
+    <string name="like_own">É a tua experiência: os gostos são de outras pessoas.</string>
+    <string name="like_unknown">Não foi possível confirmar se gostaste desta experiência.</string>
+    <string name="like_refresh">Atualizar</string>
+    <string name="like_refresh_failed">Não foi possível atualizar. Mantém-se o último estado confirmado.</string>
+    <string name="like_error_unconfirmed">Não foi possível confirmar o gosto. Toca em «Atualizar» para ver o estado atual.</string>
+    <string name="like_error_own">Não podes gostar da tua própria experiência.</string>
+    <string name="like_error_too_many">Fizeste demasiadas alterações de gostos por agora. Tenta novamente mais tarde.</string>
+    <plurals name="like_error_too_many_minutes">
+        <item quantity="one">Fizeste demasiadas alterações de gostos. Tenta novamente daqui a %d minuto.</item>
+        <item quantity="other">Fizeste demasiadas alterações de gostos. Tenta novamente daqui a %d minutos.</item>
+    </plurals>
+    <string name="like_error_session_ended">A tua sessão terminou. Entra novamente para gostar.</string>
+
+    <string name="comments_title">Comentários</string>
+    <string name="comments_empty">Ainda não há comentários.</string>
+    <string name="comments_unavailable">Os comentários estão temporariamente indisponíveis. A experiência continua visível.</string>
+    <string name="comment_label">Escreve um comentário</string>
+    <string name="comment_counter">%1$d/%2$d caracteres</string>
+    <string name="comment_text_empty">Escreve o texto do comentário.</string>
+    <string name="comment_text_too_long">O comentário pode ter no máximo 1000 caracteres.</string>
+    <string name="comment_post">Comentar</string>
+    <string name="comment_sending">A enviar…</string>
+    <string name="comment_login_required">Entra na tua conta para comentar. O texto fica guardado.</string>
+    <string name="comment_unconfirmed">Não foi possível confirmar se o comentário foi publicado. Toca em «Tentar novamente»: se já tiver sido aceite, não fica duplicado. Até lá, o texto não pode ser alterado.</string>
+    <string name="comment_discard">Descartar esta tentativa</string>
+    <string name="comment_discard_title">Descartar a tentativa?</string>
+    <string name="comment_discard_message">O comentário anterior pode ter sido publicado. Atualiza a lista de comentários antes de enviar de novo, para não ficares com dois.</string>
+    <string name="comment_posted">Comentário publicado.</string>
+    <string name="comment_already">Esta tentativa já tinha sido publicada com outro texto. A lista foi atualizada.</string>
+    <string name="comment_posted_then_deleted">Este comentário tinha sido publicado e foi entretanto eliminado. Podes comentar de novo.</string>
+    <string name="comment_attempt_too_old">Esta tentativa tem mais de 6 dias e já não pode ser repetida com segurança. Confirma na lista se o comentário existe; depois descarta a tentativa.</string>
+    <string name="comment_error_validation">O servidor não aceitou o comentário. Revê o texto e tenta novamente.</string>
+    <string name="comment_error_too_many">Atingiste o limite de comentários por agora. Tenta novamente mais tarde.</string>
+    <plurals name="comment_error_too_many_minutes">
+        <item quantity="one">Atingiste o limite de comentários. Tenta novamente daqui a %d minuto.</item>
+        <item quantity="other">Atingiste o limite de comentários. Tenta novamente daqui a %d minutos.</item>
+    </plurals>
+    <string name="comment_error_session_ended">A tua sessão terminou. Entra novamente para comentar; o texto fica guardado.</string>
+    <string name="comment_edited">editado</string>
+    <string name="comment_by">\@%1$s · %2$s</string>
+    <string name="comment_edit">Editar</string>
+    <string name="comment_delete">Eliminar</string>
+    <string name="comment_save">Guardar</string>
+    <string name="comment_cancel">Cancelar</string>
+    <string name="comment_delete_title">Eliminar este comentário?</string>
+    <string name="comment_delete_message">Deixa de estar visível e de contar nas interações. Esta ação não pode ser desfeita.</string>
+    <string name="comment_gone">Este comentário já não existe.</string>
+    <string name="comment_error_network">Sem ligação ao serviço de experiências. O texto mantém-se; tenta novamente.</string>
+    <string name="comment_error_forbidden">Só o autor pode alterar este comentário.</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

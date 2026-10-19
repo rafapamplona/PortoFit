@@ -1,6 +1,6 @@
 # PortoFit — App Android
 
-> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout e "O meu perfil" (descrição e interesses) no users-service; pesquisa de pessoas e perfis públicos (sem sessão). Sem seguidores, publicações, mapas nem GPS.
+> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–8 — experiências (E1, §14), fotografias (E2, §15) e comentários, gostos e visualizações (E3, §16). Sem feeds, dashboard, mapas nem GPS.
 > Backend: [infraestrutura.md](infraestrutura.md) · Contratos: [catalog-api.md](catalog-api.md), [users-api.md](users-api.md) · Desenho: [arquitetura.md](arquitetura.md)
 
 ## 1. Percurso disponível
@@ -646,3 +646,123 @@ As duas primeiras execuções receberam `503 CATALOG_UNAVAILABLE` (`HttpTimeoutE
 | Remover a fotografia | removida, texto mantido |
 
 **Pendente:** orientação de uma fotografia tirada numa câmara física (só verificável num telemóvel).
+
+## 16. Comentários, gostos e visualizações (etapa 8, E3)
+
+Contrato: [experiences-api.md §13](experiences-api.md#13-etapa-e3-comentários-gostos-e-visualizações). Sem feeds, dashboard nem notificações (E4 e seguintes).
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `ExperiencesApi` | `data/remote/` | `GET …/comments`, `POST …/comments` (com `Idempotency-Key`), `PATCH`/`DELETE /comments/{id}`, `PUT`/`DELETE …/like`, `POST …/views` (token **ou** `X-Viewer-Key`); detalhe com token opcional |
+| `ExperiencesRepository` | `data/repository/` | `CommentOutcome` (publicado, por confirmar, recusado, já publicado, publicado e eliminado), `LikeResult`/`LikeError` (com `UNCONFIRMED` para resultados desconhecidos), `registerView` com uma só tentativa; `Experience` com `likesCount`, `commentsCount` e `likedByMe: Boolean?` |
+| `ViewerKeys` / `PreferencesViewerKeys` | `data/repository/ViewerKeys.kt` | Chave aleatória da instalação (UUID) para visitantes, em `viewer_key.xml`, excluída das cópias de segurança e das transferências entre aparelhos |
+| `CommentsController` | `ui/feature/experience/` | Lista paginada, publicar com chave por tentativa, editar e eliminar os próprios; estado independente do conteúdo da experiência |
+| `ExperienceDetailViewModel` | `ui/feature/experience/` | Gosto (`LikeButton`: entrar, próprio, por confirmar, gostar, retirar), reconciliação, visualização única, avisos de contagens |
+| `LikeSection`, `CommentsSection` | `ui/feature/experience/ExperienceInteractions.kt` | Contagens, botão de gosto, lista, formulário, edição e confirmação de eliminação |
+| `ExperienceListLoader`, `ExperienceSortSelector`, `InteractionCounts` | `ui/feature/experience/ExperienceList.kt` | Quatro ordenações; "N gostos · N comentários" nos cartões; contagens atualizadas no item |
+
+### Regras
+
+- **Comentários:** lista paginada (20 por página, mais antigos primeiro), com carregar, vazio, erro e "Tentar novamente" próprios. Uma falha nunca esconde o texto nem a fotografia da experiência.
+  - **Publicar exige sessão.** Sem sessão: "Entra na tua conta para comentar. O texto fica guardado." e **Entrar**. O login regressa ao detalhe e nada é enviado sozinho; o texto continua no campo.
+  - **Validação** como no servidor: 1 a 1000 caracteres (pontos de código), só espaços recusado, caracteres de controlo recusados, contador visível.
+  - **Idempotência:** a chave é gerada no primeiro envio e guardada com o texto no `SavedStateHandle` **antes** do pedido.
+    - Resultado desconhecido (rede, `5xx`, resposta ilegível): texto e chave bloqueados; "Tentar novamente" repete o mesmo pedido. Há também "Descartar esta tentativa", com confirmação.
+    - Sobrevive à rotação e à recriação do processo. Chaves com mais de 6 dias não são reutilizadas.
+    - O `POST` nunca é repetido automaticamente.
+    - Recusa definitiva (`400`, `429` com os minutos de espera, sessão terminada): a chave é descartada e o texto mantém-se para corrigir. `409 DIFFERENT_CONTENT` e `COMMENT_DELETED` são explicados.
+  - **Editar e eliminar:** só aparecem nos comentários cujo `authorId` é o da sessão (o servidor decide sempre). Eliminar pede confirmação.
+    - Um `PATCH` falhado mantém o texto editado e o erro; o `PATCH` é idempotente, por isso repetir é seguro.
+    - Um comentário que já não existe (`404`) sai da lista.
+  - **Depois de um sucesso:** a lista é pedida de novo e o detalhe também, para as contagens confirmadas.
+- **Gostos:**
+  - **Contagem e estado:** os do último pedido confirmado pelo servidor. Durante um pedido o botão fica desativado (sem envios duplicados). Depois de `204`, o detalhe é lido de novo para a contagem exata.
+  - **Visitante:** "Entrar para gostar". Ao regressar do login, o detalhe é lido de novo (agora com `likedByMe`), mas o gosto **não** é enviado.
+  - **Autor:** não há botão ("É a tua experiência: os gostos são de outras pessoas.").
+  - **`likedByMe` ausente com sessão** (ex.: sessão por confirmar): estado "por confirmar", com "Atualizar"; nunca é convertido em `false`.
+  - **Resultado desconhecido:** o estado mostrado continua o último confirmado, com "Não foi possível confirmar o gosto" e **Atualizar**, que reconcilia com o servidor. Não há repetição automática.
+- **Listas** (local, o meu perfil, perfil público):
+  - cada cartão mostra as estrelas (do local/atividade) e, à parte, "N gostos · N comentários";
+  - quatro ordenações: **Mais recentes**, **Melhor avaliação do local**, **Mais gostadas** e **Mais interações (gostos e comentários)**. Mudar de ordenação recomeça na primeira página; a escolha fica no `SavedStateHandle`;
+  - **ao voltar do detalhe**, as contagens confirmadas atualizam o item já carregado, sem recarregar a lista nem perder a pesquisa, os filtros ou as páginas. A ordem só muda no próximo carregamento.
+- **Visualizações:**
+  - registadas ao abrir o detalhe **com sucesso**, em segundo plano;
+  - no máximo uma por abertura: a marca fica no `SavedStateHandle` antes do pedido, por isso recomposições, rotação, recriação, "Tentar novamente" e leituras de atualização não repetem;
+  - o autor não envia (espera-se que a sessão esteja carregada para o saber);
+  - visitantes enviam a chave aleatória da instalação. Não são enviados identificadores de hardware, o email nem nada que identifique o aparelho, e o servidor não usa o IP. Com sessão vai só o token;
+  - uma falha é ignorada e não impede ler a experiência; o total de visualizações não é mostrado (fica para o dashboard, E4).
+- **Experiência eliminada** (o servidor responde `404` ao gostar, comentar, listar comentários ou ler de novo): o detalhe passa a "Esta experiência já não existe.", as ações desaparecem e as listas são avisadas.
+- **Cliente HTTP:** as regras do `HttpClients` mantêm-se. As novas tentativas de ligação do OkHttp são seguras: os gostos são idempotentes, os comentários levam chave e o servidor elimina as visualizações repetidas. A app não repete pedidos por iniciativa própria.
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest`: **196 testes, 0 falhas** (eram 168), executados depois da última alteração ao código. `assembleDebug` e `lintDebug` concluídos (0 erros).
+
+Avisos novos do lint: "autor" assinalado como erro ortográfico (o dicionário é inglês) e o contador de caracteres do comentário sugerido como plural, como os já existentes.
+
+Neste computador, o Gradle passou a escolher para o daemon um JRE 25 sem `jlink`, instalado pela extensão Java do VS Code. Por isso, os comandos desta etapa indicaram o JDK em cada execução, sem alterar configurações:
+
+```powershell
+.\gradlew.bat "-Porg.gradle.java.installations.auto-detect=false" "-Porg.gradle.java.installations.paths=C:/Program Files/Eclipse Adoptium/jdk-25.0.3.9-hotspot" :app:testDebugUnitTest
+```
+
+- **`ExperienceInteractionsTest` (19, novo):**
+  - **gostos:**
+    - visitante → login sem pedido;
+    - `likedByMe` ausente com sessão → por confirmar, sem envio, e "Atualizar" resolve;
+    - dois toques → um pedido, com o último estado confirmado durante o pedido e a contagem exata depois, avisada às listas;
+    - falha ambígua mantém o estado e reconcilia sem repetir;
+    - falha definitiva (`429`) mantém o estado; retirar o gosto confirmado;
+    - o autor não pode gostar;
+    - regresso do login sem gosto nem comentário automáticos (texto mantido);
+    - experiência eliminada durante a visita;
+  - **visualizações:**
+    - uma por abertura, sem repetir em recomposições, atualizações, "Tentar novamente", gosto e recriação com o mesmo estado;
+    - nova abertura regista;
+    - o autor não regista;
+    - falha da leitura não regista e o sucesso seguinte sim;
+    - sessão a carregar espera para saber se é o autor;
+  - **comentários:**
+    - falha da lista sem afetar o conteúdo, paginação sem repetições, lista vazia;
+    - sessão e validação (só espaços, 1001 caracteres, 1000 emojis aceites);
+    - falha ambígua: texto e chave preservados e bloqueados, também depois da recriação; a repetição usa a mesma chave; o sucesso limpa o texto e atualiza a lista e as contagens;
+    - recusa definitiva com chave nova na tentativa seguinte, e descartar;
+    - tentativa com mais de 6 dias não repetida;
+    - só o autor do comentário edita e elimina, com confirmação, e a contagem atualizada;
+    - edição falhada mantém o texto;
+    - experiência eliminada ao comentar mantém o texto.
+- **`ExperienceListLoaderTest` (2, novo):**
+  - as quatro ordenações enviadas com os nomes do contrato, e mudar recomeça na primeira página;
+  - contagens do detalhe atualizam só o item certo, sem novos pedidos nem perder páginas.
+- **`NetworkExperiencesRepositoryTest` (+7):**
+  - detalhe com token ou como visitante (`likedByMe` ausente → `null`), `401` renovado uma vez, servidor sem os campos novos → contagens a 0;
+  - comentários públicos convertidos;
+  - publicar com token e chave, `401` renovado com a mesma chave, repetição `200`;
+  - classificação de rede, `5xx`, `400`, `404`, `429` com `Retry-After`, `DIFFERENT_CONTENT` com `commentId` e `COMMENT_DELETED`;
+  - editar e eliminar comentários;
+  - gostos (`204`, `CANNOT_LIKE_OWN`, rede e `5xx` como desconhecidos, `404`, `429`, sem sessão sem pedido);
+  - visualização com a chave da instalação ou com o token, num único pedido, mesmo com falha.
+
+Não têm testes JVM: os ecrãs Compose, as `SharedPreferences` reais da chave e a navegação para o login e de volta.
+
+### Verificação (2026-10-19, pelo assistente)
+
+**Emulador não usado:** havia ~0,8 GB de memória livre e nenhum aparelho ligado; o `Pixel_9` precisa de 4 GB. Verificaram-se por HTTP, nos contentores, **os pedidos que a app faz** (mesmos caminhos, cabeçalhos, corpos e tamanhos de página), com duas contas temporárias (apagadas no fim com os seus dados; `pamplona`, os dados existentes e os volumes preservados). 11 verificações, 0 falhas:
+
+| Verificação | Resultado |
+|---|---|
+| Publicar | `201` com `likesCount: 0` e sem `likedByMe` |
+| Detalhe com sessão de outra pessoa / sem sessão | `likedByMe: false` / campo ausente (→ "Gostar" / "Entrar para gostar") |
+| Visualização como visitante (`X-Viewer-Key`) e com sessão (token) | `204`, `204` |
+| Comentar e repetir a mesma tentativa | `201`, depois `200` com o mesmo id e `Idempotent-Replayed` |
+| Lista de comentários (`page=0&size=20`) | o comentário, com o autor |
+| Editar o próprio comentário | `200` com `editedAt` |
+| Gostar e ler de novo | `204`; `likedByMe: true`, 1 gosto, 1 comentário |
+| O autor tenta gostar | `400 CANNOT_LIKE_OWN` |
+| Publicações do autor com `recent`, `stars`, `likes`, `interactions` | `200` nas quatro, contagens nos itens |
+| Retirar o gosto e eliminar o comentário | `204`, `204`; 0/0, `likedByMe: false` |
+| Experiência eliminada: detalhe, comentários, gosto | `404` ×3 |
+
+**Pendente (verificação na interface, no emulador ou num telemóvel):** comentar, editar e apagar um comentário, gostar e retirar, login e regresso ao detalhe, as quatro ordenações e falha/recuperação (ex.: parar o experiences-service e voltar a ligar).

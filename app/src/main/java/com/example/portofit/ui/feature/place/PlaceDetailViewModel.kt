@@ -60,6 +60,7 @@ class PlaceDetailViewModel(
         experiences,
         placeId = placeId,
         initialSort = savedState.get<String>(KEY_SORT)?.let { name -> ExperienceSort.entries.firstOrNull { it.name == name } } ?: ExperienceSort.RECENT,
+        counts = changes.counts,
     )
     val experiences: StateFlow<ExperienceListState> = experienceList.state
     val sort: StateFlow<ExperienceSort> = experienceList.sort

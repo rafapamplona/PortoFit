@@ -261,6 +261,7 @@ fun ExperienceDetailScreen(
     viewModel: ExperienceDetailViewModel = viewModel(factory = ExperienceDetailViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val comments by viewModel.comments.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
 
     if (state.showDeleteConfirmation) {
@@ -345,6 +346,12 @@ fun ExperienceDetailScreen(
                             OutlinedButton(onClick = viewModel::requestDelete, enabled = !state.deleting) { Text(stringResource(R.string.experience_delete)) }
                         }
                     }
+
+                    // Gostos e comentários (E3): estados próprios; uma falha aqui não esconde o texto nem a fotografia.
+                    HorizontalDivider()
+                    LikeSection(state, onToggle = viewModel::toggleLike, onRefresh = viewModel::refreshLike, onLogin = onLoginRequired)
+                    HorizontalDivider()
+                    CommentsSection(comments, state.signedIn, viewModel.comments, onLogin = onLoginRequired)
                 }
             }
         }

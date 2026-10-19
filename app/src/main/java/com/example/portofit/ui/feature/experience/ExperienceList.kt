@@ -3,16 +3,15 @@ package com.example.portofit.ui.feature.experience
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,10 +28,12 @@ import com.example.portofit.data.model.Experience
 import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.data.repository.DataError
 import com.example.portofit.data.repository.DataResult
+import com.example.portofit.data.repository.ExperienceCounts
 import com.example.portofit.data.repository.ExperiencesRepository
 import com.example.portofit.ui.components.LoadingIndicator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +61,8 @@ sealed interface ExperienceListState {
 /**
  * Lista paginada de experiências de um local ou de um autor, usada dentro de um ViewModel (com o
  * [scope] dele). Cada carregamento tem uma geração: respostas de pedidos antigos são ignoradas.
+ * Mudar a ordenação recomeça na primeira página. As contagens confirmadas no detalhe ([counts]) atualizam o
+ * item já carregado, sem recarregar nem perder as páginas (a ordem só muda no próximo carregamento).
  */
 class ExperienceListLoader(
     private val scope: CoroutineScope,
@@ -68,6 +71,7 @@ class ExperienceListLoader(
     authorId: String? = null,
     initialSort: ExperienceSort = ExperienceSort.RECENT,
     private val pageSize: Int = PAGE_SIZE,
+    counts: Flow<ExperienceCounts>? = null,
 ) {
     private val _state = MutableStateFlow<ExperienceListState>(ExperienceListState.Loading)
     val state: StateFlow<ExperienceListState> = _state.asStateFlow()
@@ -78,6 +82,21 @@ class ExperienceListLoader(
     private var authorId: String? = authorId
     private var generation = 0
     private var job: Job? = null
+
+    init {
+        counts?.let { flow -> scope.launch { flow.collect(::applyCounts) } }
+    }
+
+    fun applyCounts(counts: ExperienceCounts) {
+        _state.update { state ->
+            if (state !is ExperienceListState.Loaded || state.items.none { it.id == counts.experienceId }) return@update state
+            state.copy(
+                items = state.items.map {
+                    if (it.id == counts.experienceId) it.copy(likesCount = counts.likesCount, commentsCount = counts.commentsCount) else it
+                },
+            )
+        }
+    }
 
     /** Primeira página (também depois de uma alteração ou de "Tentar novamente"). */
     fun load() {
@@ -162,20 +181,37 @@ fun StarsText(stars: Int, modifier: Modifier = Modifier) {
     )
 }
 
-/** Ordenação: os rótulos deixam claro que as estrelas avaliam o local/atividade, não a publicação. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Ordenação (as quatro do contrato, §9): os rótulos deixam claro que as estrelas avaliam o local/atividade, não a
+ * publicação, e que as interações são gostos e comentários.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ExperienceSortSelector(sort: ExperienceSort, onSortChange: (ExperienceSort) -> Unit) {
-    val options = listOf(ExperienceSort.RECENT to R.string.experience_sort_recent, ExperienceSort.STARS to R.string.experience_sort_stars)
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, (value, label) ->
-            SegmentedButton(
-                selected = sort == value,
-                onClick = { onSortChange(value) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-            ) { Text(stringResource(label), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    val options = listOf(
+        ExperienceSort.RECENT to R.string.experience_sort_recent,
+        ExperienceSort.STARS to R.string.experience_sort_stars,
+        ExperienceSort.LIKES to R.string.experience_sort_likes,
+        ExperienceSort.INTERACTIONS to R.string.experience_sort_interactions,
+    )
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { (value, label) ->
+            FilterChip(selected = sort == value, onClick = { onSortChange(value) }, label = { Text(stringResource(label)) })
         }
     }
+}
+
+/** "3 gostos · 2 comentários": contagens da publicação, separadas das estrelas (que avaliam o local). */
+@Composable
+fun InteractionCounts(likes: Long, comments: Long, modifier: Modifier = Modifier) {
+    val likesText = pluralStringResource(R.plurals.likes_count, likes.toInt(), likes.toInt())
+    val commentsText = pluralStringResource(R.plurals.comments_count, comments.toInt(), comments.toInt())
+    Text(
+        "$likesText · $commentsText",
+        modifier = modifier,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -204,13 +240,14 @@ fun ExperienceCard(experience: Experience, showPlace: Boolean, onClick: () -> Un
             // Fotografia (se houver) com erro isolado: o texto aparece sempre.
             experience.photo?.let { ExperiencePhotoView(it, crop = true) }
             Text(experience.text, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            InteractionCounts(experience.likesCount, experience.commentsCount)
         }
     }
 }
 
 /**
  * Secção de experiências (local ou perfil). Uma falha só afeta esta secção: o resto do ecrã continua
- * visível. Não mostra gostos nem comentários (ainda não existem).
+ * visível. Cada cartão mostra as estrelas (do local) e, à parte, os gostos e comentários da publicação.
  */
 @Composable
 fun ExperienceListSection(

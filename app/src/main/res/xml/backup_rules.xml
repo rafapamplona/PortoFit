@@ -3,7 +3,9 @@
    Regras de cópia de segurança para Android 11 e anteriores (android:fullBackupContent).
    A sessão (refresh token cifrado com uma chave do Android Keystore) nunca entra em cópias:
    a chave não é copiada, por isso o ficheiro seria inútil noutro aparelho, e não deve sair deste.
+   A chave de visualização (visitantes, E3) é desta instalação: noutro aparelho gera-se outra.
 -->
 <full-backup-content>
     <exclude domain="file" path="session/" />
+    <exclude domain="sharedpref" path="viewer_key.xml" />
 </full-backup-content>

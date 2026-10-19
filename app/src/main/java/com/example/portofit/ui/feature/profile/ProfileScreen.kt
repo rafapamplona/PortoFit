@@ -43,6 +43,8 @@ import com.example.portofit.R
 import com.example.portofit.data.model.Experience
 import com.example.portofit.data.repository.ProfileError
 import com.example.portofit.ui.feature.experience.ExperienceListSection
+import com.example.portofit.ui.feature.experience.ExperienceSortSelector
+import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.ui.feature.experience.ExperienceListState
 import com.example.portofit.ui.components.ErrorMessage
 import com.example.portofit.ui.components.LoadingIndicator
@@ -55,6 +57,7 @@ fun ProfileScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val publications by viewModel.publications.collectAsStateWithLifecycle()
+    val publicationSort by viewModel.publicationSort.collectAsStateWithLifecycle()
     val exit = { if (viewModel.requestExit()) onBack() }
     // Com alterações por guardar, o gesto/botão "voltar" do sistema pede confirmação.
     BackHandler(enabled = state.hasUnsavedChanges) { exit() }
@@ -87,16 +90,20 @@ fun ProfileScreen(
             onOpen = { onOpenExperience(it.id) },
             onRetry = viewModel::retryPublications,
             onLoadMore = viewModel::loadMorePublications,
+            sort = publicationSort,
+            onSortChange = viewModel::setPublicationSort,
         ),
     )
 }
 
-/** Secção "Publicações" (experiences-service), independente do resto do perfil. */
+/** Secção "Publicações" (experiences-service), independente do resto do perfil, com as quatro ordenações. */
 class PublicationsSection(
     val state: ExperienceListState,
     val onOpen: (Experience) -> Unit,
     val onRetry: () -> Unit,
     val onLoadMore: () -> Unit,
+    val sort: ExperienceSort = ExperienceSort.RECENT,
+    val onSortChange: (ExperienceSort) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -235,6 +242,7 @@ fun ProfileContent(
 
                 // --- Publicações (experiences-service; uma falha só afeta esta secção) ---
                 SectionTitle(R.string.profile_posts)
+                ExperienceSortSelector(publications.sort, publications.onSortChange)
                 ExperienceListSection(
                     state = publications.state,
                     showPlace = true,

@@ -2,6 +2,9 @@ package com.example.portofit.data.repository
 
 import com.example.portofit.data.auth.SessionManager
 import com.example.portofit.data.model.ExperienceSort
+import com.example.portofit.data.model.Comment
+import com.example.portofit.data.remote.CommentBodyDto
+import com.example.portofit.data.remote.CommentDto
 import com.example.portofit.data.remote.ExperiencePhotoDto
 import com.example.portofit.data.remote.MediaUploadDto
 import com.example.portofit.data.remote.ExperienceAuthorDto
@@ -29,6 +32,7 @@ import okhttp3.Headers.Companion.headersOf
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
@@ -68,7 +72,62 @@ class NetworkExperiencesRepositoryTest {
             return this.page()
         }
 
-        override suspend fun get(experienceId: String): ExperienceDto = single()
+        /** Authorization de cada leitura do detalhe (null = visitante). */
+        val getAuthorizations = mutableListOf<String?>()
+        var getResponses = ArrayDeque<() -> Response<ExperienceDto>>()
+
+        override suspend fun get(experienceId: String, authorization: String?): Response<ExperienceDto> {
+            getAuthorizations += authorization
+            return getResponses.removeFirstOrNull()?.invoke() ?: Response.success(single())
+        }
+
+        // --- E3 ---
+        var commentsPage: () -> PageDto<CommentDto> = { PageDto(emptyList(), 0, 20, 0, 0) }
+        var postCommentResponses = ArrayDeque<() -> Response<CommentDto>>()
+        val commentBodies = mutableListOf<CommentBodyDto>()
+        var editCommentResponses = ArrayDeque<() -> Response<CommentDto>>()
+        var deleteCommentResponses = ArrayDeque<() -> Response<Unit>>()
+        var likeResponses = ArrayDeque<() -> Response<Unit>>()
+        /** (Authorization, X-Viewer-Key) de cada visualização. */
+        val views = mutableListOf<Pair<String?, String?>>()
+        var viewResponse: () -> Response<Unit> = { Response.success(204, Unit) }
+
+        override suspend fun comments(experienceId: String, page: Int, size: Int): PageDto<CommentDto> {
+            calls += Triple("comments", null, null)
+            return commentsPage()
+        }
+
+        override suspend fun postComment(authorization: String, idempotencyKey: String, experienceId: String, body: CommentBodyDto): Response<CommentDto> {
+            calls += Triple("postComment", authorization, idempotencyKey)
+            commentBodies += body
+            return postCommentResponses.removeFirst()()
+        }
+
+        override suspend fun editComment(authorization: String, commentId: String, body: CommentBodyDto): Response<CommentDto> {
+            calls += Triple("editComment", authorization, null)
+            commentBodies += body
+            return editCommentResponses.removeFirst()()
+        }
+
+        override suspend fun deleteComment(authorization: String, commentId: String): Response<Unit> {
+            calls += Triple("deleteComment", authorization, null)
+            return deleteCommentResponses.removeFirst()()
+        }
+
+        override suspend fun like(authorization: String, experienceId: String): Response<Unit> {
+            calls += Triple("like", authorization, null)
+            return likeResponses.removeFirst()()
+        }
+
+        override suspend fun unlike(authorization: String, experienceId: String): Response<Unit> {
+            calls += Triple("unlike", authorization, null)
+            return likeResponses.removeFirst()()
+        }
+
+        override suspend fun registerView(experienceId: String, authorization: String?, viewerKey: String?): Response<Unit> {
+            views += authorization to viewerKey
+            return viewResponse()
+        }
 
         val publishBodies = mutableListOf<PublishExperienceDto>()
         val editBodies = mutableListOf<JsonObject>()
@@ -100,7 +159,9 @@ class NetworkExperiencesRepositoryTest {
     }
 
     private val api = FakeApi()
-    private val repository = NetworkExperiencesRepository(api, session, Json { ignoreUnknownKeys = true })
+    private val repository = NetworkExperiencesRepository(api, session, Json { ignoreUnknownKeys = true }) { "installation-key" }
+
+    private val commentDto = CommentDto("c1", "e1", ExperienceAuthorDto("user-2", "rui"), "Também gostei.", "2026-10-19T19:00:00Z")
     private val draft = ExperienceDraft("p1", "o1", "Boa aula.", 4)
 
     private fun <T> error(status: Int, body: String = "{}", headers: Map<String, String> = emptyMap()): Response<T> {
@@ -281,5 +342,144 @@ class NetworkExperiencesRepositoryTest {
         val file = File.createTempFile("foto", ".jpg")
         assertEquals(UploadOutcome.Failed(UploadError.SESSION_ENDED), repository.uploadPhoto(file))
         assertTrue(api.calls.isEmpty())
+    }
+
+    // --- E3 ---
+
+    @Test
+    fun `detalhe com sessao leva o token e likedByMe ausente fica null`() = runTest {
+        session.start()
+        api.single = { dto.copy(likesCount = 3, commentsCount = 2) }
+        val visitor = (repository.get("e1") as DataResult.Success).value
+        assertNull(api.getAuthorizations.single())
+        assertNull("ausente para visitantes: desconhecido, nunca false", visitor.likedByMe)
+        assertEquals(3L, visitor.likesCount)
+        assertEquals(2L, visitor.commentsCount)
+
+        session.login("a@example.org", "uma frase longa")
+        api.single = { dto.copy(likedByMe = false) }
+        assertEquals(false, (repository.get("e1") as DataResult.Success).value.likedByMe)
+        assertEquals("Bearer a-login", api.getAuthorizations.last())
+    }
+
+    @Test
+    fun `detalhe com 401 renova uma vez e um servidor sem os campos novos da contagens a zero`() = runTest {
+        session.login("a@example.org", "uma frase longa")
+        api.getResponses = ArrayDeque(listOf({ error(401) }, { Response.success(dto) }))
+        val experience = (repository.get("e1") as DataResult.Success).value
+        assertEquals(listOf("Bearer a-login", "Bearer a-0"), api.getAuthorizations)
+        assertEquals(0L, experience.likesCount)
+        assertNull(experience.likedByMe)
+        api.getResponses = ArrayDeque(listOf({ error(404) }))
+        assertEquals(DataResult.Failure(DataError.NOT_FOUND), repository.get("e1"))
+    }
+
+    @Test
+    fun `comentarios publicos convertidos e publicar com token e chave`() = runTest {
+        session.start()
+        api.commentsPage = { PageDto(listOf(commentDto), 0, 20, 1, 1) }
+        val page = (repository.comments("e1", 0, 20) as DataResult.Success).value
+        assertEquals(Comment("c1", "e1", "user-2", "rui", "Também gostei.", Instant.parse("2026-10-19T19:00:00Z"), null), page.items.single())
+        assertEquals(CommentOutcome.Rejected(CommentRejection.SESSION_ENDED), repository.postComment("k1", "e1", "Olá"))
+        assertEquals(listOf(Triple<String, String?, String?>("comments", null, null)), api.calls)
+
+        session.login("a@example.org", "uma frase longa")
+        api.postCommentResponses = ArrayDeque(
+            listOf(
+                { error(401) },
+                { Response.success(201, commentDto) },
+                { Response.success(commentDto, headersOf("Idempotent-Replayed", "true")) },
+            ),
+        )
+        val posted = repository.postComment("k1", "e1", "Também gostei.") as CommentOutcome.Posted
+        assertEquals(false, posted.replayed)
+        // Um 401 renova e repete com a mesma chave (é a mesma tentativa).
+        assertEquals(listOf("Bearer a-login" to "k1", "Bearer a-0" to "k1"), api.calls.filter { it.first == "postComment" }.map { it.second to it.third })
+        assertEquals(CommentBodyDto("Também gostei."), api.commentBodies.last())
+        assertEquals(true, (repository.postComment("k1", "e1", "Também gostei.") as CommentOutcome.Posted).replayed)
+    }
+
+    @Test
+    fun `comentario - resultados desconhecidos e recusas definitivas`() = runTest {
+        session.login("a@example.org", "uma frase longa")
+        api.postCommentResponses = ArrayDeque(
+            listOf(
+                { throw IOException("timeout") },
+                { error(503) },
+                { error(400, """{"code":"VALIDATION_FAILED"}""") },
+                { error(404, """{"code":"NOT_FOUND"}""") },
+                { error(429, """{"code":"TOO_MANY_REQUESTS"}""", mapOf("Retry-After" to "120")) },
+                { error(409, """{"code":"IDEMPOTENCY_CONFLICT","reason":"DIFFERENT_CONTENT","commentId":"c-old"}""") },
+                { error(409, """{"code":"IDEMPOTENCY_CONFLICT","reason":"COMMENT_DELETED"}""") },
+            ),
+        )
+        val expected = listOf(
+            CommentOutcome.Unconfirmed,
+            CommentOutcome.Unconfirmed,
+            CommentOutcome.Rejected(CommentRejection.VALIDATION),
+            CommentOutcome.Rejected(CommentRejection.EXPERIENCE_GONE),
+            CommentOutcome.Rejected(CommentRejection.TOO_MANY, 120),
+            CommentOutcome.AlreadyPosted("c-old"),
+            CommentOutcome.PostedThenDeleted,
+        )
+        for (outcome in expected) assertEquals(outcome, repository.postComment("k1", "e1", "Olá"))
+    }
+
+    @Test
+    fun `editar e eliminar comentario com erros classificados`() = runTest {
+        session.login("a@example.org", "uma frase longa")
+        api.editCommentResponses = ArrayDeque(listOf({ Response.success(commentDto.copy(text = "Novo", editedAt = "2026-10-19T19:05:00Z")) }, { error(403) }))
+        api.deleteCommentResponses = ArrayDeque(listOf({ Response.success(204, Unit) }, { error(404) }, { throw IOException("sem rede") }))
+        assertEquals("Novo", (repository.editComment("c1", "Novo") as MutationResult.Success).value.text)
+        assertEquals(MutationResult.Failure(MutationError.FORBIDDEN), repository.editComment("c1", "Novo"))
+        assertEquals(MutationResult.Success(Unit), repository.deleteComment("c1"))
+        assertEquals(MutationResult.Failure(MutationError.NOT_FOUND), repository.deleteComment("c1"))
+        assertEquals(MutationResult.Failure(MutationError.NETWORK), repository.deleteComment("c1"))
+    }
+
+    @Test
+    fun `gostos - confirmado, proprio, desconhecido e sem sessao`() = runTest {
+        session.start()
+        assertEquals(LikeResult.Failed(LikeError.SESSION_ENDED), repository.setLiked("e1", true))
+        assertTrue(api.calls.isEmpty())
+
+        session.login("a@example.org", "uma frase longa")
+        api.likeResponses = ArrayDeque(
+            listOf(
+                { Response.success(204, Unit) },
+                { Response.success(204, Unit) },
+                { error(400, """{"code":"CANNOT_LIKE_OWN"}""") },
+                { throw IOException("timeout") },
+                { error(503) },
+                { error(404) },
+                { error(429, "{}", mapOf("Retry-After" to "60")) },
+            ),
+        )
+        assertEquals(LikeResult.Confirmed, repository.setLiked("e1", true))
+        assertEquals(LikeResult.Confirmed, repository.setLiked("e1", false))
+        assertEquals(listOf("like", "unlike"), api.calls.map { it.first })
+        assertEquals(LikeResult.Failed(LikeError.CANNOT_LIKE_OWN), repository.setLiked("e1", true))
+        assertEquals(LikeResult.Failed(LikeError.UNCONFIRMED), repository.setLiked("e1", true))
+        assertEquals(LikeResult.Failed(LikeError.UNCONFIRMED), repository.setLiked("e1", true))
+        assertEquals(LikeResult.Failed(LikeError.EXPERIENCE_GONE), repository.setLiked("e1", true))
+        assertEquals(LikeResult.Failed(LikeError.TOO_MANY, 60), repository.setLiked("e1", true))
+    }
+
+    @Test
+    fun `visualizacao - visitante com a chave da instalacao, sessao com o token e uma so tentativa`() = runTest {
+        session.start()
+        assertTrue(repository.registerView("e1"))
+        assertEquals(null to "installation-key", api.views.single())
+
+        session.login("a@example.org", "uma frase longa")
+        assertTrue(repository.registerView("e1"))
+        assertEquals("Bearer a-login" to null, api.views.last())
+
+        api.viewResponse = { throw IOException("sem rede") }
+        assertEquals(false, repository.registerView("e1"))
+        api.viewResponse = { error(503) }
+        assertEquals(false, repository.registerView("e1"))
+        // Cada chamada é um único pedido: nenhuma repetição automática.
+        assertEquals(4, api.views.size)
     }
 }
