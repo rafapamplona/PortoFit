@@ -5,7 +5,19 @@ import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.data.model.Comment
 import com.example.portofit.data.remote.CommentBodyDto
 import com.example.portofit.data.remote.CommentDto
+import com.example.portofit.data.model.FeedFallbackReason
+import com.example.portofit.data.model.FeedMatch
+import com.example.portofit.data.model.FeedMode
+import com.example.portofit.data.model.StatsPeriod
+import com.example.portofit.data.model.StatsSort
+import com.example.portofit.data.remote.ExperienceOfferingDto as OfferingRef
 import com.example.portofit.data.remote.ExperiencePhotoDto
+import com.example.portofit.data.remote.ExperienceStatsDto
+import com.example.portofit.data.remote.FeedPageDto
+import com.example.portofit.data.remote.StatsDto
+import com.example.portofit.data.remote.StatsExperienceDto
+import com.example.portofit.data.remote.StatsPageDto
+import com.example.portofit.data.remote.StatsReceivedDto
 import com.example.portofit.data.remote.MediaUploadDto
 import com.example.portofit.data.remote.ExperienceAuthorDto
 import com.example.portofit.data.remote.ExperienceDto
@@ -122,6 +134,34 @@ class NetworkExperiencesRepositoryTest {
         override suspend fun unlike(authorization: String, experienceId: String): Response<Unit> {
             calls += Triple("unlike", authorization, null)
             return likeResponses.removeFirst()()
+        }
+
+        // --- E4 ---
+        /** (pedido, Authorization) dos feeds e estatísticas. */
+        val discoverCalls = mutableListOf<Pair<String, String?>>()
+        var popularResponses = ArrayDeque<() -> Response<FeedPageDto>>()
+        var personalResponses = ArrayDeque<() -> Response<FeedPageDto>>()
+        var statsResponses = ArrayDeque<() -> Response<StatsDto>>()
+        var statsPageResponses = ArrayDeque<() -> Response<StatsPageDto>>()
+
+        override suspend fun popularFeed(sportId: String?, page: Int, size: Int, authorization: String?): Response<FeedPageDto> {
+            discoverCalls += "popular" to authorization
+            return popularResponses.removeFirst()()
+        }
+
+        override suspend fun personalFeed(authorization: String, sportId: String?, page: Int, size: Int): Response<FeedPageDto> {
+            discoverCalls += "personal" to authorization
+            return personalResponses.removeFirst()()
+        }
+
+        override suspend fun stats(authorization: String, period: String): Response<StatsDto> {
+            discoverCalls += "stats:$period" to authorization
+            return statsResponses.removeFirst()()
+        }
+
+        override suspend fun statsExperiences(authorization: String, period: String, sort: String, page: Int, size: Int): Response<StatsPageDto> {
+            discoverCalls += "statsExperiences:$period:$sort:$page" to authorization
+            return statsPageResponses.removeFirst()()
         }
 
         override suspend fun registerView(experienceId: String, authorization: String?, viewerKey: String?): Response<Unit> {
@@ -481,5 +521,110 @@ class NetworkExperiencesRepositoryTest {
         assertEquals(false, repository.registerView("e1"))
         // Cada chamada é um único pedido: nenhuma repetição automática.
         assertEquals(4, api.views.size)
+    }
+
+    // --- E4: feeds e dashboard ---
+
+    private val discover = NetworkDiscoverRepository(api, session)
+
+    private fun feedDto(mode: String, reason: String? = null, matchedBy: List<String>? = null) = FeedPageDto(
+        items = listOf(dto.copy(matchedBy = matchedBy)), page = 0, size = 10, totalItems = 1, totalPages = 1,
+        mode = mode, fallbackReason = reason, recentSince = if (mode == "PERSONAL") null else "2026-09-19T00:00:00Z", generatedAt = "2026-10-19T21:30:00Z",
+    )
+
+    @Test
+    fun `feed popular publico ou com token, e pessoal so com sessao`() = runTest {
+        session.start()
+        api.popularResponses = ArrayDeque(listOf({ Response.success(feedDto("POPULAR")) }))
+        val popular = (discover.popularFeed(null, 0, 10) as DataResult.Success).value
+        assertEquals(FeedMode.POPULAR, popular.mode)
+        assertNull(popular.fallbackReason)
+        assertEquals("popular" to null, api.discoverCalls.single())
+        assertEquals(SessionResult.SessionEnded, discover.personalFeed(null, 0, 10))
+        assertEquals(1, api.discoverCalls.size)
+
+        session.login("a@example.org", "uma frase longa")
+        api.personalResponses = ArrayDeque(listOf({ error(401) }, { Response.success(feedDto("PERSONAL", matchedBy = listOf("FOLLOWING", "INTEREST", "OUTRO"))) }))
+        val personal = (discover.personalFeed("boxe", 0, 10) as SessionResult.Success).value
+        assertEquals(FeedMode.PERSONAL, personal.mode)
+        assertEquals(setOf(FeedMatch.FOLLOWING, FeedMatch.INTEREST), personal.page.items.single().matchedBy)
+        // Um 401 renova uma vez e repete.
+        assertEquals(listOf("personal" to "Bearer a-login", "personal" to "Bearer a-0"), api.discoverCalls.drop(1))
+    }
+
+    @Test
+    fun `modos e motivos interpretados sem nunca inventar personalizacao`() = runTest {
+        session.login("a@example.org", "uma frase longa")
+        api.personalResponses = ArrayDeque(
+            listOf(
+                { Response.success(feedDto("POPULAR_FALLBACK", "USERS_UNAVAILABLE")) },
+                { Response.success(feedDto("POPULAR", "NO_PREFERENCES")) },
+                { Response.success(feedDto("POPULAR", "NO_MATCHES")) },
+                // Motivo desconhecido num fallback → indisponibilidade; modo desconhecido → erro, nunca pessoal.
+                { Response.success(feedDto("POPULAR_FALLBACK", "NOVO_MOTIVO")) },
+                { Response.success(feedDto("MISTO")) },
+                { error(503) },
+                { throw IOException("sem rede") },
+            ),
+        )
+        suspend fun page() = discover.personalFeed(null, 0, 10)
+        assertEquals(FeedFallbackReason.USERS_UNAVAILABLE, (page() as SessionResult.Success).value.fallbackReason)
+        assertEquals(FeedFallbackReason.NO_PREFERENCES, (page() as SessionResult.Success).value.fallbackReason)
+        assertEquals(FeedFallbackReason.NO_MATCHES, (page() as SessionResult.Success).value.fallbackReason)
+        assertEquals(FeedFallbackReason.USERS_UNAVAILABLE, (page() as SessionResult.Success).value.fallbackReason)
+        assertEquals(SessionResult.Failure(DataError.UNEXPECTED), page())
+        assertEquals(SessionResult.Failure(DataError.SERVER), page())
+        assertEquals(SessionResult.Failure(DataError.NETWORK), page())
+    }
+
+    @Test
+    fun `estatisticas com token, intervalo do servidor e sessao terminada distinta de falha temporaria`() = runTest {
+        session.login("a@example.org", "uma frase longa")
+        api.statsResponses = ArrayDeque(
+            listOf(
+                {
+                    Response.success(
+                        StatsDto(
+                            period = "LAST_7_DAYS", from = "2026-10-13T00:00:00Z", to = "2026-10-19T21:30:00Z", generatedAt = "2026-10-19T21:30:00Z",
+                            received = StatsReceivedDto(likes = 2, comments = 1, interactions = 3, views = 4), publications = 1,
+                            starsGiven = mapOf("4" to 1L),
+                        ),
+                    )
+                },
+                { error(503) },
+            ),
+        )
+        val totals = (discover.stats(StatsPeriod.LAST_7_DAYS) as SessionResult.Success).value
+        assertEquals(Instant.parse("2026-10-13T00:00:00Z"), totals.window.from)
+        assertEquals(Instant.parse("2026-10-19T21:30:00Z"), totals.window.generatedAt)
+        assertEquals(mapOf(1 to 0L, 2 to 0L, 3 to 0L, 4 to 1L, 5 to 0L), totals.starsGiven)
+        assertEquals(3L, totals.interactions)
+        assertEquals("stats:LAST_7_DAYS" to "Bearer a-login", api.discoverCalls.last())
+        assertEquals(SessionResult.Failure(DataError.SERVER), discover.stats(StatsPeriod.ALL))
+
+        api.statsPageResponses = ArrayDeque(
+            listOf({
+                Response.success(
+                    StatsPageDto(
+                        items = listOf(
+                            ExperienceStatsDto(
+                                StatsExperienceDto("e1", PlaceRefDto("p1", "Local", true), OfferingRef("o1", "Boxe iniciação"), SportRefDto("boxe", "Boxe"), 4, "2026-10-10T10:00:00Z"),
+                                likes = 1, comments = 2, interactions = 3, views = 4,
+                            ),
+                        ),
+                        page = 0, size = 10, totalItems = 1, totalPages = 1, period = "ALL", from = null, to = "2026-10-19T21:30:00Z", generatedAt = "2026-10-19T21:30:00Z",
+                    ),
+                )
+            }),
+        )
+        val page = (discover.statsExperiences(StatsPeriod.ALL, StatsSort.VIEWS, 0, 10) as SessionResult.Success).value
+        assertNull(page.window.from)
+        assertEquals("e1", page.page.items.single().experienceId)
+        assertEquals("statsExperiences:ALL:views:0" to "Bearer a-login", api.discoverCalls.last())
+
+        // Renovação recusada → sessão terminada (entrar de novo).
+        gateway.onRefresh = { com.example.portofit.data.auth.GatewayResult.Rejected(401, "INVALID_REFRESH_TOKEN", emptyList(), null) }
+        api.statsResponses = ArrayDeque(listOf({ error(401) }))
+        assertEquals(SessionResult.SessionEnded, discover.stats(StatsPeriod.ALL))
     }
 }

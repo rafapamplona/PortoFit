@@ -1,6 +1,6 @@
 # PortoFit — App Android
 
-> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–8 — experiências (E1, §14), fotografias (E2, §15) e comentários, gostos e visualizações (E3, §16). Sem feeds, dashboard, mapas nem GPS.
+> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–9 — experiências (E1, §14), fotografias (E2, §15), comentários, gostos e visualizações (E3, §16), Descobrir e Estatísticas (E4, §17). Sem mapas nem GPS.
 > Backend: [infraestrutura.md](infraestrutura.md) · Contratos: [catalog-api.md](catalog-api.md), [users-api.md](users-api.md) · Desenho: [arquitetura.md](arquitetura.md)
 
 ## 1. Percurso disponível
@@ -798,3 +798,97 @@ O comentário temporário (criado pelo assistente na experiência da `pamplona`)
 | Novo toque em "Gostar" | o gosto é aceite |
 
 Com isto, não há verificações pendentes da E3.
+
+## 17. Descobrir e Estatísticas (etapa 9, E4)
+
+Contrato: [experiences-api.md §14](experiences-api.md#14-etapa-e4-feeds-e-dashboard). Sem listas de favoritos, mensagens nem notificações.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| Barra inferior | `ui/navigation/PortoFitNavHost.kt` | Pesquisar (inicial), Descobrir e Estatísticas. Visível só nesses três ecrãs; detalhes, perfis, login e publicação abrem por cima, como antes. Mudar de destino usa `saveState`/`restoreState`: cada destino guarda a pilha, os ViewModels e a posição |
+| `DiscoverRepository` | `data/repository/DiscoverRepository.kt` | `GET /feed/popular` (token opcional), `GET /feed`, `GET /me/stats`, `GET /me/stats/experiences`. Leituras com sessão devolvem `SessionResult` (sucesso, falha, sessão terminada, sessão por confirmar), com renovação única depois de um `401`. Um `mode` desconhecido é recusado, nunca tratado como pessoal |
+| `DiscoverViewModel` / `DiscoverScreen` | `ui/feature/discover/` | Separadores Para ti / Populares, filtro por modalidade, paginação, "Atualizar", faixas por `mode`/`fallbackReason`, motivo de cada item |
+| `StatsViewModel` / `StatsScreen` | `ui/feature/stats/` | Período, totais, histograma, lista por publicação; secções independentes |
+| Ícones | `res/drawable/ic_search.xml`, `ic_explore.xml`, `ic_bar_chart.xml` | Vetores Material Symbols, como o `ic_arrow_back` (sem biblioteca nova) |
+
+### Regras
+
+- **Navegação:**
+  - Pesquisar continua a ser o início; o menu da conta está na barra superior dos três destinos;
+  - alternar entre destinos preserva pesquisas, filtros, separadores, listas e posição;
+  - o login aberto em Descobrir ou Estatísticas regressa a esse destino, sem executar nada.
+- **Descobrir:**
+  - visitantes veem só **Populares** e um convite para entrar; com sessão há **Para ti** (por omissão) e **Populares**, e o separador fica guardado;
+  - cartões de experiência existentes, com abertura do detalhe e do perfil do autor; no feed pessoal, cada cartão diz porquê ("Segues @ana", "Interesse: Boxe");
+  - filtro por modalidade e "Atualizar"; se as modalidades falharem, aparece um aviso e o feed continua sem filtro;
+  - faixas conforme o servidor:
+    - `PERSONAL` → "Para ti: de quem segues e dos teus interesses";
+    - `NO_PREFERENCES` → explicação de que não é personalizado, com **Escolher interesses** (O meu perfil) e **Procurar pessoas** (Pesquisar);
+    - `NO_MATCHES` → explicação (com ou sem filtro);
+    - `POPULAR_FALLBACK` → "Não foi possível personalizar agora: a mostrar publicações populares, não personalizadas", com **Tentar novamente**.
+
+    Um resultado popular nunca aparece como "Para ti";
+  - **mudança de modo entre páginas:** a página nova não é juntada; aparece "A lista mudou entretanto…" com **Recomeçar**;
+  - **sessão:** um `401` renova a sessão uma vez (gestão existente). Sessão terminada → "Entra novamente"; sessão por confirmar → aviso temporário com **Tentar novamente**;
+  - **modo de demonstração:** "Dados de demonstração: algumas experiências são sobre locais fictícios" quando há itens de locais `demo`;
+  - contagens confirmadas no detalhe atualizam o item ao voltar.
+- **Estatísticas:**
+  - **sem sessão:** convite e **Entrar**; depois do login regressa a Estatísticas;
+  - **período:** **Sempre / 7 dias / 30 dias**, com a nota "Os dias contam em UTC". Cada secção mostra o intervalo devolvido pelo servidor (`from`/`to`, em UTC), nunca recalculado no telemóvel;
+  - **"Recebido pelas tuas publicações":** gostos, "Comentários (incluindo as tuas respostas)", interações e visualizações, com a nota "não são pessoas únicas"; publicações criadas no período;
+  - **"Estrelas que deste aos locais/atividades":** histograma de 5 a 1 com barras, separado e com a nota "não são notas recebidas"; cada linha é lida como "4 estrelas de 5: 3 publicações";
+  - **por publicação:** lista paginada, ordenações (recentes, interações, visualizações) e abertura do detalhe;
+  - **falhas:** totais e lista falham de forma independente e nunca aparecem como zeros. "Sem atividade neste período" só com dados confirmados. Uma página seguinte com outro intervalo (ex.: mudou o dia UTC) não é juntada ("Recomeçar");
+  - **privacidade entre contas:** ao terminar sessão ou trocar de conta, os dados são apagados logo; respostas tardias da conta anterior (ou de outro período/ordenação) são ignoradas pela geração e pela conta do pedido.
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest`: **216 testes, 0 falhas** (eram 196), executados de novo, sem cache, depois da última alteração ao código. `assembleDebug` e `lintDebug` concluídos (0 erros; o aviso novo de plural foi corrigido).
+
+- **`DiscoverViewModelTest` (10, novo):**
+  - visitante só com Populares;
+  - sessão a carregar sem pedidos;
+  - Para ti por omissão e separador guardado;
+  - fallback e motivos no estado, sem motivos de personalização;
+  - paginação no mesmo modo e mudança de modo sem juntar, até recomeçar;
+  - resposta antiga ignorada ao mudar o filtro;
+  - modalidades em falha sem bloquear o feed;
+  - sessão terminada, por confirmar e rede com nova tentativa;
+  - troca de conta, ignorando a resposta da anterior, e terminar sessão volta a Populares;
+  - contagens do detalhe.
+- **`StatsViewModelTest` (7, novo):**
+  - visitante sem pedidos;
+  - totais e lista do mesmo período com o intervalo do servidor, e período e ordenação guardados;
+  - resposta antiga ignorada ao mudar o período;
+  - falhas independentes e nunca zeros (erro, sessão terminada, por confirmar);
+  - terminar sessão apaga logo e uma resposta tardia não repõe;
+  - troca de conta sem dados da anterior;
+  - paginação e intervalo diferente numa página seguinte.
+- **`NetworkExperiencesRepositoryTest` (+3):**
+  - popular público e com token, pessoal só com sessão e `401` renovado;
+  - modos e motivos (motivo desconhecido → indisponível; modo desconhecido → erro);
+  - estatísticas com o intervalo do servidor e o histograma completo; renovação recusada → sessão terminada.
+
+### Verificação na interface (2026-10-19, pelo assistente)
+
+No emulador já aberto pelo utilizador, com a sessão da `pamplona`. A app foi atualizada com `adb install -r`, que mantém os dados; não foram criados dados novos. Havia ~0,2 GB livres no computador.
+
+| Passo | Resultado |
+|---|---|
+| Abrir a app | Pesquisar com a barra inferior Pesquisar / Descobrir / Estatísticas |
+| Filtro Boxe em Pesquisar → Descobrir → Pesquisar | o filtro e os "4 locais encontrados" mantêm-se |
+| Descobrir, Para ti (a `pamplona` não segue ninguém nem tem interesses) | explicação "não é um feed personalizado", **Escolher interesses**, **Procurar pessoas**, nota dos Populares e aviso de demonstração |
+| Populares + filtro Boxe | "Ainda não há experiências desta modalidade"; separador e filtro mantidos depois de ir a Pesquisar e voltar |
+| Abrir a experiência e voltar | detalhe e regresso a Descobrir |
+| users-service parado → Para ti | "Não foi possível personalizar agora: a mostrar publicações populares, não personalizadas", com **Tentar novamente** |
+| Estatísticas com o users-service parado | totais, "Desde sempre até … (UTC)", visualizações com a nota, histograma separado |
+| 7 dias | "De 13/10/2026 a 19/10/2026 21:54 (UTC)"; lista com "0 gostos · 0 comentários · 0 visualizações"; abrir o detalhe e voltar |
+| users-service de volta → **Tentar novamente** | Para ti volta à explicação "sem preferências" |
+| Leitor de ecrã do histograma | "1 estrelas" encontrado e corrigido; depois "1 estrela de 5: 0 publicações", "4 estrelas de 5: 1 publicação" |
+
+**Pendente (na interface):**
+- o feed pessoal com resultados (exigia que a `pamplona` seguisse alguém ou escolhesse interesses; está coberto pelos testes e pela verificação HTTP do backend);
+- o login a partir de Descobrir/Estatísticas e o regresso (exigia terminar a sessão da `pamplona`);
+- a troca de conta com estatísticas visíveis.

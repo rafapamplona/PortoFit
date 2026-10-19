@@ -342,6 +342,72 @@
     <string name="comment_error_network">Sem ligação ao serviço de experiências. O texto mantém-se; tenta novamente.</string>
     <string name="comment_error_forbidden">Só o autor pode alterar este comentário.</string>
 
+    <!-- Navegação, Descobrir e Estatísticas (E4) -->
+    <string name="nav_search">Pesquisar</string>
+    <string name="nav_discover">Descobrir</string>
+    <string name="nav_stats">Estatísticas</string>
+    <string name="refresh">Atualizar</string>
+
+    <string name="discover_title">Descobrir</string>
+    <string name="discover_tab_for_you">Para ti</string>
+    <string name="discover_tab_popular">Populares</string>
+    <string name="discover_login_hint">Entra para veres também um feed personalizado, de quem segues e dos teus interesses.</string>
+    <string name="discover_filter_all">Todas</string>
+    <string name="discover_sports_failed">Não foi possível carregar as modalidades. O feed continua disponível sem filtro.</string>
+    <string name="discover_personal_banner">Para ti: publicações de quem segues e das modalidades dos teus interesses, as mais recentes primeiro.</string>
+    <string name="discover_popular_banner">Populares: mais interações (gostos e comentários) nos últimos 30 dias, depois as restantes.</string>
+    <string name="discover_no_preferences">Ainda não segues ninguém nem escolheste interesses, por isso este não é um feed personalizado: a mostrar publicações populares.</string>
+    <string name="discover_edit_interests">Escolher interesses</string>
+    <string name="discover_find_people">Procurar pessoas</string>
+    <string name="discover_no_matches">Ainda não há publicações de quem segues nem dos teus interesses: a mostrar publicações populares.</string>
+    <string name="discover_no_matches_filter">Não há publicações de quem segues nem dos teus interesses nesta modalidade: a mostrar publicações populares.</string>
+    <string name="discover_fallback">Não foi possível personalizar agora: a mostrar publicações populares, não personalizadas.</string>
+    <string name="discover_demo_notice">Dados de demonstração: algumas experiências são sobre locais fictícios.</string>
+    <string name="discover_empty">Ainda não há experiências para mostrar.</string>
+    <string name="discover_empty_filter">Ainda não há experiências desta modalidade.</string>
+    <string name="discover_mode_changed">A lista mudou entretanto (por exemplo, a personalização deixou de estar disponível). Recomeça para ver uma lista coerente.</string>
+    <string name="discover_restart">Recomeçar</string>
+    <string name="discover_matched_following">Segues \@%1$s</string>
+    <string name="discover_matched_interest">Interesse: %1$s</string>
+    <string name="discover_session_ended">A tua sessão terminou. Entra novamente para veres o feed personalizado.</string>
+    <string name="discover_session_unverified">Não foi possível confirmar a tua sessão agora. Tenta novamente daqui a pouco.</string>
+
+    <string name="stats_title">Estatísticas</string>
+    <string name="stats_login_hint">Entra para veres as estatísticas das tuas publicações. Só tu as vês.</string>
+    <string name="stats_period_all">Sempre</string>
+    <string name="stats_period_7">7 dias</string>
+    <string name="stats_period_30">30 dias</string>
+    <string name="stats_utc_note">Os dias contam em UTC (tempo universal), não na hora local.</string>
+    <string name="stats_window_all">Desde sempre até %1$s (UTC)</string>
+    <string name="stats_window">De %1$s a %2$s (UTC)</string>
+    <string name="stats_received_title">Recebido pelas tuas publicações</string>
+    <string name="stats_likes">Gostos</string>
+    <string name="stats_comments">Comentários (incluindo as tuas respostas)</string>
+    <string name="stats_interactions">Interações (gostos + comentários)</string>
+    <string name="stats_views">Visualizações</string>
+    <string name="stats_views_note">Visualizações são aberturas contadas, no máximo uma por pessoa (ou instalação) por publicação e por dia UTC. Não são pessoas únicas.</string>
+    <string name="stats_publications">Publicações criadas no período</string>
+    <string name="stats_no_activity">Sem atividade neste período.</string>
+    <string name="stats_stars_title">Estrelas que deste aos locais/atividades</string>
+    <string name="stats_stars_note">São as tuas avaliações dos locais e atividades, nas publicações criadas no período. Não são notas recebidas pelas tuas publicações.</string>
+    <plurals name="publications_count">
+        <item quantity="one">%d publicação</item>
+        <item quantity="other">%d publicações</item>
+    </plurals>
+    <string name="stats_per_publication">Por publicação</string>
+    <string name="stats_sort_recent">Mais recentes</string>
+    <string name="stats_sort_interactions">Mais interações</string>
+    <string name="stats_sort_views">Mais visualizações</string>
+    <plurals name="views_count">
+        <item quantity="one">%d visualização</item>
+        <item quantity="other">%d visualizações</item>
+    </plurals>
+    <string name="stats_no_publications">Ainda não tens publicações.</string>
+    <string name="stats_unavailable">As estatísticas estão temporariamente indisponíveis. Os valores não são mostrados para não parecerem zeros.</string>
+    <string name="stats_window_changed">O período mudou entretanto (por exemplo, começou um novo dia UTC). Recomeça para ver valores do mesmo período.</string>
+    <string name="stats_session_ended">A tua sessão terminou. Entra novamente para veres as tuas estatísticas.</string>
+    <string name="stats_session_unverified">Não foi possível confirmar a tua sessão agora. Tenta novamente daqui a pouco.</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

@@ -1,14 +1,37 @@
 package com.example.portofit.ui.navigation
 
 import android.net.Uri
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.portofit.R
+import com.example.portofit.ui.feature.discover.DiscoverActions
+import com.example.portofit.ui.feature.discover.DiscoverScreen
+import com.example.portofit.ui.feature.stats.StatsActions
+import com.example.portofit.ui.feature.stats.StatsScreen
 import com.example.portofit.ui.feature.auth.LoginScreen
 import com.example.portofit.ui.feature.auth.RegisterScreen
 import com.example.portofit.ui.feature.experience.ExperienceDetailScreen
@@ -28,6 +51,8 @@ import com.example.portofit.ui.feature.search.SearchScreen
 
 private object Routes {
     const val SEARCH = "search"
+    const val DISCOVER = "discover"
+    const val STATS = "stats"
     const val PLACE = "place/{${PlaceDetailViewModel.PLACE_ID_ARG}}"
     const val LOGIN = "login"
     const val REGISTER = "register"
@@ -47,7 +72,27 @@ private object Routes {
     fun experience(experienceId: String) = "experience/${Uri.encode(experienceId)}"
 }
 
+/** Destinos de topo da barra inferior (Pesquisar é o inicial). */
+private enum class TopLevel(val route: String, @StringRes val label: Int, @DrawableRes val icon: Int) {
+    SEARCH(Routes.SEARCH, R.string.nav_search, R.drawable.ic_search),
+    DISCOVER(Routes.DISCOVER, R.string.nav_discover, R.drawable.ic_explore),
+    STATS(Routes.STATS, R.string.nav_stats, R.drawable.ic_bar_chart),
+}
+
 /**
+ * Muda de destino de topo guardando a pilha e o estado do anterior (ViewModels, pesquisa, filtros, posição) e repondo
+ * os do novo: alternar entre destinos nunca perde o que lá estava.
+ */
+private fun NavController.navigateToTopLevel(route: String) = navigate(route) {
+    popUpTo(graph.findStartDestination().id) { saveState = true }
+    launchSingleTop = true
+    restoreState = true
+}
+
+/**
+ * Barra inferior (E4) com Pesquisar (inicial), Descobrir e Estatísticas, visível só nesses três ecrãs; os detalhes,
+ * o login e a publicação abrem por cima, sem a barra, como antes.
+ *
  * Navegação: pesquisa → detalhe do local → publicar (com sessão) / detalhe da experiência; pesquisa → entrar ↔
  * criar conta; pesquisa → o meu perfil; pesquisa de pessoas → perfil público ↔ seguidores/seguidos; perfis →
  * detalhe da experiência → local ou autor. O login regressa ao ecrã que o abriu, sem executar ações.
@@ -56,7 +101,56 @@ private object Routes {
 @Composable
 fun PortoFitNavHost() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.SEARCH) {
+    val currentEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentEntry?.destination?.route
+    Scaffold(
+        // As margens do sistema são tratadas pelos ecrãs (e pela barra): aqui só a altura da barra.
+        contentWindowInsets = WindowInsets(0),
+        bottomBar = {
+            if (TopLevel.entries.any { it.route == currentRoute }) {
+                NavigationBar {
+                    TopLevel.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = { if (currentRoute != destination.route) navController.navigateToTopLevel(destination.route) },
+                            icon = { Icon(painterResource(destination.icon), contentDescription = null) },
+                            label = { Text(stringResource(destination.label)) },
+                        )
+                    }
+                }
+            }
+        },
+    ) { padding ->
+        PortoFitGraph(navController, Modifier.padding(padding).consumeWindowInsets(padding))
+    }
+}
+
+@Composable
+private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) {
+    NavHost(navController = navController, startDestination = Routes.SEARCH, modifier = modifier) {
+        composable(Routes.DISCOVER) { entry ->
+            DiscoverScreen(
+                DiscoverActions(
+                    onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
+                    onOpenAuthor = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
+                    // O login regressa a Descobrir; nada é executado sozinho.
+                    onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+                    onProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
+                    onEditInterests = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
+                    onFindPeople = { if (entry.isResumed()) navController.navigateToTopLevel(Routes.SEARCH) },
+                ),
+            )
+        }
+        composable(Routes.STATS) { entry ->
+            StatsScreen(
+                StatsActions(
+                    onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
+                    // Depois de entrar, o login regressa a Estatísticas.
+                    onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+                    onProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
+                ),
+            )
+        }
         composable(Routes.SEARCH) { entry ->
             SearchScreen(
                 onPlaceClick = { placeId ->

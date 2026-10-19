@@ -15,7 +15,10 @@ import com.example.portofit.data.remote.PeopleApi
 import com.example.portofit.data.remote.ProfileApi
 import com.example.portofit.data.remote.UsersApi
 import com.example.portofit.data.repository.CatalogRepository
+import com.example.portofit.data.repository.DiscoverRepository
 import com.example.portofit.data.repository.ExperienceChanges
+import com.example.portofit.data.repository.NetworkDiscoverRepository
+import com.example.portofit.data.repository.UnconfiguredDiscoverRepository
 import com.example.portofit.data.repository.ExperiencesRepository
 import com.example.portofit.data.repository.NetworkExperiencesRepository
 import com.example.portofit.data.repository.PreferencesViewerKeys
@@ -103,6 +106,12 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
                 )
             }
             ?: UnconfiguredExperiencesRepository()
+
+    /** Feeds e dashboard (E4): mesmo serviço e cliente HTTP das experiências. */
+    val discoverRepository: DiscoverRepository =
+        experiencesBaseUrl.takeIf { it.isNotBlank() }
+            ?.let { NetworkDiscoverRepository(retrofit(it, experiencesHttpClient).create(ExperiencesApi::class.java), sessionManager) }
+            ?: UnconfiguredDiscoverRepository()
 
     /** Avisos de publicação/edição/eliminação, para atualizar listas e avaliações noutros ecrãs. */
     val experienceChanges = ExperienceChanges()

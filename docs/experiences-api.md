@@ -1,7 +1,7 @@
 # experiences-service — Contrato da API
 
 > Contrato das experiências (publicações), das avaliações agregadas e, nas etapas seguintes, das fotografias, comentários, gostos, visualizações, feeds e estatísticas. Contexto geral em [arquitetura.md](arquitetura.md) (§3.5 cópias, §3.6 métricas, §3.7 avaliação, §3.8 autenticação, §3.9 fotografias, §3.10 feeds, §4 falhas).
-> Estado: **E1 implementada** (backend e app, etapa 6) **E2 implementada** (fotografias, etapa 7, backend e app) e **E3 implementada** (comentários, gostos e visualizações, etapa 8, backend e app) e **E4 implementada no backend** (feeds e dashboard, etapa 9; a app ainda não os usa). Estado em [§20](#20-estado-da-implementação); decisões em [§19](#19-decisões-da-revisão) e lacunas da E2 resolvidas em [§12.1](#121-endpoints). Lacunas da E3 resolvidas em [§13.7](#137-lacunas-resolvidas-na-revisão); a E4 fica definida e é revista no início da etapa.
+> Estado: **E1 implementada** (backend e app, etapa 6) **E2 implementada** (fotografias, etapa 7, backend e app) e **E3 implementada** (comentários, gostos e visualizações, etapa 8, backend e app) e **E4 implementada** (feeds e dashboard, etapa 9, backend e app). Estado em [§20](#20-estado-da-implementação); decisões em [§19](#19-decisões-da-revisão) e lacunas da E2 resolvidas em [§12.1](#121-endpoints). Lacunas da E3 resolvidas em [§13.7](#137-lacunas-resolvidas-na-revisão); a E4 fica definida e é revista no início da etapa.
 > Mesmas convenções do [catalog-api.md](catalog-api.md) e do [users-api.md](users-api.md): JSON UTF-8, nomes de campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`, envelope de paginação comum.
 
 ## Índice
@@ -1228,7 +1228,7 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 - configuração `portofit.users.*` e `portofit.feed.*` (modo de demonstração); chave `USERS_INTERNAL_KEY` só no `.env`;
 - sem migração nova: as consultas usam os índices existentes.
 
-**Ainda não implementado:** a app da E4 (Descobrir e Estatísticas, §14.7).
+**E4 na app (etapa 9):** barra inferior Pesquisar (inicial) / Descobrir / Estatísticas, feeds com `mode`/`fallbackReason` e dashboard ([app-android.md §17](app-android.md#17-descobrir-e-estatísticas-etapa-9-e4)).
 
 **Notas da implementação**
 

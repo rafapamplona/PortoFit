@@ -109,6 +109,37 @@ interface ExperiencesApi {
         @Path("experienceId") experienceId: String,
     ): Response<Unit>
 
+    // --- E4: feeds e dashboard (§14) ---
+
+    /** Público; com token acrescenta `likedByMe`. */
+    @GET("api/v1/feed/popular")
+    suspend fun popularFeed(
+        @Query("sportId") sportId: String?,
+        @Query("page") page: Int,
+        @Query("size") size: Int,
+        @Header("Authorization") authorization: String? = null,
+    ): Response<FeedPageDto>
+
+    @GET("api/v1/feed")
+    suspend fun personalFeed(
+        @Header("Authorization") authorization: String,
+        @Query("sportId") sportId: String?,
+        @Query("page") page: Int,
+        @Query("size") size: Int,
+    ): Response<FeedPageDto>
+
+    @GET("api/v1/me/stats")
+    suspend fun stats(@Header("Authorization") authorization: String, @Query("period") period: String): Response<StatsDto>
+
+    @GET("api/v1/me/stats/experiences")
+    suspend fun statsExperiences(
+        @Header("Authorization") authorization: String,
+        @Query("period") period: String,
+        @Query("sort") sort: String,
+        @Query("page") page: Int,
+        @Query("size") size: Int,
+    ): Response<StatsPageDto>
+
     /** Com sessão, o token; sem sessão, a chave aleatória da instalação. O servidor elimina as repetições. */
     @POST("api/v1/experiences/{experienceId}/views")
     suspend fun registerView(
@@ -147,6 +178,69 @@ data class ExperienceDto(
     val likesCount: Long = 0,
     val commentsCount: Long = 0,
     val likedByMe: Boolean? = null,
+    /** Só no feed pessoal (E4). */
+    val matchedBy: List<String>? = null,
+)
+
+@Serializable
+data class FeedPageDto(
+    val items: List<ExperienceDto>,
+    val page: Int,
+    val size: Int,
+    val totalItems: Long,
+    val totalPages: Int,
+    val mode: String,
+    val fallbackReason: String? = null,
+    val recentSince: String? = null,
+    val generatedAt: String,
+)
+
+@Serializable
+data class StatsReceivedDto(
+    val likes: Long,
+    val comments: Long,
+    val interactions: Long,
+    val views: Long,
+    val viewsRule: String? = null,
+    val commentsIncludeOwn: Boolean = true,
+)
+
+@Serializable
+data class StatsDto(
+    val period: String,
+    val from: String? = null,
+    val to: String,
+    val generatedAt: String,
+    val timezone: String? = null,
+    val received: StatsReceivedDto,
+    val publications: Long,
+    val starsGiven: Map<String, Long>,
+)
+
+@Serializable
+data class StatsExperienceDto(
+    val id: String,
+    val place: PlaceRefDto,
+    val offering: ExperienceOfferingDto,
+    val sport: SportRefDto,
+    val stars: Int,
+    val createdAt: String,
+)
+
+@Serializable
+data class ExperienceStatsDto(val experience: StatsExperienceDto, val likes: Long, val comments: Long, val interactions: Long, val views: Long)
+
+@Serializable
+data class StatsPageDto(
+    val items: List<ExperienceStatsDto>,
+    val page: Int,
+    val size: Int,
+    val totalItems: Long,
+    val totalPages: Int,
+    val period: String,
+    val from: String? = null,
+    val to: String,
+    val generatedAt: String,
 )
 
 @Serializable
