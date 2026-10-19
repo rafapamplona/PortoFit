@@ -59,6 +59,18 @@ portofit:
     timeout: 2s
     # Atraso máximo aceite nos dados do catálogo usados para validar (docs/experiences-api.md §6.2).
     cache-ttl: 10m
+  users:
+    # GET /api/v1/internal/me/feed-context, pela rede interna do Compose (docs/experiences-api.md §14.3).
+    base-url: ${USERS_BASE_URL:http://localhost:8082}
+    connect-timeout: 500ms
+    timeout: 1s
+    # Só do .env (USERS_INTERNAL_KEY), nunca no Git nem na imagem.
+    internal-key: ${USERS_INTERNAL_KEY:}
+  feed:
+    # Bloco recente do feed popular (docs/experiences-api.md §14.1).
+    recent-days: 30
+    # Modo de demonstração (§14.6): false quando o catálogo real entrar.
+    include-demo-places: true
   publishing:
     # Limite por autor, em memória (docs/experiences-api.md §4.1).
     max-per-author: 30

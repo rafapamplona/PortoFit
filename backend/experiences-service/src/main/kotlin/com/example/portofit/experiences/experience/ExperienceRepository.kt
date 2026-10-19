@@ -192,6 +192,66 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 		return rows to total
 	}
 
+	/**
+	 * Feed popular (docs/experiences-api.md §14.1): bloco recente (desde [recentSince]) primeiro, depois o resto;
+	 * em cada bloco, interações (gostos + comentários ativos), data e id decrescentes.
+	 */
+	fun popularFeed(sportId: String?, includeDemo: Boolean, recentSince: Instant, page: Int, size: Int): Pair<List<ExperienceRow>, Long> {
+		val params = mutableMapOf<String, Any>("recentSince" to java.sql.Timestamp.from(recentSince))
+		val conditions = feedConditions(sportId, includeDemo, params)
+		return feedPage(conditions, params, "(e.created_at >= :recentSince) DESC, lc.n + cc.n DESC, e.created_at DESC, e.id DESC", page, size)
+	}
+
+	/**
+	 * Feed pessoal (§14.2): de pessoas seguidas **ou** de modalidades de interesse, sem as do próprio, por data.
+	 * Pelo menos uma das listas tem de ter elementos (sem preferências não se chama).
+	 */
+	fun personalFeed(
+		userId: UUID,
+		following: Collection<UUID>,
+		interests: Collection<String>,
+		sportId: String?,
+		includeDemo: Boolean,
+		page: Int,
+		size: Int,
+	): Pair<List<ExperienceRow>, Long> {
+		require(following.isNotEmpty() || interests.isNotEmpty())
+		val params = mutableMapOf<String, Any>("me" to userId)
+		val conditions = feedConditions(sportId, includeDemo, params)
+		conditions += "e.author_id <> :me"
+		val matches = mutableListOf<String>()
+		if (following.isNotEmpty()) {
+			params["following"] = following
+			matches += "e.author_id IN (:following)"
+		}
+		if (interests.isNotEmpty()) {
+			params["interests"] = interests
+			matches += "e.sport_id IN (:interests)"
+		}
+		conditions += matches.joinToString(" OR ", "(", ")")
+		return feedPage(conditions, params, "e.created_at DESC, e.id DESC", page, size)
+	}
+
+	private fun feedConditions(sportId: String?, includeDemo: Boolean, params: MutableMap<String, Any>): MutableList<String> {
+		val conditions = mutableListOf("e.deleted_at IS NULL")
+		sportId?.let { params["sportId"] = it; conditions += "e.sport_id = :sportId" }
+		if (!includeDemo) conditions += "NOT e.place_demo"
+		return conditions
+	}
+
+	// Uma consulta para o total e outra para a página (com as contagens de todas as linhas): nunca uma por publicação.
+	private fun feedPage(conditions: List<String>, params: Map<String, Any>, orderBy: String, page: Int, size: Int): Pair<List<ExperienceRow>, Long> {
+		val where = conditions.joinToString(" AND ", prefix = "WHERE ")
+		val total = jdbc.sql("SELECT count(*) FROM experience e $where").params(params).query(Long::class.javaObjectType).single()
+		val rows = jdbc.sql("$SELECT_FULL $where ORDER BY $orderBy LIMIT :limit OFFSET :offset")
+			.params(params)
+			.param("limit", size)
+			.param("offset", page.toLong() * size)
+			.query { rs, _ -> rs.toRow() }
+			.list()
+		return rows to total
+	}
+
 	/** Apaga os registos de tentativas mais antigos do que [retention]; devolve quantos. */
 	fun deletePublishRequestsOlderThan(retention: Duration): Int =
 		jdbc.sql("DELETE FROM publish_request WHERE created_at < now() - CAST(:seconds || ' seconds' AS interval)")

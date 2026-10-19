@@ -91,6 +91,8 @@ services:
       JWT_PUBLIC_KEY_PATH: /run/secrets/users-jwt/public.pem
       # Validação de interesses (GET /api/v1/sports), pela rede interna do Compose.
       CATALOG_BASE_URL: http://catalog-service:8081
+      # Chave interna do experiences-service para o feed-context (docs/users-api.md §3.11), só do .env.
+      USERS_INTERNAL_KEY: ${USERS_INTERNAL_KEY:?defina USERS_INTERNAL_KEY no .env}
     volumes:
       # Só de leitura e fora da imagem; a pasta secrets/ não está no Git.
       - ./secrets/users-jwt:/run/secrets/users-jwt:ro
@@ -131,6 +133,9 @@ services:
       CATALOG_BASE_URL: http://catalog-service:8081
       # Fotografias (docs/experiences-api.md §12.3), no volume próprio abaixo.
       MEDIA_DIR: /data/media
+      # Contexto do feed pessoal (docs/experiences-api.md §14.3), pela rede interna; a chave só vem do .env.
+      USERS_BASE_URL: http://users-service:8082
+      USERS_INTERNAL_KEY: ${USERS_INTERNAL_KEY:?defina USERS_INTERNAL_KEY no .env}
     volumes:
       # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
       - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro

@@ -69,7 +69,7 @@ class ExperienceService(
 	}
 
 	/** `likedByMe` só para outra pessoa com sessão; numa só consulta por página (docs/experiences-api.md §13.3). */
-	private fun views(rows: List<ExperienceRow>, viewerId: UUID?): List<ExperienceView> {
+	fun views(rows: List<ExperienceRow>, viewerId: UUID?): List<ExperienceView> {
 		if (viewerId == null) return rows.map { it.toView() }
 		val liked = experiences.likedBy(viewerId, rows.filter { it.authorId != viewerId }.map { it.id })
 		return rows.map { row -> row.toView(likedByMe = if (row.authorId == viewerId) null else row.id in liked) }

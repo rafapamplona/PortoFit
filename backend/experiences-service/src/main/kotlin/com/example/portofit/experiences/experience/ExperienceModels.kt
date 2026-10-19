@@ -35,6 +35,9 @@ data class ExperienceView(
 	val commentsCount: Long,
 	@get:JsonInclude(JsonInclude.Include.NON_NULL)
 	val likedByMe: Boolean? = null,
+	/** Só no feed pessoal (E4, §14.2): porque aparece ("FOLLOWING", "INTEREST"). */
+	@get:JsonInclude(JsonInclude.Include.NON_NULL)
+	val matchedBy: List<String>? = null,
 )
 
 /** Só para experiências não eliminadas (as eliminadas não têm conteúdo). */

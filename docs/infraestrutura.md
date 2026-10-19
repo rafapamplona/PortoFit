@@ -77,7 +77,7 @@ O users-service usa as mesmas versões (gerado pelo Initializr com as mesmas op�
    Copy-Item .env.example .env
    notepad .env
    ```
-   O `.env` é ignorado pelo Git e não entra nas imagens Docker.
+   O `.env` é ignorado pelo Git e não entra nas imagens Docker. A partir da E4 inclui também `USERS_INTERNAL_KEY` (valor aleatório longo, partilhado só pelo users-service e pelo experiences-service).
 2. Gerar as chaves de assinatura dos JWT (uma única vez; usa o `openssl` incluído no Git para Windows):
    ```powershell
    bash scripts/generate-jwt-keys.sh
@@ -204,7 +204,8 @@ curl.exe "http://localhost:8082/api/v1/users?q=ana"
 - Chaves: `secrets/users-jwt/` (§3, passo 2). Reiniciar o serviço mantém as chaves e, por isso, as sessões; as contas vivem em `users_db`, no mesmo volume do PostgreSQL.
 - Os interesses são validados no catalog-service pela rede interna do Compose (`http://catalog-service:8081`); se o catálogo falhar, só acrescentar interesses novos devolve `503 CATALOG_UNAVAILABLE`.
 - Limites de tentativas (`portofit.rate-limit.*` em `application.yaml`): em memória, por conta e por origem; reiniciar o serviço apaga-os.
-- Testes: `cd backend\users-service; .\gradlew.bat test` (24 testes; PostgreSQL real via Testcontainers; chaves e catálogo falsos gerados pelos próprios testes).
+- Contexto do feed (E4): `GET /api/v1/internal/me/feed-context`, só para o experiences-service, com o token do utilizador e `X-Internal-Key` = `USERS_INTERNAL_KEY` do `.env` (sem a chave → `403`).
+- Testes: `cd backend\users-service; .\gradlew.bat test` (26 testes; PostgreSQL real via Testcontainers; chaves e catálogo falsos gerados pelos próprios testes).
 
 ### experiences-service
 
@@ -225,7 +226,8 @@ curl.exe "http://localhost:8083/api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7
 - Valida atividades no catalog-service pela rede interna (`http://catalog-service:8081`, `includeRating=false`), com memória de 10 min. Com o catálogo parado, só falha publicar numa atividade não validada recentemente (`503 CATALOG_UNAVAILABLE`). Reiniciar o experiences-service esvazia essa memória.
 - Limite de publicações por autor e retenção das chaves de idempotência: `portofit.publishing.*` em `application.yaml` (o limite é em memória e reinicia com o serviço).
 - Fotografias (E2): `POST /api/v1/media` (multipart, campo `file`, até 10 MiB, JPEG ou PNG) devolve um `mediaId` pendente; associa-se com `"mediaId"` ao publicar ou editar. Limites e limpeza em `portofit.media.*` (`application.yaml`). A imagem guarda a pasta `/data/media` com dono `app` (o volume novo herda-o).
-- Testes: `cd backend\experiences-service; .\gradlew.bat test` (40 testes: 17 da E1, 13 das fotografias e 10 dos comentários, gostos e visualizações; PostgreSQL real via Testcontainers; catálogo falso, chaves, relógio e pasta de fotografias dos próprios testes).
+- Feeds e dashboard (E4): o feed pessoal pede o contexto ao users-service (`http://users-service:8082`, com `USERS_INTERNAL_KEY`); se ele falhar, responde com o popular (`POPULAR_FALLBACK`). Modo de demonstração em `portofit.feed.include-demo-places`.
+- Testes: `cd backend\experiences-service; .\gradlew.bat test` (47 testes: 17 da E1, 13 das fotografias, 10 dos comentários, gostos e visualizações e 7 dos feeds e dashboard; PostgreSQL real via Testcontainers; catálogo e users-service falsos, chaves, relógio e pasta de fotografias dos próprios testes).
 
 ## 7. Configuração relevante
 

@@ -145,6 +145,11 @@ object ApiErrors {
 		"Fizeste demasiadas alterações de gostos por agora. Tenta novamente mais tarde.", retryAfterSeconds = retryAfterSeconds,
 	)
 
+	/** O users-service recusou o token ao pedir o contexto do feed (docs/experiences-api.md §14.3). */
+	fun invalidAccessToken() = ApiException(
+		HttpStatus.UNAUTHORIZED, "INVALID_ACCESS_TOKEN", "Sessão inválida", "O token de acesso é inválido ou expirou.",
+	)
+
 	/** Token válido mas sem a claim `username`: o autor não é guardado sem nome (docs/experiences-api.md §2.3). */
 	fun tokenWithoutUsername() = ApiException(
 		HttpStatus.UNAUTHORIZED, "INVALID_ACCESS_TOKEN", "Sessão inválida", "O token de acesso é inválido ou expirou.",

@@ -1,7 +1,7 @@
 # experiences-service — Contrato da API
 
 > Contrato das experiências (publicações), das avaliações agregadas e, nas etapas seguintes, das fotografias, comentários, gostos, visualizações, feeds e estatísticas. Contexto geral em [arquitetura.md](arquitetura.md) (§3.5 cópias, §3.6 métricas, §3.7 avaliação, §3.8 autenticação, §3.9 fotografias, §3.10 feeds, §4 falhas).
-> Estado: **E1 implementada** (backend e app, etapa 6) **E2 implementada** (fotografias, etapa 7, backend e app) e **E3 implementada** (comentários, gostos e visualizações, etapa 8, backend e app). Estado em [§20](#20-estado-da-implementação); decisões em [§19](#19-decisões-da-revisão) e lacunas da E2 resolvidas em [§12.1](#121-endpoints). Lacunas da E3 resolvidas em [§13.7](#137-lacunas-resolvidas-na-revisão); a E4 fica definida e é revista no início da etapa.
+> Estado: **E1 implementada** (backend e app, etapa 6) **E2 implementada** (fotografias, etapa 7, backend e app) e **E3 implementada** (comentários, gostos e visualizações, etapa 8, backend e app) e **E4 implementada no backend** (feeds e dashboard, etapa 9; a app ainda não os usa). Estado em [§20](#20-estado-da-implementação); decisões em [§19](#19-decisões-da-revisão) e lacunas da E2 resolvidas em [§12.1](#121-endpoints). Lacunas da E3 resolvidas em [§13.7](#137-lacunas-resolvidas-na-revisão); a E4 fica definida e é revista no início da etapa.
 > Mesmas convenções do [catalog-api.md](catalog-api.md) e do [users-api.md](users-api.md): JSON UTF-8, nomes de campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`, envelope de paginação comum.
 
 ## Índice
@@ -998,7 +998,7 @@ O objeto `received` separa o que as publicações **receberam** (gostos, coment�
 - páginas de 1–50;
 - contexto com até 500 seguidos (limite aplicado no ato de seguir) e 10 interesses;
 - consultas parametrizadas, uma por página e outra para o total, com as contagens de todas as linhas da página calculadas na mesma consulta (nunca um pedido por publicação);
-- índices existentes (`experience_recent_idx`, `experience_author_recent_idx`, `experience_sport_recent_idx`, chaves de `experience_like`/`experience_view`), mais os índices por data necessários numa migração nova. À escala do projeto, as contagens continuam calculadas em cada pedido (§20, limitações da E3).
+- índices existentes (`experience_recent_idx`, `experience_author_recent_idx`, `experience_sport_recent_idx`, `comment_experience_idx`, chaves de `experience_like`/`experience_view`); a implementação não precisou de migração nova. À escala do projeto, as contagens continuam calculadas em cada pedido (§20, limitações da E3).
 
 ### 14.6 Modo de demonstração e catálogo real
 
@@ -1222,7 +1222,13 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 
 **E3 na app (etapa 8):** comentários e gosto no detalhe, contagens e quatro ordenações nas listas do local e dos perfis, visualização registada ao abrir o detalhe ([app-android.md §16](app-android.md#16-comentários-gostos-e-visualizações-etapa-8-e3)).
 
-**Ainda não implementado:** E4 (feeds, dashboard).
+**E4 (backend, etapa 9):**
+- users-service: `GET /api/v1/internal/me/feed-context` (token do utilizador + `X-Internal-Key`) e limite de 500 seguidos aplicado ao seguir ([users-api.md §3.9, §3.11](users-api.md#311-get-internalmefeed-context));
+- experiences-service: `GET /feed/popular`, `GET /feed`, `GET /me/stats`, `GET /me/stats/experiences` (§14);
+- configuração `portofit.users.*` e `portofit.feed.*` (modo de demonstração); chave `USERS_INTERNAL_KEY` só no `.env`;
+- sem migração nova: as consultas usam os índices existentes.
+
+**Ainda não implementado:** a app da E4 (Descobrir e Estatísticas, §14.7).
 
 **Notas da implementação**
 
@@ -1370,6 +1376,75 @@ Total do serviço: **40 testes, 0 falhas** (17 da E1, 13 da E2 e 10 da E3); o te
 - As visualizações são uma métrica aproximada e manipulável (§13.5): a chave de instalação é escolhida pelo cliente e não se usa o IP.
 - Os limites de comentários e de gostos são em memória e por instância, como o de publicações.
 - Contagens calculadas em cada pedido: suficiente para a escala do projeto. Com muitos dados, `sort=likes|interactions` sem filtros percorre todas as experiências ativas. Contadores materializados ficam como melhoria possível.
+
+**Notas da implementação da E4**
+
+- **Contexto do feed:**
+  - `UsersClient` com o `RestClient` sobre o cliente HTTP do JDK (ligação 0,5 s, resposta 1 s), sem novas tentativas nem cache;
+  - reencaminha o token recebido (`jwt.tokenValue`) e a chave interna;
+  - classifica a resposta em contexto obtido, token recusado (→ `401`) ou indisponível (→ `POPULAR_FALLBACK`);
+  - um `403` é registado como `ERROR` ("chave interna recusada… configuração"); timeouts e `5xx` como `WARN`, só com o tipo da falha;
+  - um corpo com ids mal formados conta como indisponível, nunca como "sem preferências".
+- **Consultas:** uma para o total e outra para a página, com as contagens de todas as linhas calculadas na mesma consulta (`CROSS JOIN LATERAL`).
+  - Feed popular: `ORDER BY (created_at >= :recentSince) DESC, gostos + comentários DESC, created_at DESC, id DESC`.
+  - Feed pessoal: `author_id IN (:following) OR sport_id IN (:interests)`, só com as listas não vazias, e `author_id <> :me`.
+  - O modo pessoal/popular decide-se pelo total do conjunto filtrado.
+- **Dashboard:**
+  - **Contagens:** as mesmas subconsultas (gostos e comentários ativos `>= from` pela data, visualizações `period_start >= from`) servem os totais (`sum`) e as linhas, por isso a soma das linhas bate com os totais.
+  - **Publicações e histograma:** contam pela data de criação.
+  - **Período:** calculado com o relógio do serviço; "Sempre" usa a época como limite. Não há limite superior: nada existe depois do pedido.
+- **Limite de seguidos:** no users-service, `SELECT … FOR UPDATE` na linha do seguidor, verificação de "já segue", contagem e inserção na mesma transação.
+- **Modo de demonstração:** `portofit.feed.include-demo-places` (hoje `true`) acrescenta `NOT place_demo` às duas consultas de feed quando passa a `false`.
+
+**Testes automáticos da E4**
+
+- **users-service** (`UsersApiIntegrationTest`, +2; **26 testes, 0 falhas**):
+  - limite de seguidos (`409 FOLLOW_LIMIT_REACHED`, voltar a seguir no limite → `204`, deixar de seguir abre espaço, 6 pedidos simultâneos com limite 3 → exatamente 3);
+  - `feed-context`: sem token `401`, token inválido `401`, sem chave/chave errada/chave vazia `403`, `no-store`, só ids, todos os seguidos (mais recentes primeiro) e interesses pela ordem, contexto sempre do token, caminho antigo com `userId` inexistente.
+- **experiences-service** (+7; **47 testes, 0 falhas**: 17 da E1, 13 da E2, 10 da E3 e 7 da E4), com um users-service falso (lê o `sub` do token e confirma a chave):
+  - `FeedApiIntegrationTest` (5):
+    - popular em dois blocos com desempates, paginação e página para além do fim;
+    - `likedByMe` só com sessão, sem visualizações nem dados privados, sem pedidos ao users-service;
+    - validação; eliminadas fora;
+    - modo de demonstração (locais fictícios fora dos feeds, mas no perfil e por referência direta);
+    - pessoal por seguidos ou interesses, sem as próprias, com `matchedBy`, filtro, paginação e página para além do fim ainda `PERSONAL`, e o token e a chave reencaminhados;
+    - `NO_PREFERENCES`, `NO_MATCHES` (também quando só o filtro esvazia o conjunto);
+    - erro, lentidão (< 2,5 s), chave recusada e corpo inválido → `POPULAR_FALLBACK`; token recusado → `401`;
+    - catálogo parado sem efeito.
+  - `StatsApiIntegrationTest` (2):
+    - "Sempre", 7 e 30 dias com datas fixadas: publicação antiga com interações recentes, comentário do autor, comentário eliminado, gosto retirado e voltado a dar, visualizações em dias UTC diferentes, publicação eliminada, editar texto e estrelas;
+    - linhas por publicação com zeros, três ordenações, paginação e soma igual aos totais;
+    - só o próprio (`userId` ignorado), sem identidades, validação, e base de dados em falha → `503` sem `received`.
+
+Executados depois da última alteração ao código dos dois serviços.
+
+**Verificação por HTTP da E4 (2026-10-19)**, com os dois serviços reconstruídos e seis contas temporárias (apagadas no fim com os seus dados; `pamplona`, os dados existentes e os volumes preservados):
+
+| Verificação | Resultado |
+|---|---|
+| Feed popular sem sessão (`sportId=boxe`) | `200`, `POPULAR`, `fallbackReason: null`, `recentSince`, `generatedAt`; só boxe; sem visualizações nem emails |
+| `/feed` sem sessão; token inválido | `401`; `401 INVALID_ACCESS_TOKEN` |
+| Conta sem seguidos nem interesses | `POPULAR` / `NO_PREFERENCES` (ver nota) |
+| Interesse "kickboxing" | `PERSONAL`, com a experiência de kickboxing (`matchedBy: INTEREST`) e sem a de boxe |
+| Seguir a conta A | as duas, a mais recente primeiro (`FOLLOWING`/`INTEREST`) |
+| Página para além do fim | `PERSONAL`, `items: []` |
+| Interesse com uma experiência de outra conta e outra própria | só a da outra conta |
+| Preferências sem resultados no filtro | `POPULAR` / `NO_MATCHES` |
+| `feed-context` a partir do computador | sem token `401`; token sem chave `403`; chave errada `403`; caminho antigo com `userId` `404` |
+| users-service parado | `/feed` `200` `POPULAR_FALLBACK` / `USERS_UNAVAILABLE` em ~0,5 s, sem `matchedBy`; popular e dashboard continuam |
+| Dashboard 7 dias (2 publicações, 2 gostos dos quais 1 retirado, comentário de B e do autor, visualizações de B ×2, de um visitante e do autor) | 2 publicações; 1 gosto, 2 comentários, 3 interações, 2 visualizações; estrelas 4★ e 5★; `from` à meia-noite UTC, `to = generatedAt` |
+| Por publicação (`sort=interactions`) | ordem esperada, soma igual aos totais |
+| Outra conta com `?userId=` da A; sem sessão | os seus zeros; `401` |
+| Depois de eliminar as publicações | tudo a zero, também no passado |
+| Logs dos dois serviços | sem tokens nem a chave |
+
+Nota: o primeiro `/feed` logo depois de reconstruir o users-service recebeu `POPULAR_FALLBACK` (prazo de 1 s esgotado no arranque a frio, `HttpTimeoutException` no registo). É a degradação prevista; repetido com o serviço a responder, deu `NO_PREFERENCES`. Do mesmo modo, a verificação "o autor não vê as suas" foi refeita com uma conta com interesses, porque sem preferências a resposta é o feed popular (público, inclui as próprias, como definido).
+
+**Limitações da E4**
+
+- O primeiro pedido ao users-service depois de um arranque pode exceder 1 s e devolver o popular; a app mostra o aviso e "Tentar novamente".
+- Contagens e ordem do popular calculadas em cada pedido sobre todas as experiências ativas; adequado à escala do projeto.
+- O limite de seguidos e o modo de demonstração são configuração do serviço, não da app.
 
 **Limitações conhecidas**
 

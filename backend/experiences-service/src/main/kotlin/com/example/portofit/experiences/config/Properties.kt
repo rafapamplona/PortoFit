@@ -21,6 +21,30 @@ data class CatalogProperties(
 	val cacheTtl: Duration,
 )
 
+/**
+ * Contexto do feed pessoal no users-service (docs/experiences-api.md §14.3). [internalKey] vem do `.env`
+ * (`USERS_INTERNAL_KEY`); vazia = o feed pessoal degrada sempre para o popular (registado como erro).
+ */
+@ConfigurationProperties("portofit.users")
+data class UsersProperties(
+	val baseUrl: String,
+	val connectTimeout: Duration,
+	val timeout: Duration,
+	val internalKey: String = "",
+)
+
+/**
+ * Feeds (docs/experiences-api.md §14.1, §14.6). [includeDemoPlaces] = modo de demonstração: enquanto só houver o
+ * catálogo fictício é true; com o catálogo real passa a false e as publicações de locais de demonstração saem dos feeds.
+ */
+@ConfigurationProperties("portofit.feed")
+class FeedProperties {
+	var recentDays: Long = 30
+
+	@Volatile
+	var includeDemoPlaces: Boolean = true
+}
+
 /** Limites da publicação (docs/experiences-api.md §4.1, §5). */
 @ConfigurationProperties("portofit.publishing")
 data class PublishingProperties(

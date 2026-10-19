@@ -1,6 +1,7 @@
 package com.example.portofit.experiences
 
 import com.example.portofit.experiences.media.MediaRepository
+import com.example.portofit.experiences.stats.StatsRepository
 import com.nimbusds.jose.jwk.JWKSet
 import com.nimbusds.jose.jwk.RSAKey
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet
@@ -44,6 +45,7 @@ abstract class ApiIntegrationTest {
 	@Autowired lateinit var jdbc: JdbcClient
 
 	@MockitoSpyBean lateinit var mediaRepository: MediaRepository
+	@MockitoSpyBean lateinit var statsRepository: StatsRepository
 
 	@LocalServerPort var port: Int = 0
 
@@ -86,6 +88,7 @@ abstract class ApiIntegrationTest {
 
 		val keys: TestKeys = TestKeys.create()
 		val catalog: CatalogStub = CatalogStub.start()
+		val users: UsersStub = UsersStub.start()
 		val clock: MutableClock = MutableClock.instance
 		val mediaDir: Path = Files.createTempDirectory("experiences-media-test")
 
@@ -94,6 +97,8 @@ abstract class ApiIntegrationTest {
 		fun properties(registry: DynamicPropertyRegistry) {
 			registry.add("portofit.security.public-key-location") { keys.publicKeyUri }
 			registry.add("portofit.catalog.base-url") { catalog.url }
+			registry.add("portofit.users.base-url") { users.url }
+			registry.add("portofit.users.internal-key") { UsersStub.KEY }
 			registry.add("portofit.publishing.max-per-author") { LIMIT }
 			registry.add("portofit.media.storage-dir") { mediaDir.toString() }
 			registry.add("portofit.media.max-pending-per-owner") { PENDING_LIMIT }
