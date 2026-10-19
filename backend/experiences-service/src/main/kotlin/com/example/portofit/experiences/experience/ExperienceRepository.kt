@@ -25,6 +25,9 @@ data class ExperienceRow(
 	val createdAt: Instant,
 	val editedAt: Instant?,
 	val deletedAt: Instant?,
+	val photoMediaId: UUID? = null,
+	val photoWidth: Int? = null,
+	val photoHeight: Int? = null,
 ) {
 	val deleted: Boolean get() = deletedAt != null
 }
@@ -59,11 +62,11 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 			.optional().orElse(null)
 
 	/**
-	 * Regista a tentativa e cria a experiência, na transação em curso. Devolve null se a chave já existir:
+	 * Regista a tentativa e cria a experiência (sem fotografia), na transação em curso; devolve o id. Devolve null se a chave já existir:
 	 * com outra transação a usar a mesma chave, a inserção espera que ela termine (chave primária) e, se
 	 * ela confirmar, não insere nada.
 	 */
-	fun insertWithKey(authorId: UUID, authorUsername: String, key: UUID, hash: String, input: PublishInput, offering: OfferingInfo): ExperienceRow? {
+	fun insertWithKey(authorId: UUID, authorUsername: String, key: UUID, hash: String, input: PublishInput, offering: OfferingInfo): UUID? {
 		val id = jdbc.sql("SELECT uuidv7()").query(UUID::class.java).single()
 		val registered = jdbc.sql(
 			"""
@@ -74,13 +77,12 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 		).param("author", authorId).param("key", key).param("hash", hash).param("id", id).update()
 		if (registered == 0) return null
 
-		return jdbc.sql(
+		jdbc.sql(
 			"""
 			INSERT INTO experience (id, author_id, author_username, place_id, place_name, place_demo,
 			                        offering_id, offering_name, sport_id, sport_name, text, stars)
 			VALUES (:id, :author, :username, :placeId, :placeName, :placeDemo,
 			        :offeringId, :offeringName, :sportId, :sportName, :text, :stars)
-			RETURNING *
 			""",
 		)
 			.param("id", id).param("author", authorId).param("username", authorUsername)
@@ -88,26 +90,33 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 			.param("offeringId", offering.id).param("offeringName", offering.name)
 			.param("sportId", offering.sportId).param("sportName", offering.sportName)
 			.param("text", input.text).param("stars", input.stars)
-			.query { rs, _ -> rs.toRow() }
-			.single()
+			.update()
+		return id
 	}
 
 	/** Qualquer experiência, incluindo eliminadas; com [lock], bloqueia a linha até ao fim da transação. */
 	fun findAny(id: UUID, lock: Boolean = false): ExperienceRow? =
-		jdbc.sql("SELECT * FROM experience WHERE id = :id" + if (lock) " FOR UPDATE" else "")
+		// FOR UPDATE OF e: bloqueia só a experiência (a fotografia vem de um LEFT JOIN).
+		jdbc.sql("$SELECT_WITH_PHOTO WHERE e.id = :id" + if (lock) " FOR UPDATE OF e" else "")
 			.param("id", id)
 			.query { rs, _ -> rs.toRow() }
 			.optional().orElse(null)
 
-	fun update(id: UUID, text: String, stars: Int): ExperienceRow =
-		jdbc.sql("UPDATE experience SET text = :text, stars = :stars, edited_at = now() WHERE id = :id RETURNING *")
-			.param("id", id).param("text", text).param("stars", stars)
-			.query { rs, _ -> rs.toRow() }
-			.single()
+	/** Grava os valores finais (texto, estrelas e fotografia atual) e marca a edição. */
+	fun update(id: UUID, text: String, stars: Int, photoMediaId: UUID?) {
+		jdbc.sql("UPDATE experience SET text = :text, stars = :stars, photo_media_id = :photo, edited_at = now() WHERE id = :id")
+			.param("id", id).param("text", text).param("stars", stars).param("photo", photoMediaId)
+			.update()
+	}
+
+	/** Fotografia de uma experiência acabada de criar (sem marcar edição). */
+	fun setPhoto(id: UUID, photoMediaId: UUID) {
+		jdbc.sql("UPDATE experience SET photo_media_id = :photo WHERE id = :id").param("id", id).param("photo", photoMediaId).update()
+	}
 
 	/** Eliminação com marca: o conteúdo é apagado e ficam só os ids e as datas (docs/experiences-api.md §4.5). */
 	fun markDeleted(id: UUID) {
-		jdbc.sql("UPDATE experience SET deleted_at = now(), text = NULL, stars = NULL WHERE id = :id AND deleted_at IS NULL")
+		jdbc.sql("UPDATE experience SET deleted_at = now(), text = NULL, stars = NULL, photo_media_id = NULL WHERE id = :id AND deleted_at IS NULL")
 			.param("id", id).update()
 	}
 
@@ -136,7 +145,7 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 			ExperienceSort.RECENT -> "e.created_at DESC, e.id DESC"
 			ExperienceSort.STARS -> "e.stars DESC, e.created_at DESC, e.id DESC"
 		}
-		val rows = jdbc.sql("SELECT e.* FROM experience e $where ORDER BY $orderBy LIMIT :limit OFFSET :offset")
+		val rows = jdbc.sql("$SELECT_WITH_PHOTO $where ORDER BY $orderBy LIMIT :limit OFFSET :offset")
 			.params(params)
 			.param("limit", criteria.size)
 			.param("offset", criteria.page.toLong() * criteria.size)
@@ -167,9 +176,15 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 		createdAt = getTimestamp("created_at").toInstant(),
 		editedAt = getTimestamp("edited_at")?.toInstant(),
 		deletedAt = getTimestamp("deleted_at")?.toInstant(),
+		photoMediaId = getObject("photo_media_id", UUID::class.java),
+		photoWidth = getInt("photo_width").takeUnless { wasNull() },
+		photoHeight = getInt("photo_height").takeUnless { wasNull() },
 	)
 
 	private companion object {
+		const val SELECT_WITH_PHOTO =
+			"SELECT e.*, m.width AS photo_width, m.height AS photo_height FROM experience e LEFT JOIN media m ON m.id = e.photo_media_id"
+
 		/** Os caracteres especiais do LIKE (\ % _) escritos pelo utilizador são procurados literalmente. */
 		fun escapeLike(text: String): String = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 	}

@@ -39,6 +39,17 @@ class ApiExceptionHandler {
 		)
 	}
 
+	/** Ficheiro ou pedido multipart acima dos limites (spring.servlet.multipart). */
+	@ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException::class)
+	fun uploadTooLarge(request: HttpServletRequest) = ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
+		problem(HttpStatus.PAYLOAD_TOO_LARGE, "PAYLOAD_TOO_LARGE", "Pedido demasiado grande", "A fotografia pode ter no máximo 10 MiB.", request),
+	)
+
+	@ExceptionHandler(org.springframework.web.multipart.MultipartException::class)
+	fun badMultipart(request: HttpServletRequest) = ResponseEntity.badRequest().body(
+		problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Pedido inválido", "O pedido multipart é inválido.", request),
+	)
+
 	@ExceptionHandler(PayloadTooLargeException::class)
 	fun payloadTooLarge(request: HttpServletRequest) = tooLarge(request)
 

@@ -24,6 +24,9 @@ class PayloadTooLargeException : IOException("Pedido demasiado grande")
 @Component
 class BodySizeLimitFilter(private val properties: PublishingProperties, private val mapper: JsonMapper) : OncePerRequestFilter() {
 
+	/** Os uploads de fotografias têm limites próprios (multipart, docs/experiences-api.md §12.2). */
+	override fun shouldNotFilter(request: HttpServletRequest): Boolean = request.requestURI.startsWith("/api/v1/media")
+
 	override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
 		if (request.contentLengthLong > properties.maxBodyBytes) {
 			response.status = HttpStatus.PAYLOAD_TOO_LARGE.value()

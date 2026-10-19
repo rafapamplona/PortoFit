@@ -15,19 +15,26 @@ data class PublishInput(
 	val offeringId: UUID,
 	val text: String,
 	val stars: Int,
+	/** Fotografia pendente a associar (E2), ou null. */
+	val mediaId: UUID? = null,
 ) {
 	/**
 	 * SHA-256 do conteúdo normalizado, para reconhecer a repetição da mesma tentativa (docs/experiences-api.md §5).
 	 * O separador NUL não pode aparecer no texto (caracteres de controlo são recusados).
 	 */
 	fun requestHash(): String {
-		val canonical = listOf(placeId.toString(), offeringId.toString(), stars.toString(), text).joinToString("\u0000")
+		// O mediaId só entra quando existe: as chaves de publicações sem fotografia continuam válidas (§12.1).
+		val parts = listOf(placeId.toString(), offeringId.toString(), stars.toString(), text) + listOfNotNull(mediaId?.toString())
+		val canonical = parts.joinToString("\u0000")
 		return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8)))
 	}
 }
 
-/** Alterações pedidas num PATCH; null = não alterar. */
-data class EditInput(val text: String?, val stars: Int?)
+/**
+ * Alterações pedidas num PATCH; null = não alterar. [mediaSpecified] distingue `"mediaId"` ausente (não muda)
+ * de `"mediaId": null` (remove a fotografia).
+ */
+data class EditInput(val text: String?, val stars: Int?, val mediaSpecified: Boolean = false, val mediaId: UUID? = null)
 
 /** Regras de validação de docs/experiences-api.md §4.1 e §4.4. */
 object ExperienceRules {
@@ -35,7 +42,7 @@ object ExperienceRules {
 
 	private const val TEXT_MESSAGE = "O texto deve ter entre 1 e 2000 caracteres."
 	private const val STARS_MESSAGE = "As estrelas devem ser um número inteiro de 1 a 5."
-	private val PUBLISH_FIELDS = setOf("placeId", "offeringId", "text", "stars")
+	private val PUBLISH_FIELDS = setOf("placeId", "offeringId", "text", "stars", "mediaId")
 	private val SLUG = Regex("^[a-z0-9]+(-[a-z0-9]+)*$")
 
 	fun parsePublish(body: String?, mapper: JsonMapper): PublishInput {
@@ -46,8 +53,9 @@ object ExperienceRules {
 		val offeringId = uuidField(node, "offeringId", "Indica a atividade.", errors)
 		val text = textField(node.get("text"), errors)
 		val stars = starsField(node.get("stars"), errors)
+		val mediaId = mediaField(node, errors)
 		if (errors.isNotEmpty()) throw ApiErrors.validation(errors)
-		return PublishInput(placeId!!, offeringId!!, text!!, stars!!)
+		return PublishInput(placeId!!, offeringId!!, text!!, stars!!, mediaId)
 	}
 
 	fun parseEdit(body: String?, mapper: JsonMapper): EditInput {
@@ -55,18 +63,19 @@ object ExperienceRules {
 		val errors = mutableListOf<FieldError>()
 		for (name in node.propertyNames()) {
 			when (name) {
-				"text", "stars" -> Unit
+				"text", "stars", "mediaId" -> Unit
 				"placeId", "offeringId" -> errors += FieldError(name, "A atividade não pode ser alterada. Apaga a experiência e publica uma nova.")
 				else -> errors += FieldError(name, "Este campo não pode ser alterado.")
 			}
 		}
 		val text = if (node.has("text")) textField(node.get("text"), errors) else null
 		val stars = if (node.has("stars")) starsField(node.get("stars"), errors) else null
-		if (!node.has("text") && !node.has("stars") && errors.isEmpty()) {
-			errors += FieldError("text", "Indica o texto ou as estrelas a alterar.")
+		val mediaId = mediaField(node, errors)
+		if (!node.has("text") && !node.has("stars") && !node.has("mediaId") && errors.isEmpty()) {
+			errors += FieldError("text", "Indica o texto, as estrelas ou a fotografia a alterar.")
 		}
 		if (errors.isNotEmpty()) throw ApiErrors.validation(errors)
-		return EditInput(text, stars)
+		return EditInput(text, stars, mediaSpecified = node.has("mediaId"), mediaId = mediaId)
 	}
 
 	/** `\r\n` e `\r` passam a `\n`; espaços e mudanças de linha nas pontas são removidos. */
@@ -88,6 +97,15 @@ object ExperienceRules {
 		}
 		if (node == null || !node.isObject) throw ApiErrors.validation("body", "O corpo do pedido tem de ser um objeto JSON.")
 		return node
+	}
+
+	/** `"mediaId"`: ausente ou null → null; texto → UUID canónico; outro valor → erro. */
+	private fun mediaField(node: JsonNode, errors: MutableList<FieldError>): UUID? {
+		val value = node.get("mediaId") ?: return null
+		if (value.isNull) return null
+		val id = if (value.isString) parseUuid(value.stringValue()) else null
+		if (id == null) errors += FieldError("mediaId", "Identificador de fotografia inválido.")
+		return id
 	}
 
 	private fun uuidField(node: JsonNode, field: String, missing: String, errors: MutableList<FieldError>): UUID? {

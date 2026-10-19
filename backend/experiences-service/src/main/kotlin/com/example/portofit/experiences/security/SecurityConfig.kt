@@ -53,6 +53,8 @@ class SecurityConfig(private val properties: SecurityProperties) {
 				authorize(HttpMethod.GET, "/api/v1/experiences", permitAll)
 				authorize(HttpMethod.GET, "/api/v1/experiences/**", permitAll)
 				authorize(HttpMethod.GET, "/api/v1/ratings/**", permitAll)
+				// Fotografias: consulta pública (só as associadas); envio com sessão (regra geral abaixo).
+				authorize(HttpMethod.GET, "/api/v1/media/**", permitAll)
 				authorize("/actuator/health", permitAll)
 				authorize("/error", permitAll)
 				authorize(anyRequest, authenticated)

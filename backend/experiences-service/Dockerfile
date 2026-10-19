@@ -16,7 +16,8 @@ RUN --mount=type=cache,target=/root/.gradle \
 # --- Etapa 2: imagem final só com o JRE e o JAR ---
 FROM eclipse-temurin:25.0.3_9-jre-noble
 
-RUN groupadd --system app && useradd --system --gid app --no-create-home app
+# Ponto de montagem do volume das fotografias: um volume novo herda este dono (só o utilizador app escreve).
+RUN groupadd --system app && useradd --system --gid app --no-create-home app     && mkdir -p /data/media && chown app:app /data/media && chmod 750 /data/media
 WORKDIR /app
 COPY --from=build /workspace/build/libs/experiences-service.jar app.jar
 

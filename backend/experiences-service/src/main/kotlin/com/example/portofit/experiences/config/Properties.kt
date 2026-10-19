@@ -29,3 +29,23 @@ data class PublishingProperties(
 	val idempotencyRetention: Duration,
 	val maxBodyBytes: Long,
 )
+
+/** Fotografias (docs/experiences-api.md §12). */
+@ConfigurationProperties("portofit.media")
+data class MediaProperties(
+	val storageDir: String,
+	val maxFileBytes: Long,
+	val minSide: Int,
+	val maxSide: Int,
+	val maxPixels: Long,
+	val outputMaxSide: Int,
+	/** Lado maior a que a imagem é descodificada (subamostragem): limita a memória usada. */
+	val decodeMaxSide: Int,
+	val jpegQuality: Float,
+	val maxConcurrentProcessing: Int,
+	val processingWait: Duration,
+	val maxPendingPerOwner: Int,
+	val pendingTtl: Duration,
+	/** Idade a partir da qual ficheiros sem linha e temporários são apagados. */
+	val orphanAge: Duration,
+)

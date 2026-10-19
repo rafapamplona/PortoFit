@@ -1,7 +1,7 @@
 # experiences-service — Contrato da API
 
 > Contrato das experiências (publicações), das avaliações agregadas e, nas etapas seguintes, das fotografias, comentários, gostos, visualizações, feeds e estatísticas. Contexto geral em [arquitetura.md](arquitetura.md) (§3.5 cópias, §3.6 métricas, §3.7 avaliação, §3.8 autenticação, §3.9 fotografias, §3.10 feeds, §4 falhas).
-> Estado: **E1 implementada no backend** (etapa 6; estado em [§20](#20-estado-da-implementação)), segundo a v1 aprovada na revisão de 2026-10-19 ([§19](#19-decisões-da-revisão)). A app ainda não usa este serviço. E2–E4 ficam definidas e são revistas no início de cada etapa.
+> Estado: **E1 implementada** (backend e app, etapa 6) e **E2 implementada no backend** (fotografias, etapa 7; a app ainda não envia fotografias). Estado em [§20](#20-estado-da-implementação); decisões em [§19](#19-decisões-da-revisão) e lacunas da E2 resolvidas em [§12.1](#121-endpoints). E3–E4 ficam definidas e são revistas no início de cada etapa.
 > Mesmas convenções do [catalog-api.md](catalog-api.md) e do [users-api.md](users-api.md): JSON UTF-8, nomes de campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`, envelope de paginação comum.
 
 ## Índice
@@ -900,7 +900,13 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 
 **App Android (etapa 6):** experiências no detalhe do local e nos perfis, publicar, editar e eliminar ([app-android.md §14](app-android.md#14-experiências-etapa-6-e1-sem-fotografias)).
 
-**Ainda não implementado:** E2–E4 (fotografias, comentários, gostos, visualizações, feeds, dashboard).
+**E2 (backend, etapa 7):**
+- `POST /media`, `GET /media/{id}`, e `mediaId` em `POST /experiences` e `PATCH /experiences/{id}`;
+- migração `V2__media.sql` (tabela `media` e `experience.photo_media_id`);
+- volume `experiences-media` montado em `/data/media`;
+- limpeza periódica (§12).
+
+**Ainda não implementado:** fotografias na app (galeria e câmara), E3–E4 (comentários, gostos, visualizações, feeds, dashboard).
 
 **Notas da implementação**
 
@@ -911,9 +917,41 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 - **Corpo:** os pedidos JSON são limitados a 16 KiB (`413`), pelo `Content-Length` e durante a leitura; um corpo que não seja JSON dá `415`.
 - **Logs:** nunca têm tokens nem o texto das experiências. Uma falha do catálogo ou das avaliações regista o tipo do erro e a causa (ex.: `HttpTimeoutException`).
 
+**Notas da implementação da E2**
+
+- **Bibliotecas:** `javax.imageio` do JDK para ler JPEG/PNG e escrever o JPEG; `com.drewnoakes:metadata-extractor` 2.19.0 (única dependência nova) só para ler a orientação EXIF.
+- **Ordem do processamento:**
+  1. assinatura do conteúdo;
+  2. dimensões do cabeçalho (`ImageReader.getWidth/getHeight`), sem descodificar;
+  3. descodificação com subamostragem; avisos do descodificador (ex.: JPEG truncado) → recusa;
+  4. orientação EXIF e redução numa única transformação para uma imagem RGB nova;
+  5. JPEG escrito sem metadados (`IIOImage(imagem, null, null)`).
+- **Transações:**
+  - associar, substituir e remover acontecem na transação da experiência (`SELECT … FOR UPDATE OF e` e `FOR UPDATE` na fotografia);
+  - o `GET /media` só serve uma fotografia `ATTACHED` que ainda é a `photo_media_id` de uma experiência não eliminada;
+  - os ficheiros são apagados só depois de confirmada a transação; o que falhar fica para a limpeza.
+- **Testes:** uma base comum (`ApiIntegrationTest`) faz as duas classes partilharem um único contexto Spring e um único PostgreSQL. O `MediaRepository` é um *spy* do Mockito, para simular a falha da base de dados depois de gravar o ficheiro.
+
 **Testes automáticos**
 
-- **experiences-service** (`.\gradlew.bat test` em `backend/experiences-service`): **17 testes**, contra PostgreSQL 18.6 real (Testcontainers), com um catálogo falso por HTTP, chaves RSA geradas no teste (o serviço só recebe a pública) e um relógio controlável. Cobrem:
+- **experiences-service, E2** (`MediaApiIntegrationTest`, **13 testes**), executados depois da última alteração ao código:
+  - fotografia com EXIF (orientação 6 + GPS): orientação aplicada (dimensões trocadas, cores no sítio certo), sem EXIF nem GPS no ficheiro servido, invisível enquanto pendente, cabeçalhos (`image/jpeg`, `nosniff`, `private, max-age=86400`, `ETag`) e `304` com `If-None-Match`;
+  - PNG com texto embutido e transparência → JPEG sem o texto, com fundo branco;
+  - recusados pelo conteúdo real: texto com nome e `Content-Type` de JPEG, GIF com nome de JPEG, JPEG truncado, ficheiro vazio, 100×100, cabeçalho de 9000×9000 e de 48 MP (recusados sem descodificar, em < 3 s); sem o campo `file` → `400`; JSON → `415`; sem sessão → `401`;
+  - ficheiro de 10 MiB + 1 byte por HTTP real (Tomcat) → `413`;
+  - autorização: fotografia de outra pessoa → `MEDIA_NOT_USABLE`; outra pessoa a alterar ou remover → `403`; fotografia já usada; a mesma fotografia de novo não altera nada; `mediaId` inválido (incluindo `../../etc/passwd`) → `400`;
+  - substituição: uma falhada não muda nada e a antiga continua; uma bem-sucedida dá um URL novo, a antiga → `404` e o ficheiro antigo é apagado;
+  - remover a fotografia mantém o texto;
+  - eliminar a experiência → `404` imediato; com a limpeza física pendente, `404` na mesma e a limpeza apaga depois;
+  - idempotência com fotografia: `mediaId` inutilizável não gasta a chave; a repetição devolve `200`; outro conteúdo → `409`;
+  - limite de pendentes → `429` com `Retry-After`;
+  - falha da base de dados depois de gravar o ficheiro → o ficheiro é apagado e o erro não expõe caminhos;
+  - ficheiro em falta → `GET /media` `503` sem caminhos, experiência `200`;
+  - limpeza de pendentes expiradas, órfãos e temporários antigos, sem tocar nos recentes, nas associadas nem em ficheiros alheios.
+
+  Total do serviço: **30 testes, 0 falhas** (17 da E1 e 13 da E2).
+
+- **experiences-service, E1** (`.\gradlew.bat test` em `backend/experiences-service`): **17 testes**, contra PostgreSQL 18.6 real (Testcontainers), com um catálogo falso por HTTP, chaves RSA geradas no teste (o serviço só recebe a pública) e um relógio controlável. Cobrem:
   - autenticação local: sem token, expirado, outra chave, outro `iss`/`aud`, mal formado, sem `username`, token inválido numa leitura pública;
   - validações (estrelas `0`, `6`, `4.5`, `4.0`, `"4"`, `null`; texto vazio, só com espaços ou NBSP, 2001 caracteres, caracteres de controlo; 2000 com emojis aceite; campos proibidos; chave em falta; JSON inválido; `415`; `413`);
   - atividade inexistente, de outro local e retirada;
@@ -948,7 +986,23 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 
 Na primeira execução, a verificação do catálogo parado veio logo depois de reiniciar o experiences-service, cuja memória fica vazia ao reiniciar: daí o `503`, o que está correto. Também houve um `503` ao publicar logo depois de reiniciar o catálogo (prazo esgotado no arranque a frio). As duas verificações foram repetidas pela ordem certa, com os resultados da tabela.
 
+**Verificação por HTTP da E2 (2026-10-19)**, nos contentores, com duas contas temporárias (apagadas no fim com as suas experiências e fotografias; `pamplona` e o registo de experiência já existente preservados; volume vazio no fim):
+
+| Verificação | Resultado |
+|---|---|
+| Upload de PNG 400×200 com EXIF (orientação 6 + GPS) e texto embutido | `201`, 200×400 (orientação aplicada) |
+| Consultar enquanto pendente | `404` |
+| Texto com nome `.jpg` e `Content-Type: image/jpeg` | `400 INVALID_IMAGE` "Só são aceites fotografias JPEG ou PNG." |
+| Publicar com a fotografia e consultar | `201` com `photo.url`; `GET` `200`, `image/jpeg`, `max-age=86400, private`, `ETag`, `nosniff`; JPEG 200×400 sem `Exif` nem o texto |
+| Outra conta remove a fotografia | `403` |
+| Substituir | URL novo; o antigo `404` e o ficheiro antigo já não está no volume; o novo `200` |
+| Reiniciar o contentor | a fotografia continua com o mesmo conteúdo (SHA-256 igual) |
+| Remover a fotografia | `photo: null`, texto intacto; `404`; ficheiro apagado |
+| Eliminar a experiência com fotografia | `204`; `404`; ficheiro apagado |
+
 **Limitações conhecidas**
+
+- Fotografias: o limite de 2 imagens processadas ao mesmo tempo é por instância. Uma cópia já guardada na cache HTTP de um aparelho pode durar até 24 h depois de remover a fotografia (só nesse aparelho). Não há cópia de segurança automática do volume. O `503` por excesso de processamento simultâneo não tem teste automático.
 
 - Logo depois de um arranque, os primeiros pedidos entre serviços podem exceder os prazos curtos. Medido no catálogo: 2,4 s e 1,0 s, depois 0,14 s. O resultado é `UNAVAILABLE` nas avaliações ou `503 CATALOG_UNAVAILABLE` ao publicar, ambos corretos e passageiros. Um aquecimento no arranque fica como melhoria possível.
 - O limite de publicações e a memória de atividades são por instância e perdem-se ao reiniciar (§4.1, §6.2).

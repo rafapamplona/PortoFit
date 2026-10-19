@@ -10,7 +10,7 @@
 | `postgres` | PostgreSQL com as bases `catalog_db`, `users_db` e `experiences_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
 | `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
 | `users-service` | Contas, sessões (JWT + refresh tokens), perfis e seguir ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
-| `experiences-service` | Experiências e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
+| `experiences-service` | Experiências, fotografias e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db` e o volume `experiences-media`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
 
 ```
 PortoFit/
@@ -121,7 +121,7 @@ Num volume que já tem dados (ex.: criado antes do users-service ou do experienc
 | Parar e remover contentores (mantém dados) | `docker compose down` |
 | ⚠️ Remover contentores **e apagar os dados** | `docker compose down -v` |
 
-**Dados:** a base de dados vive no volume Docker `portofit_postgres-data`. `stop`, `restart` e `down` **preservam** os dados. Só `down -v` (ou `docker volume rm`) remove o volume e **apaga todos os dados**; na próxima subida o PostgreSQL é inicializado de novo e o script de criação volta a correr.
+**Dados:** a base de dados vive no volume Docker `portofit_postgres-data` e as fotografias no volume `portofit_experiences-media` (montado só no experiences-service, em `/data/media`; os ficheiros são `<mediaId>.jpg`, referidos pela tabela `media`). Os dois têm de ser copiados juntos numa cópia de segurança. `stop`, `restart` e `down` **preservam** os dados. Só `down -v` (ou `docker volume rm`) remove o volume e **apaga todos os dados**; na próxima subida o PostgreSQL é inicializado de novo e o script de criação volta a correr.
 
 ## 5. Verificar os serviços
 
@@ -224,7 +224,8 @@ curl.exe "http://localhost:8083/api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7
 - Valida os access tokens localmente com `secrets/users-jwt/public.pem` (montado só de leitura); nunca chama o users-service.
 - Valida atividades no catalog-service pela rede interna (`http://catalog-service:8081`, `includeRating=false`), com memória de 10 min. Com o catálogo parado, só falha publicar numa atividade não validada recentemente (`503 CATALOG_UNAVAILABLE`). Reiniciar o experiences-service esvazia essa memória.
 - Limite de publicações por autor e retenção das chaves de idempotência: `portofit.publishing.*` em `application.yaml` (o limite é em memória e reinicia com o serviço).
-- Testes: `cd backend\experiences-service; .\gradlew.bat test` (17 testes; PostgreSQL real via Testcontainers; catálogo falso, chaves e relógio dos próprios testes).
+- Fotografias (E2): `POST /api/v1/media` (multipart, campo `file`, até 10 MiB, JPEG ou PNG) devolve um `mediaId` pendente; associa-se com `"mediaId"` ao publicar ou editar. Limites e limpeza em `portofit.media.*` (`application.yaml`). A imagem guarda a pasta `/data/media` com dono `app` (o volume novo herda-o).
+- Testes: `cd backend\experiences-service; .\gradlew.bat test` (30 testes: 17 da E1 e 13 das fotografias; PostgreSQL real via Testcontainers; catálogo falso, chaves, relógio e pasta de fotografias dos próprios testes).
 
 ## 7. Configuração relevante
 

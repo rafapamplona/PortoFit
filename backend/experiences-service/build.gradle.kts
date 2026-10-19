@@ -29,6 +29,8 @@ dependencies {
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
+	// Leitura da orientação EXIF das fotografias (a recodificação usa o javax.imageio do JDK).
+	implementation("com.drewnoakes:metadata-extractor:2.19.0")
 	runtimeOnly("org.postgresql:postgresql")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")

@@ -18,6 +18,11 @@ spring:
     locations: classpath:db/migration
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  servlet:
+    multipart:
+      # Fotografias (docs/experiences-api.md §12.2): ficheiro até 10 MiB, pedido até 10 MiB + 64 KiB.
+      max-file-size: 10MB
+      max-request-size: 10304KB
 
 server:
   port: 8083
@@ -26,6 +31,8 @@ server:
     connection-timeout: 10s
     threads:
       max: 50
+    # Lê o resto de um upload recusado para conseguir responder 413 (em vez de fechar a ligação).
+    max-swallow-size: 11MB
 
 management:
   endpoints:
@@ -59,3 +66,18 @@ portofit:
     # Garantia contra duplicação só dentro deste prazo (docs/experiences-api.md §5).
     idempotency-retention: 7d
     max-body-bytes: 16384
+  media:
+    # Volume próprio e persistente (docker-compose.yml); fora da imagem Docker.
+    storage-dir: ${MEDIA_DIR:./build/media-dev}
+    max-file-bytes: 10485760
+    min-side: 200
+    max-side: 8000
+    max-pixels: 40000000
+    output-max-side: 1600
+    decode-max-side: 3200
+    jpeg-quality: 0.85
+    max-concurrent-processing: 2
+    processing-wait: 10s
+    max-pending-per-owner: 20
+    pending-ttl: 24h
+    orphan-age: 1h

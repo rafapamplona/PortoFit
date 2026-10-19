@@ -4,6 +4,7 @@ import com.example.portofit.experiences.api.ApiErrors
 import com.example.portofit.experiences.api.PageResponse
 import com.example.portofit.experiences.catalog.CatalogClient
 import com.example.portofit.experiences.config.PublishingProperties
+import com.example.portofit.experiences.media.MediaService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -18,6 +19,7 @@ class ExperienceService(
 	private val experiences: ExperienceRepository,
 	private val catalog: CatalogClient,
 	private val limiter: PublishLimiter,
+	private val media: MediaService,
 	private val properties: PublishingProperties,
 	private val tx: TransactionTemplate,
 ) {
@@ -37,7 +39,15 @@ class ExperienceService(
 		if (offering.placeId != input.placeId) throw ApiErrors.offeringPlaceMismatch()
 		if (offering.retired) throw ApiErrors.offeringRetired()
 
-		val created = tx.execute { experiences.insertWithKey(authorId, authorUsername, key, hash, input, offering) }
+		val created = tx.execute {
+			val id = experiences.insertWithKey(authorId, authorUsername, key, hash, input, offering) ?: return@execute null
+			// Na mesma transação: uma fotografia inutilizável desfaz a publicação (a chave não fica gasta).
+			input.mediaId?.let { mediaId ->
+				media.attach(mediaId, id, authorId)
+				experiences.setPhoto(id, mediaId)
+			}
+			experiences.findAny(id)
+		}
 		if (created == null) {
 			// Outro pedido com a mesma chave confirmou primeiro: esta tentativa é uma repetição.
 			val existing = experiences.findPublishRequest(authorId, key) ?: error("tentativa registada sem linha")
@@ -54,26 +64,56 @@ class ExperienceService(
 		return PageResponse.of(rows.map { it.toView() }, criteria.page, criteria.size, total)
 	}
 
-	/** Só o autor; `editedAt` só muda se algum valor mudar; `createdAt` nunca muda. */
-	fun edit(id: UUID, userId: UUID, input: EditInput): ExperienceView = tx.execute {
-		val row = experiences.findAny(id, lock = true)?.takeUnless { it.deleted } ?: throw ApiErrors.notFound()
-		if (row.authorId != userId) throw ApiErrors.forbidden()
-		val text = input.text ?: row.text!!
-		val stars = input.stars ?: row.stars!!
-		if (text == row.text && stars == row.stars) row.toView() else experiences.update(id, text, stars).toView()
-	}!!
+	/**
+	 * Só o autor; `editedAt` só muda se algum valor mudar; `createdAt` nunca muda. Substituir ou remover a
+	 * fotografia acontece na mesma transação, com a experiência bloqueada: a anterior continua a ser servida
+	 * até a nova estar confirmada, e o seu ficheiro só é apagado depois (docs/experiences-api.md §12.4).
+	 */
+	fun edit(id: UUID, userId: UUID, input: EditInput): ExperienceView {
+		val replaced = mutableListOf<UUID>()
+		val view = tx.execute {
+			val row = experiences.findAny(id, lock = true)?.takeUnless { it.deleted } ?: throw ApiErrors.notFound()
+			if (row.authorId != userId) throw ApiErrors.forbidden()
+			val text = input.text ?: row.text!!
+			val stars = input.stars ?: row.stars!!
+			val photo = if (input.mediaSpecified) input.mediaId else row.photoMediaId
+			if (text == row.text && stars == row.stars && photo == row.photoMediaId) return@execute row.toView()
+			if (photo != row.photoMediaId) {
+				photo?.let { media.attach(it, id, userId) }
+				row.photoMediaId?.let {
+					media.release(it)
+					replaced += it
+				}
+			}
+			experiences.update(id, text, stars, photo)
+			experiences.findAny(id)!!.toView()
+		}!!
+		media.purge(replaced)
+		return view
+	}
 
-	/** Só o autor; repetir é seguro (204). Para outra pessoa, uma experiência eliminada não existe. */
+	/**
+	 * Só o autor; repetir é seguro (204). Para outra pessoa, uma experiência eliminada não existe. A fotografia
+	 * deixa de ser servida na mesma transação; o ficheiro é apagado depois (ou pela limpeza).
+	 */
 	fun delete(id: UUID, userId: UUID) {
+		val released = mutableListOf<UUID>()
 		tx.executeWithoutResult {
 			val row = experiences.findAny(id, lock = true) ?: throw ApiErrors.notFound()
 			when {
 				row.deleted && row.authorId == userId -> Unit
 				row.deleted -> throw ApiErrors.notFound()
 				row.authorId != userId -> throw ApiErrors.forbidden()
-				else -> experiences.markDeleted(id)
+				else -> {
+					row.photoMediaId?.let {
+						media.release(it)
+						released += it
+					}
+					experiences.markDeleted(id)
+				}
 			}
 		}
+		media.purge(released)
 	}
 
 	/** Fora da retenção já não há garantia contra duplicação (docs/experiences-api.md §5). */

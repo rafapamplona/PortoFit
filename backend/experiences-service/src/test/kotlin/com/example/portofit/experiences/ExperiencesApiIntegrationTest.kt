@@ -56,16 +56,7 @@ import kotlin.test.assertTrue
  * catalog-service e tokens assinados por uma chave só dos testes (o serviço recebe só a chave pública).
  * Cada teste usa autores, locais e atividades novos, para não depender dos outros.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureMockMvc
-@Import(TestcontainersConfiguration::class)
-class ExperiencesApiIntegrationTest {
-
-	@Autowired lateinit var mvc: MockMvc
-	@Autowired lateinit var mapper: JsonMapper
-	@Autowired lateinit var jdbc: JdbcClient
-
-	@LocalServerPort var port: Int = 0
+class ExperiencesApiIntegrationTest : ApiIntegrationTest() {
 
 	@AfterEach
 	fun restoreCatalog() {
@@ -561,31 +552,6 @@ class ExperiencesApiIntegrationTest {
 
 	// --- Auxiliares ---
 
-	data class TestUser(val id: UUID, val username: String, val token: String)
-
-	private fun newUser(prefix: String): TestUser {
-		val id = UUID.randomUUID()
-		val username = prefix + id.toString().take(8)
-		return TestUser(id, username, sign(id, username))
-	}
-
-	private fun sign(
-		userId: UUID,
-		username: String?,
-		issuer: String = "portofit-users",
-		audience: String = "portofit-api",
-		expiresAt: Instant = Instant.now().plusSeconds(900),
-		keyPair: KeyPair = keys.keyPair,
-	): String {
-		val rsa = RSAKey.Builder(keyPair.public as RSAPublicKey).privateKey(keyPair.private as RSAPrivateKey).keyIDFromThumbprint().build()
-		val encoder = NimbusJwtEncoder(ImmutableJWKSet<SecurityContext>(JWKSet(rsa)))
-		val claims = JwtClaimsSet.builder().issuer(issuer).audience(listOf(audience)).subject(userId.toString())
-			.issuedAt(expiresAt.minusSeconds(900)).expiresAt(expiresAt).id(UUID.randomUUID().toString())
-			.apply { if (username != null) claim("username", username) }
-			.build()
-		val header = JwsHeader.with(SignatureAlgorithm.RS256).keyId(rsa.keyID).type("JWT").build()
-		return encoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue
-	}
 
 	private fun publishBody(offering: CatalogStub.TestOffering, text: String, stars: Int) =
 		mapper.writeValueAsString(mapOf("placeId" to offering.placeId, "offeringId" to offering.id, "text" to text, "stars" to stars))
@@ -661,22 +627,6 @@ class ExperiencesApiIntegrationTest {
 			return futures.map { it.get() }
 		} finally {
 			pool.shutdown()
-		}
-	}
-
-	companion object {
-		const val LIMIT = 5
-
-		val keys: TestKeys = TestKeys.create()
-		val catalog: CatalogStub = CatalogStub.start()
-		val clock: MutableClock = MutableClock.instance
-
-		@JvmStatic
-		@DynamicPropertySource
-		fun properties(registry: DynamicPropertyRegistry) {
-			registry.add("portofit.security.public-key-location") { keys.publicKeyUri }
-			registry.add("portofit.catalog.base-url") { catalog.url }
-			registry.add("portofit.publishing.max-per-author") { LIMIT }
 		}
 	}
 }

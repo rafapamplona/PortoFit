@@ -76,6 +76,44 @@ object ApiErrors {
 		"Não é possível publicar agora: o catálogo está indisponível. Tenta novamente daqui a pouco.",
 	)
 
+	// --- Fotografias (docs/experiences-api.md §12) ---
+
+	/** A mensagem diz o problema (formato, dimensões, ficheiro danificado), nunca dados do ficheiro nem caminhos. */
+	fun invalidImage(message: String) = ApiException(
+		HttpStatus.BAD_REQUEST, "INVALID_IMAGE", "Fotografia inválida", message, listOf(FieldError("file", message)),
+	)
+
+	fun payloadTooLarge() = ApiException(
+		HttpStatus.PAYLOAD_TOO_LARGE, "PAYLOAD_TOO_LARGE", "Pedido demasiado grande", "A fotografia pode ter no máximo 10 MiB.",
+	)
+
+	fun mediaNotUsable() = ApiException(
+		HttpStatus.BAD_REQUEST, "MEDIA_NOT_USABLE", "Pedido inválido",
+		"Esta fotografia não pode ser usada: tem de ser tua, enviada há menos de 24 horas e ainda não usada.",
+		listOf(FieldError("mediaId", "Esta fotografia não pode ser usada.")),
+	)
+
+	fun tooManyPendingPhotos(retryAfterSeconds: Long) = ApiException(
+		HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS", "Demasiadas fotografias",
+		"Tens demasiadas fotografias enviadas por usar. Usa-as ou espera que expirem.", retryAfterSeconds = retryAfterSeconds,
+	)
+
+	fun photoNotFound() = ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Não encontrado", "Esta fotografia não existe ou já não está disponível.")
+
+	fun photoUnavailable() = ApiException(
+		HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", "Serviço indisponível", "A fotografia está temporariamente indisponível.",
+	)
+
+	fun storageUnavailable() = ApiException(
+		HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", "Serviço indisponível",
+		"Não é possível guardar fotografias agora. Tenta novamente daqui a pouco.",
+	)
+
+	fun mediaBusy() = ApiException(
+		HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", "Serviço ocupado",
+		"Estão a ser processadas demasiadas fotografias. Tenta novamente daqui a pouco.",
+	)
+
 	/** Token válido mas sem a claim `username`: o autor não é guardado sem nome (docs/experiences-api.md §2.3). */
 	fun tokenWithoutUsername() = ApiException(
 		HttpStatus.UNAUTHORIZED, "INVALID_ACCESS_TOKEN", "Sessão inválida", "O token de acesso é inválido ou expirou.",

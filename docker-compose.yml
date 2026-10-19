@@ -129,9 +129,13 @@ services:
       JWT_PUBLIC_KEY_PATH: /run/secrets/users-jwt/public.pem
       # Validação de atividades (GET /api/v1/offerings/{id}?includeRating=false), pela rede interna.
       CATALOG_BASE_URL: http://catalog-service:8081
+      # Fotografias (docs/experiences-api.md §12.3), no volume próprio abaixo.
+      MEDIA_DIR: /data/media
     volumes:
       # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
       - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
+      # Volume persistente das fotografias, fora da imagem; copiar junto com o do PostgreSQL.
+      - experiences-media:/data/media
     ports:
       - "127.0.0.1:8083:8083"
     networks:
@@ -163,3 +167,4 @@ networks:
 
 volumes:
   postgres-data:
+  experiences-media:
