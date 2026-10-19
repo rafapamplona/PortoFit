@@ -1,15 +1,16 @@
 # PortoFit — Infraestrutura local
 
 > Como executar o backend em desenvolvimento. Desenho geral em [arquitetura.md](arquitetura.md). Ligação da app Android ao backend em [app-android.md](app-android.md).
-> Estado: etapa 5 (backend) — PostgreSQL, catalog-service (modalidades, pesquisa e detalhe de locais, usado pela app desde a etapa 4) e users-service (contas, sessões e perfis; ainda sem integração na app).
+> Estado: etapa 6 (backend da E1) — PostgreSQL, catalog-service (modalidades, locais, atividades; avaliações vindas do experiences-service), users-service (contas, sessões, perfis e seguir; usado pela app) e experiences-service (experiências de texto e estrelas e avaliações agregadas; ainda sem integração na app).
 
 ## 1. O que existe
 
 | Componente | Função | Acesso |
 |---|---|---|
-| `postgres` | PostgreSQL com as bases `catalog_db` e `users_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
+| `postgres` | PostgreSQL com as bases `catalog_db`, `users_db` e `experiences_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
 | `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
-| `users-service` | Contas, sessões (JWT + refresh tokens) e perfis ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
+| `users-service` | Contas, sessões (JWT + refresh tokens), perfis e seguir ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
+| `experiences-service` | Experiências e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
 
 ```
 PortoFit/
@@ -21,8 +22,10 @@ PortoFit/
 ├── backend/
 │   ├── postgres/init/
 │   │   ├── 01-catalog-db.sh      cria catalog_db e o seu utilizador (1.ª inicialização)
-│   │   └── 02-users-db.sh        cria users_db e o seu utilizador (idempotente; ver §3.1)
+│   │   ├── 02-users-db.sh        cria users_db e o seu utilizador (idempotente; ver §3.1)
+│   │   └── 03-experiences-db.sh  cria experiences_db e o seu utilizador (idempotente; ver §3.1)
 │   ├── users-service/            projeto Gradle independente: auth/, user/, security/, catalog/, api/
+│   ├── experiences-service/      projeto Gradle independente: experience/, rating/, catalog/, security/, api/
 │   └── catalog-service/          projeto Gradle independente da app Android
 │       ├── Dockerfile            build em duas etapas (JDK → JRE)
 │       ├── build.gradle.kts, settings.gradle.kts, gradlew, gradle/wrapper/
@@ -31,11 +34,12 @@ PortoFit/
 │           │   ├── api/          envelopes de resposta e erros (Problem Details)
 │           │   ├── sport/        GET /api/v1/sports
 │           │   ├── place/        GET /api/v1/places e /places/{id}: validação, SQL, serviço
-│           │   ├── rating/       avaliações (por agora sempre UNAVAILABLE)
+│           │   ├── offering/     GET /api/v1/offerings/{id} (com includeRating)
+│           │   ├── rating/       avaliações pedidas ao experiences-service (UNAVAILABLE se falhar)
 │           │   └── demo/         carregamento dos dados fictícios (perfil demo)
 │           ├── main/resources/
 │           │   ├── application.yaml
-│           │   ├── db/migration/ V1 (vazia), V2 (esquema), V3 (modalidades)
+│           │   ├── db/migration/ V1 (vazia), V2 (esquema), V3 (modalidades), V4 (estado ACTIVE/RETIRED)
 │           │   └── demo/catalog-demo-data.sql
 │           └── test/kotlin/…     testes de integração (Testcontainers)
 └── app/                          app Android (não alterada por esta etapa)
@@ -62,6 +66,8 @@ Confirmadas a 2026-10-16 no Spring Initializr (start.spring.io) e na documentaç
 
 Dependências do catalog-service: `spring-boot-starter-webmvc`, `-actuator`, `-jdbc`, `-flyway`, `flyway-database-postgresql`, driver PostgreSQL e Jackson para Kotlin. Usa-se Spring JDBC (sem JPA/Hibernate): o esquema é criado **só** pelas migrações Flyway, nunca automaticamente.
 
+O experiences-service usa exatamente as mesmas versões e dependências do users-service (o mesmo `build.gradle.kts`, só com outro nome); do resource server usa apenas a validação de JWT, só com a chave pública. Os ids das experiências são UUID versão 7 gerados pela função nativa `uuidv7()` do PostgreSQL 18, sem biblioteca nem gerador próprio.
+
 O users-service usa as mesmas versões (gerado pelo Initializr com as mesmas opções) e acrescenta `spring-boot-starter-security` e `spring-boot-starter-security-oauth2-resource-server` (Spring Security com a biblioteca Nimbus JOSE para assinar e validar JWT, e BCrypt para palavras-passe). Nos testes: `spring-boot-starter-security-test` e `-security-oauth2-resource-server-test`.
 
 ## 3. Primeira utilização
@@ -76,7 +82,7 @@ O users-service usa as mesmas versões (gerado pelo Initializr com as mesmas op�
    ```powershell
    bash scripts/generate-jwt-keys.sh
    ```
-   Cria `secrets/users-jwt/private.pem` e `public.pem`. Se já existirem, o script não faz nada: gerar chaves novas terminaria todas as sessões. A pasta `secrets/` é ignorada pelo Git e é montada só de leitura no users-service; não é copiada para nenhuma imagem.
+   Cria `secrets/users-jwt/private.pem` e `public.pem`. Se já existirem, o script não faz nada: gerar chaves novas terminaria todas as sessões. A pasta `secrets/` é ignorada pelo Git e não é copiada para nenhuma imagem. O users-service recebe a pasta só de leitura; o experiences-service recebe **só o ficheiro `public.pem`**, só de leitura.
 3. Construir e arrancar:
    ```powershell
    docker compose up -d --build --wait
@@ -87,7 +93,7 @@ Os scripts de `backend/postgres/init/` só correm quando o volume de dados está
 
 ### 3.1 Acrescentar a base de um serviço novo a um volume existente
 
-Num volume que já tem dados (ex.: criado antes do users-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh` é **idempotente** e pode ser corrido à mão sem apagar nada:
+Num volume que já tem dados (ex.: criado antes do users-service ou do experiences-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh` e o `03-experiences-db.sh` são **idempotentes** e podem ser corridos à mão sem apagar nada. Exemplo para o users-service (para o experiences-service, o mesmo com `EXPERIENCES_DB_*`, `03-experiences-db.sh` e `experiences-service`):
 
 1. Acrescentar `USERS_DB_USER` e `USERS_DB_PASSWORD` ao `.env` (ver `.env.example`).
 2. Aplicar a configuração ao PostgreSQL (o contentor é recriado com as novas variáveis; **o volume e os dados mantêm-se**; os outros serviços perdem a ligação alguns segundos e recuperam sozinhos):
@@ -106,7 +112,7 @@ Num volume que já tem dados (ex.: criado antes do users-service), os scripts de
 | Ação | Comando |
 |---|---|
 | Arrancar (sem reconstruir) | `docker compose up -d --wait` |
-| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`) |
+| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`, `experiences-service`); um de cada vez, para poupar memória |
 | Estado e saúde | `docker compose ps` |
 | Logs (seguir em direto) | `docker compose logs -f catalog-service` (ou `users-service`) |
 | Logs da base de dados | `docker compose logs postgres` |
@@ -122,6 +128,7 @@ Num volume que já tem dados (ex.: criado antes do users-service), os scripts de
 ```powershell
 curl.exe http://localhost:8081/actuator/health   # catalog-service
 curl.exe http://localhost:8082/actuator/health   # users-service
+curl.exe http://localhost:8083/actuator/health   # experiences-service
 ```
 
 Resposta esperada (HTTP 200):
@@ -154,11 +161,13 @@ Respostas resumidas:
 GET /places?q=boxe            → 200, totalItems 4 (Bonfim, Ribeira, Antas, Boavista — por nome)
 GET /places?sport=boxe&lat=41.1496&lng=-8.6109&radiusKm=3
                               → 200, Ribeira 1.02 km, Bonfim 1.04 km, … (por distância)
-GET /places/{id}              → 200, local + offerings[]; todos os "rating" com "status": "UNAVAILABLE"
+GET /places/{id}              → 200, local + offerings[]; "rating" com AVAILABLE ou NO_RATINGS
+GET /offerings/{id}?includeRating=false
+                              → 200, atividade com status e local, sem "rating"
 GET /places/0000…0000         → 404 application/problem+json, "title": "Não encontrado"
 ```
 
-As avaliações vêm sempre `UNAVAILABLE` (`average` e `ratingsCount` a `null`) até existir o experiences-service; não significam zero estrelas.
+As avaliações vêm do experiences-service num único pedido por resposta, com prazo de ~1 s. Com ele parado, lento ou em erro, vêm `UNAVAILABLE` (`average` e `ratingsCount` a `null`) e o resto da resposta é igual; não significam zero estrelas. Logo depois de reiniciar o catálogo, as primeiras uma ou duas respostas podem vir `UNAVAILABLE` por excederem o prazo (arranque a frio; medido: 2,4 s e 1,0 s, depois 0,14 s).
 
 ### Dados de demonstração (perfil `demo`)
 
@@ -174,8 +183,8 @@ cd backend\catalog-service
 .\gradlew.bat test
 ```
 
-- 23 testes de integração (`CatalogApiIntegrationTest`) contra **PostgreSQL 18.6 real**, arrancado pelo Testcontainers (exige o Docker Desktop a correr). Aplicam as migrações Flyway e os dados do perfil `demo`.
-- Cobrem: modalidades; pesquisa por modalidade, nome do local e atividade; maiúsculas e acentos; `%`/`_` literais; filtro por modalidade e combinação com texto; paginação estável e página para além do fim; ordenação por nome e por distância; raio e distância em km; parâmetros inválidos; local inexistente e id mal formado; avaliações `UNAVAILABLE`; repetição do carregamento de demonstração sem duplicados.
+- 30 testes de integração (`CatalogApiIntegrationTest`) contra **PostgreSQL 18.6 real**, arrancado pelo Testcontainers (exige o Docker Desktop a correr). Aplicam as migrações Flyway e os dados do perfil `demo`.
+- Cobrem: modalidades; pesquisa por modalidade, nome do local e atividade; maiúsculas e acentos; `%`/`_` literais; filtro por modalidade e combinação com texto; paginação estável e página para além do fim; ordenação por nome e por distância; raio e distância em km; parâmetros inválidos; local inexistente e id mal formado; avaliações `UNAVAILABLE`; repetição do carregamento de demonstração sem duplicados. Desde a etapa 6, com um falso experiences-service: `GET /offerings/{id}` (estado, `includeRating=false` sem pedidos, 404/400, atividade ou local retirados), avaliações num só pedido por resposta, e `UNAVAILABLE` com erro, lentidão ou resposta inválida.
 - Precisam de um JDK 25 completo (ex.: Temurin 25 no `PATH`). O build da imagem Docker não corre os testes.
 
 ### users-service
@@ -195,25 +204,45 @@ curl.exe "http://localhost:8082/api/v1/users?q=ana"
 - Chaves: `secrets/users-jwt/` (§3, passo 2). Reiniciar o serviço mantém as chaves e, por isso, as sessões; as contas vivem em `users_db`, no mesmo volume do PostgreSQL.
 - Os interesses são validados no catalog-service pela rede interna do Compose (`http://catalog-service:8081`); se o catálogo falhar, só acrescentar interesses novos devolve `503 CATALOG_UNAVAILABLE`.
 - Limites de tentativas (`portofit.rate-limit.*` em `application.yaml`): em memória, por conta e por origem; reiniciar o serviço apaga-os.
-- Testes: `cd backend\users-service; .\gradlew.bat test` (19 testes; PostgreSQL real via Testcontainers; chaves e catálogo falsos gerados pelos próprios testes).
+- Testes: `cd backend\users-service; .\gradlew.bat test` (24 testes; PostgreSQL real via Testcontainers; chaves e catálogo falsos gerados pelos próprios testes).
+
+### experiences-service
+
+Contrato completo em [experiences-api.md](experiences-api.md). Não há publicações de demonstração: publica-se com o access token de uma conta (obtido no registo ou login do users-service).
+
+```powershell
+# Publicar (Idempotency-Key: um UUID novo por tentativa; repetir a mesma tentativa usa o mesmo)
+curl.exe -X POST http://localhost:8083/api/v1/experiences -H "Authorization: Bearer <access>" `
+  -H "Idempotency-Key: 5d0c7f5e-2a41-4b8e-9f13-6c2b8e1d4a70" -H "Content-Type: application/json" `
+  -d '{\"placeId\":\"3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01\",\"offeringId\":\"8a7b6c5d-4e3f-4a1b-9c8d-000000000101\",\"text\":\"Boa aula.\",\"stars\":4}'
+# Experiências de um local (públicas), por estrelas
+curl.exe "http://localhost:8083/api/v1/experiences?placeId=3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01&sort=stars"
+# Avaliações em lote (usado pelo catálogo)
+curl.exe "http://localhost:8083/api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01&includeOfferings=true"
+```
+
+- Valida os access tokens localmente com `secrets/users-jwt/public.pem` (montado só de leitura); nunca chama o users-service.
+- Valida atividades no catalog-service pela rede interna (`http://catalog-service:8081`, `includeRating=false`), com memória de 10 min. Com o catálogo parado, só falha publicar numa atividade não validada recentemente (`503 CATALOG_UNAVAILABLE`). Reiniciar o experiences-service esvazia essa memória.
+- Limite de publicações por autor e retenção das chaves de idempotência: `portofit.publishing.*` em `application.yaml` (o limite é em memória e reinicia com o serviço).
+- Testes: `cd backend\experiences-service; .\gradlew.bat test` (17 testes; PostgreSQL real via Testcontainers; catálogo falso, chaves e relógio dos próprios testes).
 
 ## 7. Configuração relevante
 
 | Aspeto | Valor | Onde |
 |---|---|---|
-| Porta publicada | `127.0.0.1:8081` (só no próprio computador) | `docker-compose.yml` |
+| Portas publicadas | `127.0.0.1:8081` (catálogo), `127.0.0.1:8082` (users), `127.0.0.1:8083` (experiences), só no próprio computador | `docker-compose.yml` |
 | PostgreSQL | sem porta publicada; rede `data` marcada como interna | `docker-compose.yml` |
 | Utilizador da base de dados | `catalog_user`: sem superutilizador, sem criar bases/papéis; dono apenas de `catalog_db`; sem acesso à base `postgres` | `01-catalog-db.sh` |
 | Pool de ligações | máx. 5; espera por ligação 5 s; validação 3 s | `application.yaml` |
 | Driver JDBC | ligação 5 s; resposta 30 s | `application.yaml` |
 | Servidor HTTP | timeout de ligação 10 s; até 50 threads; encerramento gracioso até 20 s | `application.yaml` |
 | Memória | limite de 512 MiB por contentor; heap Java até 70 % desse limite; o processo termina em falta de memória e o Docker reinicia-o | `docker-compose.yml`, `Dockerfile` |
-| Reinício automático | `unless-stopped` nos dois contentores | `docker-compose.yml` |
+| Reinício automático | `unless-stopped` em todos os contentores | `docker-compose.yml` |
 | Healthcheck PostgreSQL | `pg_isready` por TCP a cada 5 s | `docker-compose.yml` |
-| Healthcheck catalog-service | pedido a `/actuator/health` a cada 10 s (via `bash`, porque a imagem JRE não tem `curl`) | `docker-compose.yml` |
+| Healthcheck dos serviços | pedido a `/actuator/health` a cada 10 s (via `bash`, porque a imagem JRE não tem `curl`) | `docker-compose.yml` |
 | Imagem do serviço | só o JRE e o `app.jar`; corre com o utilizador `app` (não root); `.env` e ficheiros locais excluídos por `.dockerignore` | `Dockerfile` |
 
-Valores medidos nesta etapa: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Com seis serviços esse total poderá ser apertado; reavaliar os limites quando houver mais serviços.
+Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Na etapa 6 (2026-10-19), com quatro contentores: catalog-service ≈ 206 MiB, users-service ≈ 222 MiB, experiences-service ≈ 232 MiB, PostgreSQL ≈ 61 MiB (≈ 0,7 GiB no total). Com seis serviços esse total poderá ser apertado; reavaliar os limites quando houver mais serviços.
 
 ## 8. Limitações conhecidas
 

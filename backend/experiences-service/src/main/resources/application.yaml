@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: experiences-service
+  datasource:
+    # Valores fornecidos por variáveis de ambiente (docker-compose.yml + .env).
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:experiences_db}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 5000
+      validation-timeout: 3000
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 30
+  flyway:
+    locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: 8083
+  shutdown: graceful
+  tomcat:
+    connection-timeout: 10s
+    threads:
+      max: 50
+
+management:
+  endpoints:
+    web:
+      discovery:
+        enabled: false
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
+portofit:
+  security:
+    # Validação local dos access tokens do users-service; só a chave PÚBLICA, montada só de leitura.
+    issuer: portofit-users
+    audience: portofit-api
+    public-key-location: ${JWT_PUBLIC_KEY_PATH:/run/secrets/users-jwt/public.pem}
+  catalog:
+    # GET /api/v1/offerings/{id}?includeRating=false, pela rede interna do Compose.
+    base-url: ${CATALOG_BASE_URL:http://localhost:8081}
+    connect-timeout: 500ms
+    timeout: 2s
+    # Atraso máximo aceite nos dados do catálogo usados para validar (docs/experiences-api.md §6.2).
+    cache-ttl: 10m
+  publishing:
+    # Limite por autor, em memória (docs/experiences-api.md §4.1).
+    max-per-author: 30
+    window: 1h
+    # Garantia contra duplicação só dentro deste prazo (docs/experiences-api.md §5).
+    idempotency-retention: 7d
+    max-body-bytes: 16384

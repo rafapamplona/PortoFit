@@ -1,0 +1,12 @@
+# Só o código-fonte e o wrapper Gradle entram no contexto de build da imagem.
+build/
+.gradle/
+.kotlin/
+.idea/
+.vscode/
+*.iml
+bin/
+out/
+.env
+.env.*
+*.log

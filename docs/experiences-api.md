@@ -1,7 +1,7 @@
 # experiences-service — Contrato da API
 
 > Contrato das experiências (publicações), das avaliações agregadas e, nas etapas seguintes, das fotografias, comentários, gostos, visualizações, feeds e estatísticas. Contexto geral em [arquitetura.md](arquitetura.md) (§3.5 cópias, §3.6 métricas, §3.7 avaliação, §3.8 autenticação, §3.9 fotografias, §3.10 feeds, §4 falhas).
-> Estado: **v1 aprovada para a etapa E1** (revisão de 2026-10-19, decisões em [§19](#19-decisões-da-revisão)). E2–E4 ficam definidas e são revistas no início de cada etapa.
+> Estado: **E1 implementada no backend** (etapa 6; estado em [§20](#20-estado-da-implementação)), segundo a v1 aprovada na revisão de 2026-10-19 ([§19](#19-decisões-da-revisão)). A app ainda não usa este serviço. E2–E4 ficam definidas e são revistas no início de cada etapa.
 > Mesmas convenções do [catalog-api.md](catalog-api.md) e do [users-api.md](users-api.md): JSON UTF-8, nomes de campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`, envelope de paginação comum.
 
 ## Índice
@@ -25,6 +25,7 @@
 17. [Testes e demonstração](#17-testes-e-demonstração)
 18. [Plano incremental](#18-plano-incremental)
 19. [Decisões da revisão](#19-decisões-da-revisão)
+20. [Estado da implementação](#20-estado-da-implementação)
 
 ---
 
@@ -837,3 +838,75 @@ Revisão de 2026-10-19, antes da implementação da E1.
 | 18 | Locais fictícios retirados e não apagados; experiências nunca passadas automaticamente para locais reais | §15 |
 
 **Em aberto** (não bloqueiam a E1): esconder locais retirados da pesquisa do catálogo (§15); paginação por cursor (§9); contadores partilhados quando houver mais de uma instância (§4.1).
+
+## 20. Estado da implementação
+
+Etapa E1 (backend), `backend/experiences-service`, com as alterações correspondentes no catalog-service. Operação em [infraestrutura.md](infraestrutura.md).
+
+**Implementado:**
+
+- **experiences-service:**
+  - `POST /experiences` (idempotente, com limite por autor);
+  - `GET /experiences` (filtros `placeId`, `offeringId`, `sportId`, `authorId`, pesquisa `q`, `sort=recent|stars`, paginação);
+  - `GET`, `PATCH` e `DELETE /experiences/{id}`;
+  - `GET /ratings/places`;
+  - `/actuator/health`.
+- **Base de dados:** `experiences_db` com utilizador próprio (`03-experiences-db.sh`) e migração `V1__experiences_schema.sql`.
+- **catalog-service:**
+  - `GET /offerings/{id}` com `includeRating` e `status`;
+  - migração `V4__catalog_status.sql` (estado `ACTIVE`/`RETIRED` em locais e atividades; os dados existentes ficaram `ACTIVE`);
+  - avaliações reais pedidas ao experiences-service (sai o `UnavailableRatingProvider`).
+
+**Ainda não implementado:** E2–E4 (fotografias, comentários, gostos, visualizações, feeds, dashboard) e a integração na app Android.
+
+**Notas da implementação**
+
+- **Idempotência:** o registo da tentativa é inserido com `INSERT … ON CONFLICT (author_id, idempotency_key) DO NOTHING` antes da experiência, na mesma transação, e a referência à experiência só é verificada no fim (`DEFERRABLE INITIALLY DEFERRED`). Com dois pedidos simultâneos, o segundo fica à espera na inserção e, quando o primeiro confirma, é tratado como repetição. Uma tarefa horária apaga os registos com mais de 7 dias.
+- **Avaliações:** a consulta escolhe as vigentes com `DISTINCT ON (author_id, offering_id) … ORDER BY created_at DESC, id DESC`. As médias são calculadas com frações exatas (`BigInteger`) e arredondadas uma única vez, meio para cima. Por isso casos como 3,25 → 3,3 não dependem de erros de vírgula flutuante.
+- **Autor:** `sub` e `username` do token; um token sem `username` dá `401`. O JWT atual do users-service já tem esta claim (registo, login e renovação).
+- **Catálogo:** cliente HTTP do JDK com ligação 0,5 s e resposta 2 s, sem novas tentativas; memória de 10 min só para respostas `200`. No catálogo, o pedido de avaliações tem ligação 0,5 s e resposta 1 s.
+- **Corpo:** os pedidos JSON são limitados a 16 KiB (`413`), pelo `Content-Length` e durante a leitura; um corpo que não seja JSON dá `415`.
+- **Logs:** nunca têm tokens nem o texto das experiências. Uma falha do catálogo ou das avaliações regista o tipo do erro e a causa (ex.: `HttpTimeoutException`).
+
+**Testes automáticos**
+
+- **experiences-service** (`.\gradlew.bat test` em `backend/experiences-service`): **17 testes**, contra PostgreSQL 18.6 real (Testcontainers), com um catálogo falso por HTTP, chaves RSA geradas no teste (o serviço só recebe a pública) e um relógio controlável. Cobrem:
+  - autenticação local: sem token, expirado, outra chave, outro `iss`/`aud`, mal formado, sem `username`, token inválido numa leitura pública;
+  - validações (estrelas `0`, `6`, `4.5`, `4.0`, `"4"`, `null`; texto vazio, só com espaços ou NBSP, 2001 caracteres, caracteres de controlo; 2000 com emojis aceite; campos proibidos; chave em falta; JSON inválido; `415`; `413`);
+  - atividade inexistente, de outro local e retirada;
+  - catálogo parado sem e com memória válida, lento (limitado pelo prazo) e memória expirada;
+  - repetição `200` com `Idempotent-Replayed`, também sem catálogo; `409 DIFFERENT_CONTENT` e `EXPERIENCE_DELETED` sem conteúdo;
+  - 8 pedidos simultâneos com a mesma chave → 1 experiência;
+  - chave de uma tentativa recusada reutilizada; chaves por autor;
+  - limite `429` com `Retry-After`;
+  - filtros, pesquisa no texto e nos nomes copiados sem maiúsculas nem acentos, `%`/`_` literais, ordenações e paginação;
+  - edição e eliminação só pelo autor;
+  - avaliações: o exemplo de [arquitetura.md §3.7](arquitetura.md#37-avaliação-geral-sem-distorção), em que a mesma pessoa avalia duas atividades do local, incluindo a eliminação da vigente; editar a vigente e uma antiga; datas empatadas; arredondamento; lote de 50; validações.
+- **catalog-service:** **30 testes** (23 anteriores e 7 novos; ver [infraestrutura.md §6](infraestrutura.md#6-usar-a-api-do-catálogo)).
+
+**Verificação por HTTP (2026-10-19)**, nos contentores, com três contas temporárias registadas no users-service (palavras-passe aleatórias, não mostradas; apagadas no fim, com as suas experiências):
+
+| Verificação | Resultado |
+|---|---|
+| Local sem experiências | primeiro pedido depois do arranque: `UNAVAILABLE` (excedeu o prazo de 1 s, arranque a frio); seguintes: `NO_RATINGS` |
+| A publica 4★ no "Boxe iniciação" da Ribeira | `201`, autor e nomes copiados; catálogo: local 4,0 (1), Boxe 4,0 (1), Kickboxing `NO_RATINGS` |
+| Mesma chave | `200`, `Idempotent-Replayed: true`, mesmo id |
+| B publica 2★ | 3,0 (2) |
+| A publica de novo 2★ na mesma atividade | 2,0 (2): só a mais recente de A conta |
+| A edita a antiga para 5★ | sem efeito (2,0) |
+| A elimina a vigente | 3,5 (2): conta a antiga, com o valor editado |
+| A avalia também o Kickboxing 3★ | local 3,0 (2) (A conta uma vez: (5 + 3) / 2 = 4; B 2), Boxe 3,5 (2), Kickboxing 3,0 (1) |
+| `GET /offerings/{Boxe}` / `?includeRating=false` | `status: ACTIVE`, 3,5 (2) / sem `rating` |
+| Pesquisa do catálogo `q=boxe` | Ribeira 3,0 (2); outros `NO_RATINGS` |
+| B edita a experiência de A; atividade de outro local; eliminada | `403`; `400 OFFERING_PLACE_MISMATCH`; `404` |
+| experiences-service parado | pesquisa e detalhe do catálogo `200` (~0,5 s), avaliações `UNAVAILABLE`; ao reiniciar, voltam os valores |
+| catalog-service parado | publicar numa atividade validada há < 10 min: `201`; numa nunca validada: `503 CATALOG_UNAVAILABLE`; ler experiências: `200` |
+| users-service parado (token ainda válido) | publicar: `201`, com o username do autor |
+
+Na primeira execução, a verificação do catálogo parado veio logo depois de reiniciar o experiences-service, cuja memória fica vazia ao reiniciar: daí o `503`, o que está correto. Também houve um `503` ao publicar logo depois de reiniciar o catálogo (prazo esgotado no arranque a frio). As duas verificações foram repetidas pela ordem certa, com os resultados da tabela.
+
+**Limitações conhecidas**
+
+- Logo depois de um arranque, os primeiros pedidos entre serviços podem exceder os prazos curtos. Medido no catálogo: 2,4 s e 1,0 s, depois 0,14 s. O resultado é `UNAVAILABLE` nas avaliações ou `503 CATALOG_UNAVAILABLE` ao publicar, ambos corretos e passageiros. Um aquecimento no arranque fica como melhoria possível.
+- O limite de publicações e a memória de atividades são por instância e perdem-se ao reiniciar (§4.1, §6.2).
+- O estado `RETIRED` existe no catálogo, mas nenhum dado está retirado nem há forma de o alterar pela API (o catálogo é só de leitura). A pesquisa e o detalhe do catálogo ainda não escondem dados retirados (§15).
