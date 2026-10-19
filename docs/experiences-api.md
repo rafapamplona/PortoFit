@@ -473,7 +473,7 @@ Problem Details (`application/problem+json`) com `code` estável e, nos erros de
 | 400 | `OFFERING_PLACE_MISMATCH` | a atividade não pertence ao local indicado (com `errors`) | E1 |
 | 400 | `OFFERING_RETIRED` | a atividade (ou o seu local) foi retirada do catálogo (com `errors`) | E1 |
 | 400 | `MEDIA_NOT_USABLE` | `mediaId` inexistente, de outra pessoa, já usado ou expirado | E2 |
-| 400 | `INVALID_IMAGE` | o ficheiro não é uma imagem aceite ou está fora dos limites (§12) | E2 |
+| 400 | `INVALID_IMAGE` | o ficheiro não é JPEG/PNG, está danificado ou fora das dimensões (§12.2) | E2 |
 | 400 | `CANNOT_LIKE_OWN` | gostar da própria experiência (§13) | E3 |
 | 401 | `AUTHENTICATION_REQUIRED` | falta o access token | E1 |
 | 401 | `INVALID_ACCESS_TOKEN` | token inválido ou expirado (`WWW-Authenticate: Bearer error="invalid_token"`) | E1 |
@@ -486,7 +486,7 @@ Problem Details (`application/problem+json`) com `code` estável e, nos erros de
 | 429 | `TOO_MANY_REQUESTS` | limite de publicações por autor (§4.1), com `Retry-After`; a partir de E2, também o limite de fotografias pendentes (§12) | E1 |
 | 500 | `INTERNAL_ERROR` | erro inesperado, sem detalhes internos | E1 |
 | 503 | `CATALOG_UNAVAILABLE` | não foi possível validar a atividade (§6.3) | E1 |
-| 503 | `SERVICE_UNAVAILABLE` | base de dados (ou, em E2, o armazenamento de fotografias) indisponível | E1 |
+| 503 | `SERVICE_UNAVAILABLE` | base de dados indisponível; em E2, também o armazenamento de fotografias, o ficheiro de uma fotografia em falta, ou demasiadas imagens a processar | E1 |
 
 **Validação ao publicar**
 
@@ -633,42 +633,81 @@ Concretiza [arquitetura.md §3.9](arquitetura.md#39-fotografias-e-câmara). **Op
 
 | Método | Caminho | Acesso | Descrição |
 |---|---|---|---|
-| POST | `/media` | access token | Enviar uma fotografia (`multipart/form-data`, campo `file`) → `201` com `{ "mediaId", "width", "height" }`; fica **pendente** |
-| GET | `/media/{mediaId}` | público, só se associada a uma experiência publicada | Ficheiro JPEG |
-| POST | `/experiences` | como em E1 | Aceita `"mediaId"` opcional (incluído no `requestHash`) |
-| PATCH | `/experiences/{id}` | autor | `"mediaId": "<novo>"` substitui; `"mediaId": null` remove |
+| POST | `/media` | access token | Enviar uma fotografia (`multipart/form-data`, campo `file`) → `201` com `{ "mediaId", "width", "height" }`. Fica **pendente** e pertence a quem a enviou |
+| GET | `/media/{mediaId}` | público, só se associada a uma experiência não eliminada | Ficheiro JPEG recodificado |
+| POST | `/experiences` | como em E1 | Aceita `"mediaId"` opcional, incluído no `requestHash` |
+| PATCH | `/experiences/{id}` | autor | `"mediaId"` ausente: não muda; `"mediaId": "<novo>"`: associa ou substitui; `"mediaId": null`: remove |
 
-Na experiência: `"photo": { "mediaId": "…", "url": "/api/v1/media/…", "width": 1600, "height": 1200 }` ou `"photo": null`.
+Na experiência: `"photo": { "mediaId": "…", "url": "/api/v1/media/…", "width": 1600, "height": 1200 }` ou `"photo": null`. O `url` é relativo ao serviço.
+
+**Lacunas resolvidas na revisão da E2 (2026-10-19):**
+
+| # | Lacuna | Decisão |
+|---|---|---|
+| 1 | WebP | **Não aceite.** O JDK não traz descodificador de WebP e a app envia sempre JPEG (§3.9 da arquitetura); aceitar WebP obrigaria a outra biblioteca de imagem só para esse caso. Aceites: **JPEG e PNG** (ex.: capturas de ecrã). |
+| 2 | Memória ao descodificar | Dimensões lidas do cabeçalho antes de descodificar. Descodificação com **subamostragem**: o lado maior descodificado fica até ~3200 px, mesmo de uma imagem de 40 MP. No máximo **2 imagens processadas ao mesmo tempo** (as outras esperam até 10 s e depois recebem `503`). Pior caso de memória: ~0,1 GB, dentro do limite atual do contentor (512 MiB), que não é alterado. |
+| 3 | Cache vs. eliminação | O `mediaId` é **opaco e aleatório** (UUID v4) e **muda em cada substituição**: o conteúdo de um URL nunca muda, por isso uma substituição nunca mostra a imagem antiga. Cabeçalhos: `Cache-Control: private, max-age=86400`, `ETag` igual ao `mediaId`. `private` impede caches partilhadas; depois de remover ou eliminar, o servidor responde `404` **de imediato**. Uma cópia já guardada na cache HTTP de um aparelho pode durar até 24 h nesse aparelho, mas a app deixa de ter o URL na experiência. |
+| 4 | Fotografia pendente | Invisível para todos, incluindo quem a enviou (`404`): a app mostra a imagem local até publicar. |
+| 5 | `mediaId` na idempotência | Entra no `requestHash` só quando existe, por isso as chaves de publicações sem fotografia continuam válidas. A repetição de uma publicação com fotografia não volta a validar o `mediaId` (já está associado). |
+| 6 | Autorização | Qualquer sessão pode enviar fotografias (fica dona delas). Associar, substituir ou remover só na **própria** experiência e só com uma fotografia **própria**, pendente e não expirada. |
 
 ### 12.2 Validação e tratamento
 
-- **Limites:** pedido até 10 MiB; formatos aceites **JPEG, PNG e WebP**, identificados pelo **conteúdo real** (assinatura do ficheiro e descodificação completa), nunca pela extensão nem pelo `Content-Type` enviado. Dimensões lidas do cabeçalho **antes** de descodificar: cada lado entre 200 e 8000 px e no máximo 40 megapíxeis (proteção contra imagens que ocupam muita memória ao descodificar). Fora disto → `400 INVALID_IMAGE`.
-- **Orientação:** a orientação EXIF é aplicada aos píxeis antes de qualquer outra operação.
-- **Metadados removidos:** a imagem é **recodificada** para JPEG (qualidade ~85, lado maior até 1600 px). A recodificação descarta todos os metadados (EXIF, incluindo localização GPS, XMP, IPTC e miniaturas embutidas). Só se guarda a imagem recodificada; o original nunca é escrito em disco.
-- A app já reduz a imagem antes de enviar ([arquitetura.md §3.9](arquitetura.md#39-fotografias-e-câmara)); o servidor aplica as mesmas regras na mesma, porque não confia no cliente.
+| Limite | Valor | Fora do limite |
+|---|---|---|
+| Pedido `multipart` | 10 MiB + 64 KiB | `413 PAYLOAD_TOO_LARGE` |
+| Ficheiro | 1 byte a 10 MiB | `413` (acima) / `400 INVALID_IMAGE` (vazio) |
+| Formato | JPEG ou PNG pela **assinatura do conteúdo** (`FF D8 FF` / `89 50 4E 47 0D 0A 1A 0A`); extensão, nome e `Content-Type` enviados são ignorados | `400 INVALID_IMAGE` |
+| Dimensões (do cabeçalho, antes de descodificar) | cada lado de 200 a 8000 px; no máximo 40 MP | `400 INVALID_IMAGE` |
+| Conteúdo | tem de descodificar sem erros | `400 INVALID_IMAGE` |
+| Fotografias pendentes | 20 por pessoa (24 h cada) | `429 TOO_MANY_REQUESTS` com `Retry-After` |
+
+Os erros `INVALID_IMAGE` dizem o problema (formato, dimensões, ficheiro danificado) sem repetir dados do ficheiro nem caminhos internos.
+
+- **Orientação:** a orientação EXIF (valores 1–8) é lida com a biblioteca `metadata-extractor` e aplicada aos píxeis. Metadados ilegíveis são ignorados, porque são descartados de qualquer forma.
+- **Recodificação (`javax.imageio` do JDK):** lado maior até 1600 px, transparência sobre fundo branco, JPEG com qualidade 0,85. Só a imagem é escrita, sem metadados: são descartados EXIF (incluindo GPS), XMP, IPTC, comentários, perfis e miniaturas embutidas. O original nunca é escrito no volume.
+- A app já reduz a imagem antes de enviar ([arquitetura.md §3.9](arquitetura.md#39-fotografias-e-câmara)). O servidor aplica as mesmas regras na mesma, porque não confia no cliente.
 
 ### 12.3 Armazenamento
 
-- Volume Docker próprio e persistente (`experiences-media`), montado só neste serviço. Preserva-se como o volume do PostgreSQL; cópias de segurança têm de incluir os dois juntos.
-- **Nomes gerados pelo servidor:** cada ficheiro chama-se `<mediaId>.jpg` (UUID), numa subpasta com os dois primeiros caracteres do id. O nome original enviado é ignorado e não é guardado.
-- **Sem acesso arbitrário a caminhos:** `GET /media/{mediaId}` aceita só um UUID válido, procura-o na base de dados e constrói o caminho a partir do id. Nenhum caminho, nome ou extensão vindo do pedido chega ao sistema de ficheiros.
-- Resposta com `Content-Type: image/jpeg`, `X-Content-Type-Options: nosniff` e cache longa (uma substituição cria um `mediaId` novo, por isso o conteúdo de um id nunca muda).
-- Escrita segura: ficheiro temporário → escrita completa → mudança de nome atómica → linha na base de dados. Se a base de dados falhar, o ficheiro é apagado.
+- Volume Docker próprio e persistente (`experiences-media`), montado em `/data/media`, só neste serviço e fora da imagem. Preserva-se como o volume do PostgreSQL; as cópias de segurança têm de incluir os dois juntos.
+- **Nomes gerados pelo servidor:** `<mediaId>.jpg`, numa subpasta com os dois primeiros caracteres do id; temporários em `tmp/`. O nome original não é guardado.
+- **Sem acesso arbitrário a caminhos:**
+  - `GET /media/{mediaId}` aceita só um UUID canónico e procura-o na base de dados;
+  - o caminho é construído só a partir do id e confirmado dentro da pasta do volume;
+  - nenhum nome, caminho ou extensão vindo do pedido chega ao sistema de ficheiros.
+- Resposta com `Content-Type: image/jpeg`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, max-age=86400` e `ETag` (§12.1, lacuna 3).
+- Tabela `media` com o dono, o estado (`PENDING` → `ATTACHED` → `DELETED`), as dimensões e o tamanho. Na experiência, `photo_media_id` aponta para a fotografia atual (no máximo uma).
 
 ### 12.4 Falhas parciais, substituição e eliminação
 
+**Escrita segura:**
+1. Recodificar em memória.
+2. Escrever num ficheiro temporário e forçar a escrita no disco.
+3. Mudar o nome para o definitivo, de forma atómica.
+4. Inserir a linha `PENDING`.
+
+Se a base de dados falhar, o ficheiro é apagado logo. Se o serviço parar entre os passos, fica um ficheiro sem linha, que a limpeza apaga.
+
 | Situação | Comportamento |
 |---|---|
-| Upload falha | O formulário mantém texto, estrelas e a imagem local. O utilizador escolhe: "Tentar novamente" ou "Publicar sem fotografia". **Nunca publica sem fotografia sem o utilizador escolher.** |
+| Upload falha | O formulário mantém texto, estrelas e a imagem local. O utilizador escolhe "Tentar novamente" ou "Publicar sem fotografia". **Nunca publica sem fotografia sem o utilizador escolher.** |
 | Upload aceite, publicação falha | O `mediaId` fica pendente; a nova tentativa usa a mesma chave de idempotência e o mesmo `mediaId` |
-| Fotografia pendente nunca usada | Apagada (linha e ficheiro) por uma tarefa periódica ao fim de 24 h |
-| Substituir (`PATCH` com novo `mediaId`) | Na mesma transação, a nova fica associada e a antiga é marcada para remoção; o ficheiro antigo é apagado depois de confirmar a transação (se falhar, a tarefa periódica apaga-o) |
-| Remover (`mediaId: null`) ou eliminar a experiência | A linha é marcada e o ficheiro apagado depois da transação, da mesma forma |
-| Ficheiros sem linha na base de dados (ex.: o serviço parou a meio) | A tarefa periódica apaga-os ao fim de 1 h |
-| Volume indisponível | `POST /media` e `GET /media` → `503 SERVICE_UNAVAILABLE`; experiências sem fotografia continuam a funcionar |
+| Fotografia pendente nunca usada | Ao fim de 24 h, a limpeza apaga o ficheiro e depois a linha |
+| Substituir (`PATCH` com novo `mediaId`) | Numa transação, com a experiência bloqueada: a nova passa a `ATTACHED` e a antiga a `DELETED`. **A antiga só deixa de ser servida quando a nova está confirmada.** Se a transação falhar, nada muda e a antiga continua. O ficheiro antigo é apagado depois de confirmar (ou pela limpeza) |
+| Remover (`mediaId: null`) ou eliminar a experiência | Na mesma transação, a fotografia passa a `DELETED`: o `GET /media` responde `404` **de imediato**. O ficheiro é apagado depois (ou pela limpeza) |
+| Ficheiro de uma fotografia associada em falta ou ilegível | `GET /media` → `503 SERVICE_UNAVAILABLE`. A experiência (texto, estrelas, avaliações) continua disponível, com `photo` como estava |
+| Volume indisponível | `POST /media` → `503`; experiências e listas não dependem do volume |
 
-- `mediaId` usado ao publicar ou editar tem de ser do próprio, pendente e não expirado; caso contrário → `400 MEDIA_NOT_USABLE`.
-- No máximo **20 fotografias pendentes** por pessoa; acima disso → `429 TOO_MANY_REQUESTS` até as antigas expirarem ou serem usadas.
+**Limpeza** (tarefa a cada 10 min; também apaga logo depois de cada substituição, remoção ou eliminação):
+- fotografias `DELETED` e `PENDING` com mais de 24 h: apaga o ficheiro e depois a linha (se o ficheiro não puder ser apagado, a linha fica para a próxima vez);
+- ficheiros `<uuid>.jpg` sem linha na base de dados, com mais de 1 h;
+- temporários em `tmp/` com mais de 1 h.
+
+A limpeza só considera ficheiros regulares com nomes gerados pelo serviço dentro da pasta do volume; não segue ligações simbólicas.
+
+- O `mediaId` usado ao publicar ou editar tem de ser do próprio, pendente e não expirado; caso contrário → `400 MEDIA_NOT_USABLE`. Dois pedidos simultâneos com o mesmo `mediaId`: a linha é bloqueada e só um o associa.
+- No máximo **20 fotografias pendentes** por pessoa; acima disso → `429 TOO_MANY_REQUESTS`, com `Retry-After` até a mais antiga expirar.
 
 ### 12.5 Câmara dentro da app (requisito R4)
 

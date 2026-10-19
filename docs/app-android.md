@@ -527,9 +527,14 @@ O fluxo foi verificado com os **mesmos pedidos que a app faz**, nos contentores,
 | experiences-service parado | pesquisa e detalhe do catálogo `200` (~0,5 s) com avaliações `UNAVAILABLE`; perfil público `200`; experiências sem ligação (a app mostra o erro só nessa secção) |
 | Reinício | avaliações de volta (2,0 (1)); quatro serviços saudáveis |
 
-**Pendente:** verificar a interface no emulador quando houver memória:
-- publicar a partir do local, com o regresso do login sem publicar;
-- consultar no local e no perfil;
-- editar e eliminar;
-- a avaliação no ecrã;
-- a secção de experiências com o serviço parado.
+**Verificação na interface (2026-10-19, pelo utilizador, no emulador):**
+
+| Percurso | Resultado |
+|---|---|
+| Publicar uma experiência com 4 estrelas | publicada |
+| Consultá-la no local | visível na secção "Experiências" |
+| Editar para 3 estrelas | avaliação do local atualizada |
+| Consultar a publicação no próprio perfil | visível em "Publicações" |
+| Eliminar | desaparece das listas; a avaliação volta a "Sem avaliações" |
+
+Não verificado na interface (coberto pelos testes automáticos e pelos pedidos HTTP acima): resultado de publicação desconhecido e repetição, regresso do login sem publicar, estados retirados e secção de experiências com o serviço parado.
