@@ -62,6 +62,9 @@ data class SessionUserDto(
 data class ProblemDto(
     val code: String? = null,
     val errors: List<ProblemFieldDto> = emptyList(),
+    /** experiences-service, 409 IDEMPOTENCY_CONFLICT: DIFFERENT_CONTENT ou EXPERIENCE_DELETED. */
+    val reason: String? = null,
+    val experienceId: String? = null,
 )
 
 @Serializable

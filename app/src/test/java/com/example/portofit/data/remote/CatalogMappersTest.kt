@@ -86,4 +86,25 @@ class CatalogMappersTest {
         assertEquals(Rating.Unavailable, RatingDto("AVAILABLE", 4.0, 0).toModel())
         assertEquals(Rating.Unavailable, RatingDto("OUTRO").toModel())
     }
+
+    @Test
+    fun `estado do local e das atividades no detalhe`() {
+        val body = """
+            {"id":"p1","name":"Clube","address":{"street":"Rua Exemplo, 10","postalCode":"4050-001","city":"Porto"},
+            "location":{"latitude":41.1,"longitude":-8.6},"contacts":{},"rating":{"status":"NO_RATINGS","ratingsCount":0},
+            "offerings":[
+              {"id":"o1","sport":{"id":"boxe","name":"Boxe"},"name":"Boxe","level":"BEGINNER","rating":{"status":"NO_RATINGS"},"status":"ACTIVE"},
+              {"id":"o2","sport":{"id":"boxe","name":"Boxe"},"name":"Boxe 2","level":"BEGINNER","rating":{"status":"NO_RATINGS"},"status":"RETIRED"},
+              {"id":"o3","sport":{"id":"boxe","name":"Boxe"},"name":"Boxe 3","level":"BEGINNER","rating":{"status":"NO_RATINGS"},"status":"ESTRANHO"}],
+            "status":"RETIRED","demo":true}
+        """
+        val place = json.decodeFromString<PlaceDetailDto>(body).toModel()
+        assertTrue(place.isRetired)
+        assertEquals(listOf(true, false, false), place.offerings.map { it.acceptsExperiences })
+
+        // Versões antigas do catálogo, sem estado: ativo.
+        val old = json.decodeFromString<PlaceDetailDto>(body.replace(Regex(""",?\s*"status":"(ACTIVE|RETIRED)""""), "")).toModel()
+        assertFalse(old.isRetired)
+        assertTrue(old.offerings.first().acceptsExperiences)
+    }
 }

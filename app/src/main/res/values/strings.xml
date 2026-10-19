@@ -112,7 +112,6 @@
     <string name="profile_email">Email: %1$s</string>
     <string name="profile_private_note">Só tu vês o teu email; não aparece no perfil público.</string>
     <string name="profile_posts">Publicações</string>
-    <string name="profile_posts_unavailable">As publicações ainda não estão disponíveis nesta versão da app.</string>
     <string name="profile_discard_title">Descartar alterações?</string>
     <string name="profile_discard_message">Tens alterações que ainda não foram guardadas.</string>
     <string name="profile_discard_confirm">Descartar</string>
@@ -163,6 +162,88 @@
     <string name="follow_list_following">A seguir</string>
     <string name="follow_list_followers_empty">Ainda ninguém segue esta pessoa.</string>
     <string name="follow_list_following_empty">Esta pessoa ainda não segue ninguém.</string>
+
+    <!-- Estado no catálogo -->
+    <string name="place_retired_notice">Este local foi retirado do catálogo. As experiências antigas continuam legíveis, mas já não é possível publicar aqui.</string>
+    <string name="offering_retired">Atividade retirada do catálogo</string>
+    <string name="place_rating_refresh_failed">Não foi possível atualizar a avaliação; a que vês pode estar desatualizada.</string>
+
+    <!-- Experiências -->
+    <string name="section_experiences">Experiências</string>
+    <string name="offering_publish">Partilhar experiência</string>
+    <string name="offering_publish_login">Para partilhar uma experiência é preciso entrar na tua conta.</string>
+    <string name="experience_sort_recent">Mais recentes</string>
+    <string name="experience_sort_stars">Melhor avaliação do local</string>
+    <plurals name="experiences_count">
+        <item quantity="one">%d experiência</item>
+        <item quantity="other">%d experiências</item>
+    </plurals>
+    <plurals name="experience_stars_description">
+        <item quantity="one">%d estrela de 5</item>
+        <item quantity="other">%d estrelas de 5</item>
+    </plurals>
+    <string name="experience_place_offering">%1$s · %2$s</string>
+    <string name="experiences_empty_place">Ainda não há experiências sobre este local.</string>
+    <string name="experiences_empty_profile">Ainda não há publicações.</string>
+    <string name="experiences_unavailable">As experiências estão temporariamente indisponíveis. O resto da página continua disponível.</string>
+    <string name="experiences_not_configured">As experiências não estão disponíveis nesta versão da app.</string>
+    <string name="experience_not_found">Esta experiência já não existe.</string>
+
+    <string name="publish_title">Partilhar experiência</string>
+    <string name="publish_text_label">A tua experiência</string>
+    <string name="publish_text_counter">%1$d/%2$d caracteres</string>
+    <string name="publish_text_empty">Escreve o texto da experiência.</string>
+    <string name="publish_text_too_long">O texto pode ter no máximo 2000 caracteres.</string>
+    <string name="publish_text_invalid">O texto tem caracteres que não são permitidos.</string>
+    <string name="publish_stars_label">Estrelas para a atividade e o local (de 1 a 5)</string>
+    <string name="publish_stars_missing">Escolhe de 1 a 5 estrelas.</string>
+    <string name="publish_action">Publicar</string>
+    <string name="publish_sending">A publicar…</string>
+    <string name="publish_retry">Tentar novamente</string>
+    <string name="publish_login_required">Entra na tua conta para publicar. O texto e as estrelas ficam guardados.</string>
+    <string name="publish_login">Entrar</string>
+    <string name="publish_unconfirmed">Não foi possível confirmar se a publicação foi aceite. Toca em «Tentar novamente»: se já tiver sido aceite, não fica publicada duas vezes. Até lá, o texto e as estrelas não podem ser alterados.</string>
+    <string name="publish_discard">Descartar esta tentativa</string>
+    <string name="publish_discard_title">Descartar a tentativa?</string>
+    <string name="publish_discard_message">A tentativa anterior pode ter sido aceite. Antes de publicar de novo, confirma no teu perfil se ela já aparece, para não ficares com duas publicações.</string>
+    <string name="publish_discard_confirm">Descartar</string>
+    <string name="publish_discard_keep">Manter</string>
+    <string name="publish_attempt_too_old">Esta tentativa tem mais de 6 dias e já não pode ser repetida com segurança. Confirma no teu perfil se a publicação existe; depois descarta a tentativa para publicar de novo.</string>
+    <string name="publish_already">A tua publicação anterior já tinha sido aceite.</string>
+    <string name="publish_open_existing">Abrir a publicação</string>
+    <string name="publish_deleted">Esta publicação já tinha sido feita e foi entretanto eliminada. Podes publicar de novo.</string>
+    <string name="publish_error_validation">O servidor não aceitou o texto ou as estrelas. Revê e tenta novamente.</string>
+    <string name="publish_error_unknown_offering">Esta atividade já não existe no catálogo.</string>
+    <string name="publish_error_mismatch">Esta atividade não pertence a este local.</string>
+    <string name="publish_error_retired">Esta atividade já não está disponível no catálogo.</string>
+    <string name="publish_error_catalog">Não é possível publicar agora: o catálogo está indisponível. Tenta novamente daqui a pouco.</string>
+    <string name="publish_error_too_many">Atingiste o limite de publicações por agora. Tenta novamente mais tarde.</string>
+    <plurals name="publish_error_too_many_minutes">
+        <item quantity="one">Atingiste o limite de publicações. Tenta novamente daqui a %d minuto.</item>
+        <item quantity="other">Atingiste o limite de publicações. Tenta novamente daqui a %d minutos.</item>
+    </plurals>
+    <string name="publish_error_session_ended">A tua sessão terminou. Entra novamente para publicar; o texto fica guardado.</string>
+
+    <string name="experience_title">Experiência</string>
+    <string name="experience_demo_place">Local fictício (dados de demonstração)</string>
+    <string name="experience_offering_retired">Esta atividade foi retirada do catálogo. A experiência continua visível como registo histórico.</string>
+    <string name="experience_open_place">Ver o local</string>
+    <string name="experience_author">Por @%1$s</string>
+    <string name="experience_published_on">Publicada a %1$s</string>
+    <string name="experience_edited">editada a %1$s</string>
+    <string name="experience_edit">Editar</string>
+    <string name="experience_delete">Eliminar</string>
+    <string name="experience_save">Guardar</string>
+    <string name="experience_cancel">Cancelar</string>
+    <string name="experience_offering_not_editable">A atividade não pode ser alterada. Para mudar de atividade, elimina e publica de novo.</string>
+    <string name="experience_delete_title">Eliminar esta experiência?</string>
+    <string name="experience_delete_message">Deixa de estar visível e de contar para a avaliação do local. Esta ação não pode ser desfeita.</string>
+    <string name="experience_delete_confirm">Eliminar</string>
+    <string name="experience_delete_keep">Manter</string>
+    <string name="experience_error_network">Sem ligação ao serviço de experiências. Nada foi alterado; tenta novamente.</string>
+    <string name="experience_error_server">O serviço de experiências está temporariamente indisponível. Tenta novamente daqui a pouco.</string>
+    <string name="experience_error_session_ended">A tua sessão terminou. Entra novamente para alterar a experiência.</string>
+    <string name="experience_error_forbidden">Só o autor pode alterar esta experiência.</string>
 
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>

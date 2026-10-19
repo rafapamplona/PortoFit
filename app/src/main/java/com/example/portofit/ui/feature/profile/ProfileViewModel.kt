@@ -9,7 +9,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.portofit.PortoFitApplication
 import com.example.portofit.data.model.Sport
+import com.example.portofit.data.auth.SessionState
 import com.example.portofit.data.repository.CatalogRepository
+import com.example.portofit.data.repository.ExperienceChanges
+import com.example.portofit.data.repository.ExperiencesRepository
+import com.example.portofit.ui.feature.experience.ExperienceListLoader
+import com.example.portofit.ui.feature.experience.ExperienceListState
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.example.portofit.data.repository.DataResult
 import com.example.portofit.data.repository.Profile
 import com.example.portofit.data.repository.ProfileError
@@ -127,8 +134,20 @@ data class ProfileUiState(
 class ProfileViewModel(
     private val profiles: ProfileRepository,
     private val catalog: CatalogRepository,
+    experiences: ExperiencesRepository,
+    changes: ExperienceChanges,
+    session: StateFlow<SessionState>,
     private val savedState: SavedStateHandle,
 ) : ViewModel() {
+
+    /**
+     * As minhas publicações (experiences-service), pelo `userId` da sessão: carregam e falham de forma
+     * independente do perfil (users-service).
+     */
+    private val publicationList = ExperienceListLoader(viewModelScope, experiences)
+    val publications: StateFlow<ExperienceListState> = publicationList.state
+
+    private val sessionUserId = session.map { (it as? SessionState.SignedIn)?.userId }.distinctUntilChanged()
 
     private val _uiState = MutableStateFlow(
         ProfileUiState(
@@ -143,7 +162,17 @@ class ProfileViewModel(
     init {
         loadProfile()
         loadSports()
+        viewModelScope.launch { sessionUserId.collect { publicationList.setAuthor(it) } }
+        viewModelScope.launch {
+            changes.events.collect { change ->
+                if (change.authorId.isNotEmpty() && change.authorId == (session.value as? SessionState.SignedIn)?.userId) publicationList.load()
+            }
+        }
     }
+
+    fun retryPublications() = publicationList.load()
+
+    fun loadMorePublications() = publicationList.loadMore()
 
     fun retryLoad() = loadProfile()
 
@@ -278,7 +307,14 @@ class ProfileViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as PortoFitApplication
-                ProfileViewModel(app.container.profileRepository, app.container.catalogRepository, createSavedStateHandle())
+                ProfileViewModel(
+                    app.container.profileRepository,
+                    app.container.catalogRepository,
+                    app.container.experiencesRepository,
+                    app.container.experienceChanges,
+                    app.container.sessionManager.state,
+                    createSavedStateHandle(),
+                )
             }
         }
     }

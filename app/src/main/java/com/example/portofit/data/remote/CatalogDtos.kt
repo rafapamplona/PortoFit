@@ -49,6 +49,8 @@ data class PlaceDetailDto(
     val rating: RatingDto,
     val offerings: List<OfferingDto>,
     val demo: Boolean,
+    /** Ausente em versões antigas do catálogo: tratado como ACTIVE. */
+    val status: String = "ACTIVE",
 )
 
 @Serializable
@@ -86,6 +88,23 @@ data class OfferingDto(
     val level: String,
     val scheduleNotes: String? = null,
     val rating: RatingDto,
+    val status: String = "ACTIVE",
+)
+
+@Serializable
+data class OfferingDetailDto(
+    val id: String,
+    val name: String,
+    val status: String,
+    val sport: SportRefDto,
+    val place: PlaceRefDto,
+)
+
+@Serializable
+data class PlaceRefDto(
+    val id: String,
+    val name: String,
+    val demo: Boolean,
 )
 
 @Serializable

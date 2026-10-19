@@ -14,6 +14,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.portofit.R
+import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.data.model.Offering
 import com.example.portofit.data.model.PlaceDetail
 import com.example.portofit.ui.components.ErrorMessage
@@ -37,19 +39,59 @@ import com.example.portofit.ui.components.LoadingIndicator
 import com.example.portofit.ui.components.errorMessageRes
 import com.example.portofit.ui.components.levelLabelRes
 import com.example.portofit.ui.components.ratingText
+import com.example.portofit.ui.feature.experience.ExperienceListSection
+import com.example.portofit.ui.feature.experience.ExperienceListState
+import com.example.portofit.ui.feature.experience.ExperienceSortSelector
+
+/** Ações do ecrã do local, para a navegação decidir o destino. */
+class PlaceDetailActions(
+    val onBack: () -> Unit,
+    /** Com sessão abre o formulário; sem sessão abre o login (e regressa aqui, sem publicar). */
+    val onPublish: (place: PlaceDetail, offering: Offering, signedIn: Boolean) -> Unit,
+    val onOpenExperience: (experienceId: String) -> Unit,
+    val onOpenAuthor: (userId: String) -> Unit,
+)
+
+/** Secção de experiências do local (pode falhar sem afetar os dados do catálogo). */
+data class ExperiencesSectionState(
+    val list: ExperienceListState,
+    val sort: ExperienceSort,
+    val signedIn: Boolean,
+    val ratingRefreshFailed: Boolean,
+)
 
 @Composable
 fun PlaceDetailScreen(
-    onBack: () -> Unit,
+    actions: PlaceDetailActions,
     viewModel: PlaceDetailViewModel = viewModel(factory = PlaceDetailViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    PlaceDetailContent(state, onBack, onRetry = viewModel::retry)
+    val experiences by viewModel.experiences.collectAsStateWithLifecycle()
+    val sort by viewModel.sort.collectAsStateWithLifecycle()
+    val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
+    val ratingRefreshFailed by viewModel.ratingRefreshFailed.collectAsStateWithLifecycle()
+    PlaceDetailContent(
+        state = state,
+        experiences = ExperiencesSectionState(experiences, sort, signedIn, ratingRefreshFailed),
+        actions = actions,
+        onRetry = viewModel::retry,
+        onSortChange = viewModel::setSort,
+        onRetryExperiences = viewModel::retryExperiences,
+        onLoadMoreExperiences = viewModel::loadMoreExperiences,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaceDetailContent(state: PlaceDetailUiState, onBack: () -> Unit, onRetry: () -> Unit) {
+fun PlaceDetailContent(
+    state: PlaceDetailUiState,
+    experiences: ExperiencesSectionState,
+    actions: PlaceDetailActions,
+    onRetry: () -> Unit,
+    onSortChange: (ExperienceSort) -> Unit,
+    onRetryExperiences: () -> Unit,
+    onLoadMoreExperiences: () -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -61,7 +103,7 @@ fun PlaceDetailContent(state: PlaceDetailUiState, onBack: () -> Unit, onRetry: (
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = actions.onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.navigate_back))
                     }
                 },
@@ -82,13 +124,22 @@ fun PlaceDetailContent(state: PlaceDetailUiState, onBack: () -> Unit, onRetry: (
                 onRetry,
                 Modifier.padding(padding),
             )
-            is PlaceDetailUiState.Loaded -> PlaceDetailBody(state.place, padding)
+            is PlaceDetailUiState.Loaded ->
+                PlaceDetailBody(state.place, padding, experiences, actions, onSortChange, onRetryExperiences, onLoadMoreExperiences)
         }
     }
 }
 
 @Composable
-private fun PlaceDetailBody(place: PlaceDetail, padding: PaddingValues) {
+private fun PlaceDetailBody(
+    place: PlaceDetail,
+    padding: PaddingValues,
+    experiences: ExperiencesSectionState,
+    actions: PlaceDetailActions,
+    onSortChange: (ExperienceSort) -> Unit,
+    onRetryExperiences: () -> Unit,
+    onLoadMoreExperiences: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = padding,
@@ -97,17 +148,18 @@ private fun PlaceDetailBody(place: PlaceDetail, padding: PaddingValues) {
         item(key = "header") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(place.name, style = MaterialTheme.typography.headlineSmall)
-                if (place.isDemo) {
-                    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
-                        Text(
-                            stringResource(R.string.place_demo_label),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
+                if (place.isDemo) Badge(stringResource(R.string.place_demo_label), error = false)
+                if (place.isRetired) {
+                    Text(stringResource(R.string.place_retired_notice), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
                 Text(ratingText(place.rating), style = MaterialTheme.typography.titleSmall)
+                if (experiences.ratingRefreshFailed) {
+                    Text(
+                        stringResource(R.string.place_rating_refresh_failed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 place.description?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             }
         }
@@ -139,7 +191,33 @@ private fun PlaceDetailBody(place: PlaceDetail, padding: PaddingValues) {
         if (place.offerings.isEmpty()) {
             item(key = "offerings-empty") { Text(stringResource(R.string.offerings_empty)) }
         }
-        items(place.offerings, key = Offering::id) { OfferingCard(it) }
+        if (!experiences.signedIn && place.offerings.any { it.acceptsExperiences }) {
+            item(key = "publish-hint") {
+                Text(
+                    stringResource(R.string.offering_publish_login),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        items(place.offerings, key = Offering::id) { offering ->
+            OfferingCard(offering, onPublish = { actions.onPublish(place, offering, experiences.signedIn) })
+        }
+        item(key = "experiences") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.section_experiences), style = MaterialTheme.typography.titleMedium)
+                ExperienceSortSelector(experiences.sort, onSortChange)
+                ExperienceListSection(
+                    state = experiences.list,
+                    showPlace = false,
+                    emptyText = R.string.experiences_empty_place,
+                    onOpen = { actions.onOpenExperience(it.id) },
+                    onAuthorClick = { actions.onOpenAuthor(it.authorId) },
+                    onRetry = onRetryExperiences,
+                    onLoadMore = onLoadMoreExperiences,
+                )
+            }
+        }
     }
 }
 
@@ -152,7 +230,22 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun OfferingCard(offering: Offering) {
+private fun Badge(text: String, error: Boolean) {
+    Surface(
+        color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+}
+
+@Composable
+private fun OfferingCard(offering: Offering, onPublish: () -> Unit) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(offering.name, style = MaterialTheme.typography.titleSmall)
@@ -170,6 +263,12 @@ private fun OfferingCard(offering: Offering) {
                 )
             }
             Text(ratingText(offering.rating), style = MaterialTheme.typography.bodySmall)
+            if (offering.acceptsExperiences) {
+                OutlinedButton(onClick = onPublish) { Text(stringResource(R.string.offering_publish)) }
+            } else {
+                // Atividade (ou local) retirada: continua legível, mas não está disponível.
+                Badge(stringResource(R.string.offering_retired), error = true)
+            }
         }
     }
 }

@@ -1,6 +1,8 @@
 package com.example.portofit.data.remote
 
 import com.example.portofit.data.model.ActivityLevel
+import com.example.portofit.data.model.CatalogStatus
+import com.example.portofit.data.model.OfferingSummary
 import com.example.portofit.data.model.Address
 import com.example.portofit.data.model.Offering
 import com.example.portofit.data.model.Page
@@ -33,6 +35,11 @@ fun RatingDto.toModel(): Rating = when (status) {
 fun levelFrom(value: String): ActivityLevel =
     ActivityLevel.entries.firstOrNull { it.name == value && it != ActivityLevel.UNKNOWN } ?: ActivityLevel.UNKNOWN
 
+/** Valor desconhecido → RETIRED: nunca se oferece publicar numa atividade de estado incerto. */
+fun statusFrom(value: String): CatalogStatus = if (value == "ACTIVE") CatalogStatus.ACTIVE else CatalogStatus.RETIRED
+
+fun OfferingDetailDto.toModel() = OfferingSummary(id, name, statusFrom(status), place.id, place.name)
+
 fun PlaceSummaryDto.toModel() = PlaceSummary(
     id = id,
     name = name,
@@ -51,6 +58,7 @@ fun OfferingDto.toModel() = Offering(
     level = levelFrom(level),
     scheduleNotes = scheduleNotes,
     rating = rating.toModel(),
+    status = statusFrom(status),
 )
 
 fun PlaceDetailDto.toModel(): PlaceDetail {
@@ -66,6 +74,7 @@ fun PlaceDetailDto.toModel(): PlaceDetail {
         sports = offeringModels.map { it.sport }.distinctBy { it.id },
         offerings = offeringModels,
         isDemo = demo,
+        status = statusFrom(status),
     )
 }
 

@@ -20,4 +20,8 @@ interface CatalogApi {
 
     @GET("api/v1/places/{placeId}")
     suspend fun getPlace(@Path("placeId") placeId: String): PlaceDetailDto
+
+    /** Sem avaliação: só o estado e o local, para o detalhe de uma experiência. */
+    @GET("api/v1/offerings/{offeringId}?includeRating=false")
+    suspend fun getOffering(@Path("offeringId") offeringId: String): OfferingDetailDto
 }

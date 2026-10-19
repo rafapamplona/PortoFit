@@ -49,6 +49,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.portofit.R
 import com.example.portofit.data.repository.DataError
+import com.example.portofit.ui.feature.experience.ExperienceListSection
+import com.example.portofit.ui.feature.profile.PublicationsSection
 import com.example.portofit.data.repository.FollowError
 import com.example.portofit.data.repository.UserSummary
 import com.example.portofit.ui.components.ErrorMessage
@@ -161,9 +163,11 @@ fun PublicProfileScreen(
     onEditOwnProfile: () -> Unit,
     onLoginRequired: () -> Unit,
     onOpenList: (userId: String, kind: FollowListKind) -> Unit,
+    onOpenExperience: (experienceId: String) -> Unit,
     viewModel: PublicProfileViewModel = viewModel(factory = PublicProfileViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val publications by viewModel.publications.collectAsStateWithLifecycle()
     // Ao voltar de outro perfil, de uma lista ou do login, a relação e as contagens são atualizadas.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResumed() }
     PublicProfileContent(
@@ -175,6 +179,12 @@ fun PublicProfileScreen(
         onFollowClick = { if (state.followButton == FollowButton.LOGIN_REQUIRED) onLoginRequired() else viewModel.toggleFollow() },
         onRefreshRelation = viewModel::refreshRelation,
         onOpenList = { kind -> state.profile?.let { onOpenList(it.userId, kind) } },
+        publications = PublicationsSection(
+            state = publications,
+            onOpen = { onOpenExperience(it.id) },
+            onRetry = viewModel::retryPublications,
+            onLoadMore = viewModel::loadMorePublications,
+        ),
     )
 }
 
@@ -188,6 +198,7 @@ fun PublicProfileContent(
     onFollowClick: () -> Unit,
     onRefreshRelation: () -> Unit,
     onOpenList: (FollowListKind) -> Unit,
+    publications: PublicationsSection,
 ) {
     Scaffold(
         topBar = {
@@ -252,12 +263,16 @@ fun PublicProfileContent(
                     }
                 }
                 HorizontalDivider()
-                // Publicações: ainda não integradas; não se mostra uma lista vazia como se tivesse sido consultada.
+                // Publicações (experiences-service): uma falha só afeta esta secção.
                 Text(stringResource(R.string.profile_posts), style = MaterialTheme.typography.titleMedium)
-                Text(
-                    stringResource(R.string.profile_posts_unavailable),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ExperienceListSection(
+                    state = publications.state,
+                    showPlace = true,
+                    emptyText = R.string.experiences_empty_profile,
+                    onOpen = publications.onOpen,
+                    onAuthorClick = null,
+                    onRetry = publications.onRetry,
+                    onLoadMore = publications.onLoadMore,
                 )
             }
         }

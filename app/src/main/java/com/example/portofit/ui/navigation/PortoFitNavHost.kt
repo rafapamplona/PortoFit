@@ -11,11 +11,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.portofit.ui.feature.auth.LoginScreen
 import com.example.portofit.ui.feature.auth.RegisterScreen
+import com.example.portofit.ui.feature.experience.ExperienceDetailScreen
+import com.example.portofit.ui.feature.experience.ExperienceDetailViewModel
+import com.example.portofit.ui.feature.experience.PublishExperienceScreen
+import com.example.portofit.ui.feature.experience.PublishExperienceViewModel
 import com.example.portofit.ui.feature.people.FollowListKind
 import com.example.portofit.ui.feature.people.FollowListScreen
 import com.example.portofit.ui.feature.people.FollowListViewModel
 import com.example.portofit.ui.feature.people.PublicProfileScreen
 import com.example.portofit.ui.feature.people.PublicProfileViewModel
+import com.example.portofit.ui.feature.place.PlaceDetailActions
 import com.example.portofit.ui.feature.place.PlaceDetailScreen
 import com.example.portofit.ui.feature.profile.ProfileScreen
 import com.example.portofit.ui.feature.place.PlaceDetailViewModel
@@ -32,9 +37,22 @@ private object Routes {
     const val FOLLOW_LIST = "user/{${FollowListViewModel.USER_ID_ARG}}/list/{${FollowListViewModel.KIND_ARG}}"
     fun followList(userId: String, kind: FollowListKind) = "user/${Uri.encode(userId)}/list/${kind.name}"
     fun place(placeId: String) = "place/${Uri.encode(placeId)}"
+    const val PUBLISH = "place/{${PublishExperienceViewModel.PLACE_ID_ARG}}/publish/{${PublishExperienceViewModel.OFFERING_ID_ARG}}" +
+        "?${PublishExperienceViewModel.PLACE_NAME_ARG}={${PublishExperienceViewModel.PLACE_NAME_ARG}}" +
+        "&${PublishExperienceViewModel.OFFERING_NAME_ARG}={${PublishExperienceViewModel.OFFERING_NAME_ARG}}"
+    fun publish(placeId: String, offeringId: String, placeName: String, offeringName: String) =
+        "place/${Uri.encode(placeId)}/publish/${Uri.encode(offeringId)}" +
+            "?${PublishExperienceViewModel.PLACE_NAME_ARG}=${Uri.encode(placeName)}&${PublishExperienceViewModel.OFFERING_NAME_ARG}=${Uri.encode(offeringName)}"
+    const val EXPERIENCE = "experience/{${ExperienceDetailViewModel.EXPERIENCE_ID_ARG}}"
+    fun experience(experienceId: String) = "experience/${Uri.encode(experienceId)}"
 }
 
-/** Navegação: pesquisa → detalhe do local; pesquisa → entrar ↔ criar conta; pesquisa → o meu perfil; pesquisa de pessoas → perfil público ↔ seguidores/seguidos; o login regressa ao ecrã que o abriu. Voltar regressa à lista com a pesquisa intacta. */
+/**
+ * Navegação: pesquisa → detalhe do local → publicar (com sessão) / detalhe da experiência; pesquisa → entrar ↔
+ * criar conta; pesquisa → o meu perfil; pesquisa de pessoas → perfil público ↔ seguidores/seguidos; perfis →
+ * detalhe da experiência → local ou autor. O login regressa ao ecrã que o abriu, sem executar ações.
+ * Voltar regressa ao ecrã anterior com o estado intacto.
+ */
 @Composable
 fun PortoFitNavHost() {
     val navController = rememberNavController()
@@ -71,6 +89,7 @@ fun PortoFitNavHost() {
                 // Depois de entrar, o login regressa a este perfil; seguir exige novo toque.
                 onLoginRequired = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                 onOpenList = { userId, kind -> if (entry.isResumed()) navController.navigate(Routes.followList(userId, kind)) },
+                onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
             )
         }
         composable(
@@ -86,7 +105,10 @@ fun PortoFitNavHost() {
             )
         }
         composable(Routes.PROFILE) { entry ->
-            ProfileScreen(onBack = { if (entry.isResumed()) navController.navigateUp() })
+            ProfileScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
+            )
         }
         composable(Routes.REGISTER) { entry ->
             RegisterScreen(
@@ -99,7 +121,51 @@ fun PortoFitNavHost() {
             route = Routes.PLACE,
             arguments = listOf(navArgument(PlaceDetailViewModel.PLACE_ID_ARG) { type = NavType.StringType }),
         ) { entry ->
-            PlaceDetailScreen(onBack = { if (entry.isResumed()) navController.navigateUp() })
+            PlaceDetailScreen(
+                PlaceDetailActions(
+                    onBack = { if (entry.isResumed()) navController.navigateUp() },
+                    onPublish = { place, offering, signedIn ->
+                        if (entry.isResumed()) {
+                            // Sem sessão: entrar e regressar a este local; publicar exige um novo toque.
+                            navController.navigate(if (signedIn) Routes.publish(place.id, offering.id, place.name, offering.name) else Routes.LOGIN)
+                        }
+                    },
+                    onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
+                    onOpenAuthor = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
+                ),
+            )
+        }
+        composable(
+            route = Routes.PUBLISH,
+            arguments = listOf(
+                navArgument(PublishExperienceViewModel.PLACE_ID_ARG) { type = NavType.StringType },
+                navArgument(PublishExperienceViewModel.OFFERING_ID_ARG) { type = NavType.StringType },
+                navArgument(PublishExperienceViewModel.PLACE_NAME_ARG) { type = NavType.StringType; defaultValue = "" },
+                navArgument(PublishExperienceViewModel.OFFERING_NAME_ARG) { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { entry ->
+            PublishExperienceScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                // O login regressa a este formulário (texto, estrelas e chave preservados); publicar exige novo toque.
+                onLoginRequired = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+                // Publicada: regressa ao local, que atualiza a lista e as avaliações.
+                onPublished = { if (navController.currentBackStackEntry == entry) navController.popBackStack() },
+                onOpenExperience = { id ->
+                    if (entry.isResumed()) navController.navigate(Routes.experience(id)) { popUpTo(Routes.PUBLISH) { inclusive = true } }
+                },
+            )
+        }
+        composable(
+            route = Routes.EXPERIENCE,
+            arguments = listOf(navArgument(ExperienceDetailViewModel.EXPERIENCE_ID_ARG) { type = NavType.StringType }),
+        ) { entry ->
+            ExperienceDetailScreen(
+                // Também usado depois de eliminar: regressa ao ecrã anterior (que atualiza a lista).
+                onBack = { if (navController.currentBackStackEntry == entry) navController.popBackStack() },
+                onOpenAuthor = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
+                onOpenPlace = { placeId -> if (entry.isResumed()) navController.navigate(Routes.place(placeId)) },
+                onLoginRequired = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+            )
         }
     }
 }

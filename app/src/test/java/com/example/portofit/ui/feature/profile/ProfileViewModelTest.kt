@@ -8,7 +8,11 @@ import com.example.portofit.data.repository.Profile
 import com.example.portofit.data.repository.ProfileError
 import com.example.portofit.data.repository.ProfileRepository
 import com.example.portofit.data.repository.ProfileResult
+import com.example.portofit.data.auth.SessionState
+import com.example.portofit.data.repository.ExperienceChanges
 import com.example.portofit.testing.FakeCatalogRepository
+import com.example.portofit.testing.FakeExperiencesRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.example.portofit.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -43,7 +47,37 @@ class ProfileViewModelTest {
         sportsResult = { DataResult.Success(listOf(Sport("boxe", "Boxe"), Sport("ioga", "Ioga"), Sport("natacao", "Natação"))) }
     }
 
-    private fun viewModel(state: SavedStateHandle = SavedStateHandle()) = ProfileViewModel(profiles, catalog, state)
+    private val experiences = FakeExperiencesRepository()
+    private val changes = ExperienceChanges()
+    private val session = MutableStateFlow<SessionState>(SessionState.SignedIn("user-1", "pamplona"))
+
+    private fun viewModel(state: SavedStateHandle = SavedStateHandle()) = ProfileViewModel(profiles, catalog, experiences, changes, session, state)
+
+    // --- Publicações ---
+
+    @Test
+    fun `as minhas publicacoes vem do userId da sessao e falham a parte`() {
+        experiences.onList = { com.example.portofit.data.repository.DataResult.Failure(DataError.NETWORK) }
+        val vm = viewModel()
+        assertEquals("user-1", experiences.listCalls.single().authorId)
+        assertEquals(com.example.portofit.ui.feature.experience.ExperienceListState.Error(DataError.NETWORK), vm.publications.value)
+        // O perfil continua carregado.
+        assertEquals(ProfileLoad.Loaded, vm.uiState.value.load)
+
+        experiences.onList = { call -> DataResult.Success(FakeExperiencesRepository.pageOf(call.page, 1)) }
+        vm.retryPublications()
+        assertTrue(vm.publications.value is com.example.portofit.ui.feature.experience.ExperienceListState.Loaded)
+    }
+
+    @Test
+    fun `publicacao propria noutro ecra atualiza a lista`() {
+        viewModel()
+        experiences.listCalls.clear()
+        changes.notify(com.example.portofit.data.repository.ExperienceChange("e1", "p1", "user-1"))
+        assertEquals(1, experiences.listCalls.size)
+        changes.notify(com.example.portofit.data.repository.ExperienceChange("e2", "p1", "outra-pessoa"))
+        assertEquals(1, experiences.listCalls.size)
+    }
 
     // --- Carregamento ---
 

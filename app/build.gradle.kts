@@ -9,6 +9,8 @@ plugins {
 val catalogBaseUrlOverride: String? = providers.gradleProperty("portofit.catalogBaseUrl").orNull
 // URL do users-service (mesma regra: em debug, o PC visto a partir do emulador).
 val usersBaseUrlOverride: String? = providers.gradleProperty("portofit.usersBaseUrl").orNull
+// URL do experiences-service (mesma regra).
+val experiencesBaseUrlOverride: String? = providers.gradleProperty("portofit.experiencesBaseUrl").orNull
 
 android {
     namespace = "com.example.portofit"
@@ -30,6 +32,7 @@ android {
         debug {
             buildConfigField("String", "CATALOG_BASE_URL", "\"${catalogBaseUrlOverride ?: "http://10.0.2.2:8081/"}\"")
             buildConfigField("String", "USERS_BASE_URL", "\"${usersBaseUrlOverride ?: "http://10.0.2.2:8082/"}\"")
+            buildConfigField("String", "EXPERIENCES_BASE_URL", "\"${experiencesBaseUrlOverride ?: "http://10.0.2.2:8083/"}\"")
         }
         release {
             optimization {
@@ -38,6 +41,7 @@ android {
             // Ainda não há backend publicado: sem URL, a app mostra "serviço não configurado".
             buildConfigField("String", "CATALOG_BASE_URL", "\"${catalogBaseUrlOverride ?: ""}\"")
             buildConfigField("String", "USERS_BASE_URL", "\"${usersBaseUrlOverride ?: ""}\"")
+            buildConfigField("String", "EXPERIENCES_BASE_URL", "\"${experiencesBaseUrlOverride ?: ""}\"")
         }
     }
     compileOptions {

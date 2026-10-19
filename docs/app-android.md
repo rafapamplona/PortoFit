@@ -424,3 +424,112 @@ Duas contas temporárias criadas por HTTP (A e B, palavras-passe aleatórias nã
 | Serviço reiniciado, novo toque | **Seguir**, 0 seguidores (a sessão sobreviveu ao reinício) |
 
 Não verificado na interface (coberto pelos testes automáticos): duplo toque rápido, resultado aceite mas não confirmado, relação por confirmar e "Carregar mais" nas listas (eram precisas mais de 20 contas).
+
+## 14. Experiências (etapa 6, E1, sem fotografias)
+
+Contrato: [experiences-api.md](experiences-api.md) (§4 endpoints, §5 idempotência, §7 avaliações). Sem fotografias, comentários, gostos, feed nem dashboard.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `ExperiencesApi` + DTOs | `data/remote/ExperiencesApi.kt` | listar (por local ou autor, `recent`/`stars`), detalhe, publicar com `Idempotency-Key`, editar, eliminar |
+| `NetworkExperiencesRepository` | `data/repository/ExperiencesRepository.kt` | leituras públicas (`DataResult`); escritas com o access token e uma renovação após `401` (na publicação, com a mesma chave); classificação dos resultados em `PublishOutcome` e `MutationResult` |
+| `ExperienceChanges` | idem | avisos de publicação/edição/eliminação entre ecrãs (o local e os perfis na pilha atualizam-se) |
+| `ExperienceRules` | `data/model/ExperienceModels.kt` | as validações do contrato: texto normalizado de 1 a 2000 pontos de código, sem só espaços nem caracteres de controlo; estrelas de 1 a 5 |
+| `ExperienceListLoader` + componentes | `ui/feature/experience/ExperienceList.kt` | lista paginada (10 por página, "Carregar mais", respostas antigas ignoradas, sem repetições pelo id), cartão, estrelas, ordenação |
+| `PublishExperienceViewModel` | `ui/feature/experience/PublishExperienceViewModel.kt` | formulário e tentativa lógica (chave, conteúdo enviado, data) |
+| `ExperienceDetailViewModel` | `ui/feature/experience/ExperienceDetailViewModel.kt` | detalhe, estado atual da atividade, editar texto/estrelas e eliminar com confirmação (só o autor) |
+| Ecrãs | `ExperienceScreens.kt`, `place/PlaceDetailScreen.kt`, `profile/ProfileScreen.kt`, `people/PeopleScreens.kt` | publicar (`place/{id}/publish/{offeringId}`), detalhe (`experience/{id}`), secção "Experiências" no local, "Publicações" nos perfis |
+
+`EXPERIENCES_BASE_URL` só em debug: `http://10.0.2.2:8083/`, que a configuração de rede de debug já permite. Em release fica vazio e a secção mostra "não disponível nesta versão". O cliente HTTP tem uma pool própria de ligações curtas (5 s), como o do users-service, e mantém as novas tentativas automáticas do OkHttp: as leituras, o PATCH e o DELETE são idempotentes, e a publicação leva sempre a chave.
+
+### Regras
+
+- **Local:** experiências paginadas com estrelas (★★★★☆, com descrição para leitores de ecrã), data, `@autor` (abre o perfil) e atividade; o toque abre o detalhe. A ordenação é "Mais recentes" ou "Melhor avaliação do local", reposta ao recriar. Não há contadores de gostos nem comentários.
+- **Estados do catálogo:**
+  - local fictício: indicação "Dados de demonstração";
+  - local retirado: aviso de que as experiências antigas continuam legíveis mas não é possível publicar;
+  - atividade retirada: indicação "Atividade retirada do catálogo" e sem botão de publicar;
+  - no detalhe da experiência, se o catálogo indicar que a atividade foi retirada, aparece um aviso de registo histórico (uma falha do catálogo não afeta o detalhe).
+- **Publicar:** "Partilhar experiência" só nas atividades ativas.
+  - Sem sessão, abre o login e regressa ao local, **sem publicar**; com sessão, abre o formulário.
+  - Se a sessão terminar no formulário, "Entrar" regressa ao formulário com o texto e as estrelas.
+  - Envios repetidos durante o pedido são ignorados e o botão fica desativado.
+  - Idempotência, conflitos e prazo de 6 dias como em [experiences-api.md §5](experiences-api.md#5-publicação-sem-duplicados-idempotência): resultado desconhecido → conteúdo bloqueado e "Tentar novamente" com a mesma chave; alterar exige "Descartar esta tentativa" com confirmação.
+- **Detalhe:** "Editar" e "Eliminar" só com sessão do autor; o servidor decide sempre (`403` para outra pessoa).
+  - A edição altera só texto e estrelas, envia só o que mudou e fica no `SavedStateHandle`; a atividade não é editável (com a explicação).
+  - Eliminar pede confirmação e, depois, regressa ao ecrã anterior.
+- **Atualização após alterações:** publicar, editar ou eliminar avisa o `ExperienceChanges`.
+  - O detalhe do local pede de novo a lista e o local (avaliações). Se o catálogo falhar nessa atualização, mantém o local anterior com o aviso "Não foi possível atualizar a avaliação…"; a publicação, já confirmada, não é posta em causa.
+  - Os perfis do autor recarregam as "Publicações".
+- **Perfis:** "Publicações" no próprio perfil (pelo `userId` da sessão) e no público (pelo `userId` do perfil), em vez da indicação de funcionalidade indisponível.
+- **Falhas isoladas:** se o experiences-service falhar, só as secções de experiências mostram o erro com "Tentar novamente"; o catálogo e o perfil continuam visíveis.
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest`: **140 testes, 0 falhas** (eram 100), executados depois da última alteração. `assembleDebug` e `lintDebug` concluídos. Avisos novos do lint: "autor" assinalado como erro ortográfico (o dicionário é inglês) e o contador de caracteres sugerido como plural, como o já existente da descrição.
+
+- `NetworkExperiencesRepositoryTest` (7):
+  - listas públicas e conversão (data com microssegundos, local fictício);
+  - data inválida → erro inesperado;
+  - publicar sem sessão não faz pedidos;
+  - token e chave enviados, e um `401` renova e repete com a mesma chave;
+  - `200` com `Idempotent-Replayed`;
+  - resultados desconhecidos (rede, `503`, `500`, `2xx` ilegível) e recusas definitivas (`CATALOG_UNAVAILABLE`, validação, atividade inexistente, de outro local ou retirada, `429` com `Retry-After`, `409` dos dois tipos);
+  - editar e eliminar com token e erros (`403`, `404`, rede, `503`).
+- `PublishExperienceViewModelTest` (12):
+  - validações do contrato (vazio, só espaços, 2000 emojis aceites, 2001, controlo, estrelas);
+  - publicação com texto normalizado e aviso às listas;
+  - envios repetidos ignorados;
+  - resultado desconhecido: conteúdo bloqueado e repetição com a mesma chave e conteúdo;
+  - tentativa por confirmar restaurada depois da recriação do processo, também a meio do pedido;
+  - descartar → conteúdo editável e chave nova;
+  - recusa definitiva descarta a chave;
+  - chave com mais de 6 dias não reutilizada;
+  - conflitos `409`;
+  - sem sessão não envia e, depois de entrar, só com novo toque;
+  - sessão terminada mantém o formulário.
+- `ExperienceDetailViewModelTest` (10):
+  - detalhe público com o estado da atividade; falha do catálogo sem efeito;
+  - experiência inexistente;
+  - autorização da interface (outra pessoa, sem sessão, autor com sessão por confirmar);
+  - editar envia só o que mudou e avisa as listas; sem alterações não há pedido; texto inválido não é enviado;
+  - edição restaurada depois da recriação;
+  - falha mantém a edição e não duplica pedidos;
+  - eliminar com confirmação e aviso; eliminação recusada.
+- `PlaceDetailViewModelTest` (+7):
+  - paginação e ordenações;
+  - ordenação reposta ao recriar;
+  - falha só na secção de experiências;
+  - resposta antiga ignorada;
+  - alteração neste local atualiza a lista e as avaliações (e noutro local não);
+  - falha da atualização mantém o local com o aviso;
+  - publicar só em atividades ativas.
+- `ProfileViewModelTest` (+2), `PeopleViewModelsTest` (+1): publicações pelo `userId`, falha isolada do perfil e atualização após alterações do autor.
+- `CatalogMappersTest` (+1): estado do local e das atividades (valor desconhecido → `RETIRED`; sem campo → `ACTIVE`).
+
+### Verificação (2026-10-19, pelo assistente)
+
+**Emulador não usado:** havia cerca de 0,56 GB de memória livre, com os quatro contentores em execução. Na verificação anterior, o emulador deixou menos de 0,45 GB e o VS Code já deixou de responder antes por falta de memória. A interface fica por verificar no emulador.
+
+O fluxo foi verificado com os **mesmos pedidos que a app faz**, nos contentores, com duas contas temporárias (palavras-passe aleatórias, não mostradas; apagadas no fim, com as suas experiências; `pamplona` intacta):
+
+| Verificação | Resultado |
+|---|---|
+| A publica 4★ na Ribeira; repetição com a mesma chave e conteúdo | `201`; `200`, `Idempotent-Replayed: true`, mesmo id |
+| Mesma chave com outro conteúdo (a app impede-o) | `409 DIFFERENT_CONTENT` |
+| Lista do local (`recent`) e do perfil de A | 1 experiência em cada; catálogo: local 4,0 (1) |
+| B publica 2★; lista por estrelas | A (4), B (2); local 3,0 (2) |
+| B edita a de A / A edita para 5★ | `403` / `200` com `editedAt`; local 3,5 (2) |
+| A elimina; repetição da chave dessa publicação | `204`, local 2,0 (1); `409 EXPERIENCE_DELETED` |
+| Kickboxing retirado (temporariamente, reposto no fim) | detalhe do local com a atividade `RETIRED`; não aparece em `sport=kickboxing`; publicar → `400 OFFERING_RETIRED` |
+| experiences-service parado | pesquisa e detalhe do catálogo `200` (~0,5 s) com avaliações `UNAVAILABLE`; perfil público `200`; experiências sem ligação (a app mostra o erro só nessa secção) |
+| Reinício | avaliações de volta (2,0 (1)); quatro serviços saudáveis |
+
+**Pendente:** verificar a interface no emulador quando houver memória:
+- publicar a partir do local, com o regresso do login sem publicar;
+- consultar no local e no perfil;
+- editar e eliminar;
+- a avaliação no ecrã;
+- a secção de experiências com o serviço parado.

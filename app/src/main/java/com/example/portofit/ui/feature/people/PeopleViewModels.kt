@@ -14,6 +14,11 @@ import com.example.portofit.data.model.Sport
 import com.example.portofit.data.repository.CatalogRepository
 import com.example.portofit.data.repository.DataError
 import com.example.portofit.data.repository.DataResult
+import com.example.portofit.data.repository.ExperienceChanges
+import com.example.portofit.data.repository.ExperiencesRepository
+import com.example.portofit.ui.feature.experience.ExperienceListLoader
+import com.example.portofit.ui.feature.experience.ExperienceListState
+import kotlinx.coroutines.flow.filter
 import com.example.portofit.data.repository.FollowError
 import com.example.portofit.data.repository.FollowResult
 import com.example.portofit.data.repository.PeopleRepository
@@ -233,10 +238,16 @@ class PublicProfileViewModel(
     private val people: PeopleRepository,
     private val catalog: CatalogRepository,
     private val session: StateFlow<SessionState>,
+    experiences: ExperiencesRepository,
+    changes: ExperienceChanges,
     savedState: SavedStateHandle,
 ) : ViewModel() {
 
     private val userId: String = checkNotNull(savedState[USER_ID_ARG]) { "Falta o argumento $USER_ID_ARG" }
+
+    /** Publicações da pessoa (experiences-service): independentes do perfil (users-service). */
+    private val publicationList = ExperienceListLoader(viewModelScope, experiences, authorId = userId)
+    val publications: StateFlow<ExperienceListState> = publicationList.state
 
     private val content = MutableStateFlow(PublicProfileUiState())
 
@@ -258,6 +269,8 @@ class PublicProfileViewModel(
         viewModelScope.launch {
             session.map { (it as? SessionState.SignedIn)?.userId }.distinctUntilChanged().collect { load(silent = content.value.profile != null) }
         }
+        publicationList.load()
+        viewModelScope.launch { changes.events.filter { it.authorId == userId }.collect { publicationList.load() } }
     }
 
     fun retry() = load(silent = false)
@@ -335,11 +348,17 @@ class PublicProfileViewModel(
                     app.container.peopleRepository,
                     app.container.catalogRepository,
                     app.container.sessionManager.state,
+                    app.container.experiencesRepository,
+                    app.container.experienceChanges,
                     createSavedStateHandle(),
                 )
             }
         }
     }
+
+    fun retryPublications() = publicationList.load()
+
+    fun loadMorePublications() = publicationList.loadMore()
 }
 
 // ---------------------------------------------------------------- Seguidores e seguidos

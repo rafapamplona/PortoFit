@@ -1,5 +1,6 @@
 package com.example.portofit.testing
 
+import com.example.portofit.data.model.OfferingSummary
 import com.example.portofit.data.model.Page
 import com.example.portofit.data.model.PlaceDetail
 import com.example.portofit.data.model.PlaceSummary
@@ -37,6 +38,10 @@ class FakeCatalogRepository : CatalogRepository {
     }
 
     override suspend fun getPlace(placeId: String): DataResult<PlaceDetail> = placeResult(placeId)
+
+    var offeringResult: suspend (String) -> DataResult<OfferingSummary> = { DataResult.Failure(DataError.NETWORK) }
+
+    override suspend fun getOffering(offeringId: String): DataResult<OfferingSummary> = offeringResult(offeringId)
 
     companion object {
         val BOXE = Sport("boxe", "Boxe")

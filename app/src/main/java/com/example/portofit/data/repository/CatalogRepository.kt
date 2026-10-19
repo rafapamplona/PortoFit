@@ -1,5 +1,6 @@
 package com.example.portofit.data.repository
 
+import com.example.portofit.data.model.OfferingSummary
 import com.example.portofit.data.model.Page
 import com.example.portofit.data.model.PlaceDetail
 import com.example.portofit.data.model.PlaceSummary
@@ -14,6 +15,8 @@ interface CatalogRepository {
     suspend fun searchPlaces(query: String?, sportId: String?, page: Int, pageSize: Int): DataResult<Page<PlaceSummary>>
 
     suspend fun getPlace(placeId: String): DataResult<PlaceDetail>
+
+    suspend fun getOffering(offeringId: String): DataResult<OfferingSummary>
 }
 
 /** Implementação sobre a API REST do catalog-service. Não tem dados locais de reserva. */
@@ -26,6 +29,8 @@ class NetworkCatalogRepository(private val api: CatalogApi) : CatalogRepository 
 
     override suspend fun getPlace(placeId: String) = call { api.getPlace(placeId).toModel() }
 
+    override suspend fun getOffering(offeringId: String) = call { api.getOffering(offeringId).toModel() }
+
     private suspend fun <T> call(block: suspend () -> T): DataResult<T> = apiCall(block)
 }
 
@@ -35,4 +40,5 @@ class UnconfiguredCatalogRepository : CatalogRepository {
     override suspend fun getSports() = failure
     override suspend fun searchPlaces(query: String?, sportId: String?, page: Int, pageSize: Int) = failure
     override suspend fun getPlace(placeId: String) = failure
+    override suspend fun getOffering(offeringId: String) = failure
 }

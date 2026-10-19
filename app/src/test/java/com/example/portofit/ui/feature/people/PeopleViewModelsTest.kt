@@ -13,7 +13,9 @@ import com.example.portofit.data.repository.FollowResult
 import com.example.portofit.data.repository.PeopleRepository
 import com.example.portofit.data.repository.PublicProfile
 import com.example.portofit.data.repository.UserSummary
+import com.example.portofit.data.repository.ExperienceChanges
 import com.example.portofit.testing.FakeCatalogRepository
+import com.example.portofit.testing.FakeExperiencesRepository
 import com.example.portofit.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +76,8 @@ class PeopleViewModelsTest {
     }
 
     private val people = FakePeople()
+    private val experiences = FakeExperiencesRepository()
+    private val changes = ExperienceChanges()
 
     // --- Pesquisa de pessoas ---
 
@@ -157,7 +161,7 @@ class PeopleViewModelsTest {
     private val catalog = FakeCatalogRepository().apply { sportsResult = { DataResult.Success(listOf(Sport("boxe", "Boxe"))) } }
 
     private fun profileVm(session: SessionState = SessionState.SignedOut(), userId: String = "user-1") =
-        PublicProfileViewModel(people, catalog, MutableStateFlow(session), SavedStateHandle(mapOf(PublicProfileViewModel.USER_ID_ARG to userId)))
+        PublicProfileViewModel(people, catalog, MutableStateFlow(session), experiences, changes, SavedStateHandle(mapOf(PublicProfileViewModel.USER_ID_ARG to userId)))
 
     @Test
     fun `perfil publico sem sessao com nomes do catalogo e alternativos`() {
@@ -216,7 +220,7 @@ class PeopleViewModelsTest {
             serverFollows = follow
             FollowResult.Success
         }
-        return PublicProfileViewModel(people, catalog, session, SavedStateHandle(mapOf(PublicProfileViewModel.USER_ID_ARG to "user-1")))
+        return PublicProfileViewModel(people, catalog, session, experiences, changes, SavedStateHandle(mapOf(PublicProfileViewModel.USER_ID_ARG to "user-1")))
     }
 
     private val visitor get() = MutableStateFlow<SessionState>(SessionState.SignedOut())
@@ -419,6 +423,26 @@ class PeopleViewModelsTest {
         vm.retry()
         slow.complete(DataResult.Failure(DataError.NETWORK))
         assertTrue(vm.uiState.value is FollowListState.Loaded)
+    }
+
+    // --- Publicações no perfil público ---
+
+    @Test
+    fun `publicacoes da pessoa e falha isolada do perfil`() {
+        experiences.onList = { DataResult.Failure(DataError.SERVER) }
+        val vm = profileVm(userId = "user-7")
+        assertEquals("user-7", experiences.listCalls.single().authorId)
+        assertEquals(com.example.portofit.ui.feature.experience.ExperienceListState.Error(DataError.SERVER), vm.publications.value)
+        assertTrue(vm.uiState.value.load is PublicProfileLoad.Loaded)
+
+        experiences.onList = { call -> DataResult.Success(FakeExperiencesRepository.pageOf(call.page, 2)) }
+        vm.retryPublications()
+        vm.loadMorePublications()
+        assertEquals(4, (vm.publications.value as com.example.portofit.ui.feature.experience.ExperienceListState.Loaded).items.size)
+
+        experiences.listCalls.clear()
+        changes.notify(com.example.portofit.data.repository.ExperienceChange("e1", "p1", "user-7"))
+        assertEquals(1, experiences.listCalls.size)
     }
 
     // --- Privacidade ---

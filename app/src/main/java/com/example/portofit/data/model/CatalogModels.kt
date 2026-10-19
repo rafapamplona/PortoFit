@@ -20,6 +20,12 @@ sealed interface Rating {
 
 enum class ActivityLevel { BEGINNER, INTERMEDIATE, ADVANCED, ALL_LEVELS, UNKNOWN }
 
+/**
+ * Estado no catálogo (docs/catalog-api.md §2.2–2.3). Dados retirados continuam legíveis pelo id, mas não
+ * aceitam publicações. Um valor desconhecido é tratado como RETIRED (não se oferece publicar).
+ */
+enum class CatalogStatus { ACTIVE, RETIRED }
+
 data class PlaceSummary(
     val id: String,
     val name: String,
@@ -45,7 +51,11 @@ data class Offering(
     val level: ActivityLevel,
     val scheduleNotes: String?,
     val rating: Rating,
-)
+    /** Estado efetivo (RETIRED se a atividade ou o local estiverem retirados). */
+    val status: CatalogStatus = CatalogStatus.ACTIVE,
+) {
+    val acceptsExperiences: Boolean get() = status == CatalogStatus.ACTIVE
+}
 
 data class PlaceDetail(
     val id: String,
@@ -59,6 +69,18 @@ data class PlaceDetail(
     val sports: List<Sport>,
     val offerings: List<Offering>,
     val isDemo: Boolean,
+    val status: CatalogStatus = CatalogStatus.ACTIVE,
+) {
+    val isRetired: Boolean get() = status == CatalogStatus.RETIRED
+}
+
+/** Atividade vista isoladamente (GET /offerings/{id}), com o estado efetivo. */
+data class OfferingSummary(
+    val id: String,
+    val name: String,
+    val status: CatalogStatus,
+    val placeId: String,
+    val placeName: String,
 )
 
 /** Uma página de resultados; [page] começa em 0. */

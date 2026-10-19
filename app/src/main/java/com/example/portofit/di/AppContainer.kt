@@ -8,10 +8,15 @@ import com.example.portofit.data.auth.RetrofitAuthGateway
 import com.example.portofit.data.auth.SessionManager
 import com.example.portofit.data.auth.UnconfiguredAuthGateway
 import com.example.portofit.data.remote.CatalogApi
+import com.example.portofit.data.remote.ExperiencesApi
 import com.example.portofit.data.remote.PeopleApi
 import com.example.portofit.data.remote.ProfileApi
 import com.example.portofit.data.remote.UsersApi
 import com.example.portofit.data.repository.CatalogRepository
+import com.example.portofit.data.repository.ExperienceChanges
+import com.example.portofit.data.repository.ExperiencesRepository
+import com.example.portofit.data.repository.NetworkExperiencesRepository
+import com.example.portofit.data.repository.UnconfiguredExperiencesRepository
 import com.example.portofit.data.repository.NetworkCatalogRepository
 import com.example.portofit.data.repository.NetworkPeopleRepository
 import com.example.portofit.data.repository.PeopleRepository
@@ -34,7 +39,7 @@ import java.io.File
  * Injeção de dependências manual: cria uma única vez os objetos partilhados pela app.
  * Criado em PortoFitApplication; os ViewModels obtêm daqui os repositórios e a sessão.
  */
-class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: String) {
+class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: String, experiencesBaseUrl: String) {
 
     private val json = Json {
         // Campos novos acrescentados pelo backend não partem a app.
@@ -45,6 +50,7 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
     private val httpClient = HttpClients.catalog()
     private val usersHttpClient = HttpClients.users(httpClient)
     private val sessionHttpClient = HttpClients.session(usersHttpClient)
+    private val experiencesHttpClient = HttpClients.experiences(httpClient)
 
     /** Sessão da app: corre num âmbito próprio, independente de ecrãs e ViewModels. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -77,6 +83,15 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
     val peopleRepository: PeopleRepository =
         usersUrl?.let { NetworkPeopleRepository(retrofit(it, usersHttpClient).create(PeopleApi::class.java), sessionManager, json) }
             ?: UnconfiguredPeopleRepository()
+
+    /** Experiências (docs/experiences-api.md): consulta pública; publicar, editar e eliminar com sessão. */
+    val experiencesRepository: ExperiencesRepository =
+        experiencesBaseUrl.takeIf { it.isNotBlank() }
+            ?.let { NetworkExperiencesRepository(retrofit(it, experiencesHttpClient).create(ExperiencesApi::class.java), sessionManager, json) }
+            ?: UnconfiguredExperiencesRepository()
+
+    /** Avisos de publicação/edição/eliminação, para atualizar listas e avaliações noutros ecrãs. */
+    val experienceChanges = ExperienceChanges()
 
     private fun retrofit(baseUrl: String, client: OkHttpClient) = Retrofit.Builder()
         .baseUrl(baseUrl.trimEnd('/') + "/")

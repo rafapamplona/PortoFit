@@ -40,16 +40,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.portofit.R
+import com.example.portofit.data.model.Experience
 import com.example.portofit.data.repository.ProfileError
+import com.example.portofit.ui.feature.experience.ExperienceListSection
+import com.example.portofit.ui.feature.experience.ExperienceListState
 import com.example.portofit.ui.components.ErrorMessage
 import com.example.portofit.ui.components.LoadingIndicator
 
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
+    onOpenExperience: (experienceId: String) -> Unit,
     viewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val publications by viewModel.publications.collectAsStateWithLifecycle()
     val exit = { if (viewModel.requestExit()) onBack() }
     // Com alterações por guardar, o gesto/botão "voltar" do sistema pede confirmação.
     BackHandler(enabled = state.hasUnsavedChanges) { exit() }
@@ -77,8 +82,22 @@ fun ProfileScreen(
         onSaveDescription = viewModel::saveDescription,
         onInterestToggle = viewModel::onInterestToggle,
         onSaveInterests = viewModel::saveInterests,
+        publications = PublicationsSection(
+            state = publications,
+            onOpen = { onOpenExperience(it.id) },
+            onRetry = viewModel::retryPublications,
+            onLoadMore = viewModel::loadMorePublications,
+        ),
     )
 }
+
+/** Secção "Publicações" (experiences-service), independente do resto do perfil. */
+class PublicationsSection(
+    val state: ExperienceListState,
+    val onOpen: (Experience) -> Unit,
+    val onRetry: () -> Unit,
+    val onLoadMore: () -> Unit,
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -91,6 +110,7 @@ fun ProfileContent(
     onSaveDescription: () -> Unit,
     onInterestToggle: (String) -> Unit,
     onSaveInterests: () -> Unit,
+    publications: PublicationsSection,
 ) {
     Scaffold(
         topBar = {
@@ -213,12 +233,16 @@ fun ProfileContent(
 
                 HorizontalDivider()
 
-                // --- Publicações (ainda não integradas: não é mostrada uma lista vazia) ---
+                // --- Publicações (experiences-service; uma falha só afeta esta secção) ---
                 SectionTitle(R.string.profile_posts)
-                Text(
-                    stringResource(R.string.profile_posts_unavailable),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ExperienceListSection(
+                    state = publications.state,
+                    showPlace = true,
+                    emptyText = R.string.experiences_empty_profile,
+                    onOpen = publications.onOpen,
+                    onAuthorClick = null,
+                    onRetry = publications.onRetry,
+                    onLoadMore = publications.onLoadMore,
                 )
             }
         }

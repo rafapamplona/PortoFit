@@ -359,14 +359,16 @@ GET /api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01,3f1c9a2e-6b0
 
 Para não depender de o servidor ainda ter a chave, a app guarda a data em que gerou a chave. Se o rascunho por publicar tiver uma chave com mais de 6 dias, a app não a reutiliza: pede ao utilizador para confirmar no seu perfil se a publicação já existe e só depois publica com uma chave nova.
 
-**Comportamento da app** (a detalhar em app-android.md na etapa 6):
+**Comportamento da app** (implementado na etapa 6; [app-android.md §14](app-android.md#14-experiências-etapa-6-e1-sem-fotografias)):
 
-- Gera a chave na primeira tentativa de publicar e guarda-a com o formulário (`SavedStateHandle`), para sobreviver à rotação e à recriação do processo.
-- Numa falha de rede, timeout ou `5xx`, mantém o texto, as estrelas e a chave. **Não repete sozinha**: o utilizador toca em "Tentar novamente", com a mesma chave.
+- Gera a chave no primeiro envio e guarda-a com o conteúdo enviado e a data no `SavedStateHandle` **antes** de enviar. Assim sobrevive à rotação e à recriação do processo, e uma app terminada a meio do pedido fica com a tentativa por confirmar.
+- Resultado desconhecido (sem resposta, timeout, `5xx` que não seja `CATALOG_UNAVAILABLE`, ou `2xx` ilegível): mantém a chave e **bloqueia o texto e as estrelas**. **Não repete sozinha**: só "Tentar novamente" (um toque do utilizador) envia de novo, com a mesma chave e o mesmo conteúdo. A app **nunca envia a mesma chave com conteúdo diferente**.
+- Para alterar o conteúdo depois de um resultado desconhecido, o utilizador tem de descartar a tentativa, com uma confirmação que o avisa para ver primeiro no perfil se a publicação já existe. Só então pode editar e publicar com uma chave nova.
 - Depois de um `201` ou de um `200` com `Idempotent-Replayed: true`, descarta a chave e o rascunho. Uma nova publicação gera uma chave nova.
-- Se o utilizador alterar o conteúdo depois de uma falha de resultado desconhecido, a app mantém a chave. Se a primeira tentativa tinha sido aceite, o servidor responde `409` (`DIFFERENT_CONTENT`) com o `experienceId`. A app mostra então "A tua publicação anterior já tinha sido aceite", com a opção de a abrir (e editar). Assim nunca ficam duas.
-- `409` com `EXPERIENCE_DELETED`: a publicação tinha sido feita e foi apagada entretanto (por exemplo, noutro dispositivo). A app descarta o rascunho e a chave, e o utilizador pode publicar de novo como uma tentativa nova.
-- `400`, `401`, `429` e `503 CATALOG_UNAVAILABLE` não consumiram a chave: corrigir e tentar de novo com a mesma é seguro.
+- Uma chave com mais de 6 dias não é reutilizada: a app pede para confirmar no perfil e descartar a tentativa.
+- `409 DIFFERENT_CONTENT` (só aconteceria com outra versão da app): mostra "A tua publicação anterior já tinha sido aceite", com a opção de a abrir, e descarta a chave.
+- `409 EXPERIENCE_DELETED`: a publicação tinha sido feita e foi eliminada entretanto. A app descarta a chave (sem recriar nada); o texto fica no formulário e o utilizador pode publicar de novo, como uma tentativa nova.
+- `400`, `401`, `429` e `503 CATALOG_UNAVAILABLE` não gravaram nada: a app descarta a chave e mantém o formulário para corrigir ou tentar de novo (com uma chave nova).
 
 ## 6. Validação da atividade no catálogo
 
@@ -728,7 +730,7 @@ As experiências referem-se ao catálogo por ids. Para os ids das publicações 
 | Passo | Regra |
 |---|---|
 | Locais reais | Entram com **ids novos**. Nunca se reaproveita o id de um local fictício para um local real. |
-| Locais fictícios | **Retirados, não apagados**: o estado `status` de locais e atividades (`ACTIVE`/`RETIRED`, existente desde a etapa 6) passa a `RETIRED` e o catálogo continua a responder pelo id. Atividades retiradas deixam de aceitar publicações novas (`400 OFFERING_RETIRED`, com o atraso da memória do §6.2). Esconder locais retirados da pesquisa do catálogo é decidido nessa altura (por agora não há dados retirados). |
+| Locais fictícios | **Retirados, não apagados**: o estado `status` de locais e atividades (`ACTIVE`/`RETIRED`, existente desde a etapa 6) passa a `RETIRED`. O catálogo deixa de os mostrar na pesquisa pública, mas continua a responder pelo id, com o estado. Atividades retiradas deixam de aceitar publicações novas (`400 OFFERING_RETIRED`, com o atraso da memória do §6.2), e a app não oferece publicar nelas. |
 | Experiências existentes | **Nunca são passadas automaticamente** de um local fictício para um real: isso atribuiria opiniões sobre um sítio inventado a um negócio real, o que o [arquitetura.md §1.4](arquitetura.md#14-dados-de-demonstração) quer evitar. Continuam ligadas ao local fictício retirado e a app indica "Local de demonstração retirado". |
 | Experiências de demonstração (contas `demo_`) | Removidas só por um procedimento explícito no experiences-service, com a lista dos ids afetados registada e revista antes de executar. Nunca por um efeito secundário de recarregar o catálogo. |
 | Verificação | Antes e depois da substituição, um relatório lista as experiências cujo `offeringId` o catálogo já não resolve. O relatório só informa e nunca apaga. |
@@ -837,7 +839,7 @@ Revisão de 2026-10-19, antes da implementação da E1.
 | 17 | Fotografias (E2) recodificadas para JPEG (remove metadados, aplica orientação), nomes gerados, acesso só por UUID | §12 |
 | 18 | Locais fictícios retirados e não apagados; experiências nunca passadas automaticamente para locais reais | §15 |
 
-**Em aberto** (não bloqueiam a E1): esconder locais retirados da pesquisa do catálogo (§15); paginação por cursor (§9); contadores partilhados quando houver mais de uma instância (§4.1).
+**Em aberto** (não bloqueiam a E1): paginação por cursor (§9); contadores partilhados quando houver mais de uma instância (§4.1).
 
 ## 20. Estado da implementação
 
@@ -857,7 +859,9 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
   - migração `V4__catalog_status.sql` (estado `ACTIVE`/`RETIRED` em locais e atividades; os dados existentes ficaram `ACTIVE`);
   - avaliações reais pedidas ao experiences-service (sai o `UnavailableRatingProvider`).
 
-**Ainda não implementado:** E2–E4 (fotografias, comentários, gostos, visualizações, feeds, dashboard) e a integração na app Android.
+**App Android (etapa 6):** experiências no detalhe do local e nos perfis, publicar, editar e eliminar ([app-android.md §14](app-android.md#14-experiências-etapa-6-e1-sem-fotografias)).
+
+**Ainda não implementado:** E2–E4 (fotografias, comentários, gostos, visualizações, feeds, dashboard).
 
 **Notas da implementação**
 
@@ -909,4 +913,4 @@ Na primeira execução, a verificação do catálogo parado veio logo depois de 
 
 - Logo depois de um arranque, os primeiros pedidos entre serviços podem exceder os prazos curtos. Medido no catálogo: 2,4 s e 1,0 s, depois 0,14 s. O resultado é `UNAVAILABLE` nas avaliações ou `503 CATALOG_UNAVAILABLE` ao publicar, ambos corretos e passageiros. Um aquecimento no arranque fica como melhoria possível.
 - O limite de publicações e a memória de atividades são por instância e perdem-se ao reiniciar (§4.1, §6.2).
-- O estado `RETIRED` existe no catálogo, mas nenhum dado está retirado nem há forma de o alterar pela API (o catálogo é só de leitura). A pesquisa e o detalhe do catálogo ainda não escondem dados retirados (§15).
+- O estado `RETIRED` existe no catálogo, mas nenhum dado está retirado nem há forma de o alterar pela API (o catálogo é só de leitura; não há endpoints de administração). Desde a integração na app, a pesquisa pública só mostra locais ativos e só considera atividades ativas, e o detalhe por id indica o estado ([catalog-api.md §3.2–3.3](catalog-api.md#32-get-places)).
