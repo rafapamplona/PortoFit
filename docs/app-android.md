@@ -635,11 +635,14 @@ Não têm testes JVM (dependem do Android): a descodificação real (`ImageDecod
 
 As duas primeiras execuções receberam `503 CATALOG_UNAVAILABLE` (`HttpTimeoutException`): o catálogo estava parado há 2 h e, com ~0,2 GB livres, a sua memória tinha ido para o disco. É o arranque a frio já documentado. A terceira, com o catálogo a responder em ~15 ms, passou. As fotografias pendentes dessas tentativas foram marcadas como eliminadas e a limpeza automática do serviço apagou os ficheiros e as linhas (volume vazio no fim).
 
-**Pendente:** verificar no emulador ou num aparelho:
-- galeria;
-- captura pela câmara, cancelamento e rotação com uma fotografia escolhida;
-- publicar, consultar, substituir e remover;
-- falha de envio na interface;
-- orientação de uma fotografia real tirada ao alto.
+**Verificação na interface (2026-10-19, pelo utilizador, no emulador):**
 
-A câmara do emulador é simulada (cena virtual ou webcam), o que chega para testar o percurso. A orientação EXIF real e a câmara de um fabricante concreto só se verificam num telemóvel.
+| Percurso | Resultado |
+|---|---|
+| Captura pela câmara e pré-visualização | fotografia tirada e mostrada no formulário |
+| Rotação com a fotografia escolhida | rascunho e fotografia mantidos |
+| Publicar e consultar | experiência com fotografia no local e no detalhe |
+| Substituir pela galeria | nova fotografia mostrada |
+| Remover a fotografia | removida, texto mantido |
+
+**Pendente:** orientação de uma fotografia tirada numa câmara física (só verificável num telemóvel).

@@ -111,9 +111,9 @@ Consequências:
 | Entidade | Etapa | Resumo |
 |---|---|---|
 | `Media` | E2 | Fotografia: `mediaId` (UUID gerado), `ownerId`, `experienceId` (null enquanto pendente), largura, altura, tamanho, `createdAt`. O ficheiro vive num volume; a base de dados guarda só o id (§12). |
-| `Comment` | E3 | `id`, `experienceId`, `authorId`, `authorUsername` (cópia do token), `text` (1–500), `createdAt`, `editedAt`. |
+| `Comment` | E3 | `id`, `experienceId`, `authorId`, `authorUsername` (cópia do token), `text` (1–1000), `createdAt`, `editedAt`, `deletedAt`; tentativas de comentário com chave de idempotência, como `PublishRequest` (§13.1). |
 | `Like` | E3 | Par único (`experienceId`, `userId`), `createdAt`. |
-| `View` | E3 | `experienceId`, `viewerId` (null para visitantes), `createdAt`. |
+| `View` | E3 | `experienceId`, hash de quem vê (pessoa ou chave de instalação), início do período, `createdAt` (§13.5). |
 | `Outbox` | etapa 10 | Eventos para o notifications-service ([arquitetura.md §3.11](arquitetura.md#311-notificações)). |
 
 ## 3. Autenticação e autorização
@@ -477,13 +477,13 @@ Problem Details (`application/problem+json`) com `code` estável e, nos erros de
 | 400 | `CANNOT_LIKE_OWN` | gostar da própria experiência (§13) | E3 |
 | 401 | `AUTHENTICATION_REQUIRED` | falta o access token | E1 |
 | 401 | `INVALID_ACCESS_TOKEN` | token inválido ou expirado (`WWW-Authenticate: Bearer error="invalid_token"`) | E1 |
-| 403 | `FORBIDDEN` | não é o autor; chave interna errada | E1 |
+| 403 | `FORBIDDEN` | não é o autor (da experiência ou do comentário); chave interna errada | E1 |
 | 404 | `NOT_FOUND` | experiência (ou comentário, fotografia) inexistente ou eliminada | E1 |
 | 405 | `METHOD_NOT_ALLOWED` | método não suportado | E1 |
-| 409 | `IDEMPOTENCY_CONFLICT` | chave já usada: `reason` = `DIFFERENT_CONTENT` (com `experienceId`) ou `EXPERIENCE_DELETED` (§5) | E1 |
+| 409 | `IDEMPOTENCY_CONFLICT` | chave já usada: `reason` = `DIFFERENT_CONTENT` (com `experienceId`) ou `EXPERIENCE_DELETED` (§5); nos comentários, `DIFFERENT_CONTENT` (com `commentId`) ou `COMMENT_DELETED` (§13.1) | E1 |
 | 413 | `PAYLOAD_TOO_LARGE` | corpo acima do limite (16 KiB em JSON; 10 MiB em fotografias) | E1 |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | tipo de conteúdo do pedido não suportado | E1 |
-| 429 | `TOO_MANY_REQUESTS` | limite de publicações por autor (§4.1), com `Retry-After`; a partir de E2, também o limite de fotografias pendentes (§12) | E1 |
+| 429 | `TOO_MANY_REQUESTS` | limite de publicações por autor (§4.1), com `Retry-After`; a partir de E2, também o limite de fotografias pendentes (§12); em E3, comentários e mudanças de gosto (§13.6) | E1 |
 | 500 | `INTERNAL_ERROR` | erro inesperado, sem detalhes internos | E1 |
 | 503 | `CATALOG_UNAVAILABLE` | não foi possível validar a atividade (§6.3) | E1 |
 | 503 | `SERVICE_UNAVAILABLE` | base de dados indisponível; em E2, também o armazenamento de fotografias, o ficheiro de uma fotografia em falta, ou demasiadas imagens a processar | E1 |
@@ -598,7 +598,7 @@ Envelope e limites comuns (`items`, `page`, `size`, `totalItems`, `totalPages`; 
 | `recent` (por omissão) | E1 | `createdAt` mais recente primeiro | `id` decrescente |
 | `stars` | E1 | estrelas (do autor ao local/atividade) maior primeiro | `createdAt` e `id` decrescentes |
 | `likes` | E3 | gostos maior primeiro | `createdAt` e `id` decrescentes |
-| `interactions` | E3 | gostos + comentários maior primeiro | `createdAt` e `id` decrescentes |
+| `interactions` | E3 | gostos + comentários ativos maior primeiro | `createdAt` e `id` decrescentes |
 
 - Todas as ordenações são totais (terminam no `id`) e estão disponíveis a visitantes ([arquitetura.md §3.6](arquitetura.md#36-métricas-e-ordenações)).
 - Como em [users-api.md §5](users-api.md#5-paginação), ordem total não significa páginas imutáveis: uma publicação nova entra no topo de `recent` e desloca as páginas seguintes, e uma eliminação desloca-as para trás. A app remove repetições pelo `id`. Paginação por cursor fica como melhoria possível.
@@ -609,7 +609,7 @@ Envelope e limites comuns (`items`, `page`, `size`, `totalItems`, `totalPages`; 
 - As experiências são **públicas**: texto, estrelas, datas, local e atividade, e o autor como `userId` e `username` (dados já públicos no users-service). **Nunca** email nem outros dados privados: o serviço nem os recebe (o token não tem email).
 - Eliminar apaga o conteúdo (§4.5); a marca restante não é exposta.
 - Fotografias (E2): os metadados (incluindo localização GPS) são removidos antes de guardar (§12).
-- Visualizações (E3): guardam o `viewerId` só para excluir o autor e eventuais contagens futuras; nunca são expostas por pessoa, só como totais no dashboard do autor.
+- Visualizações (E3): guardam só o hash de quem viu (pessoa ou chave de instalação) e o período, nunca o IP; nunca são expostas por pessoa, só como totais no dashboard do autor (§13.5).
 - Logs: nunca tokens nem o cabeçalho `Authorization`; o texto das experiências e comentários também não é registado. Utilizadores identificados pelo `userId`.
 - O `authorId` permite listar as publicações de uma pessoa, o mesmo que o perfil público mostra; não há publicações privadas nesta fase.
 
@@ -718,31 +718,104 @@ A limpeza só considera ficheiros regulares com nomes gerados pelo serviço dent
 
 ## 13. Etapa E3: comentários, gostos e visualizações
 
-| Método | Caminho | Acesso | Descrição |
-|---|---|---|---|
-| GET | `/experiences/{id}/comments` | público | Comentários, mais antigos primeiro (desempate `id`), paginado |
-| POST | `/experiences/{id}/comments` | access token + `Idempotency-Key` | Comentar (1–500 caracteres, texto simples). Mesma política de idempotência do §5, por comentário |
-| PATCH | `/comments/{commentId}` | autor do comentário | Editar o texto |
-| DELETE | `/comments/{commentId}` | autor do comentário | Eliminar (idempotente para o autor) |
-| PUT | `/experiences/{id}/like` | access token | Gostar (idempotente, `204`); da própria experiência → `400 CANNOT_LIKE_OWN` |
-| DELETE | `/experiences/{id}/like` | access token | Retirar o gosto (idempotente, `204`) |
-| POST | `/experiences/{id}/views` | público (token opcional; visitantes enviam `X-Viewer-Key`) | Registar uma visualização (`204`) |
+Revisto em 2026-10-19, antes da implementação (lacunas resolvidas em §13.7).
 
-- A experiência passa a ter `likesCount` e `commentsCount`, e `likedByMe` apenas com token de outra pessoa (omitido para visitantes e no próprio, como `followedByMe` no users-service).
-- Ficam disponíveis `sort=likes` e `sort=interactions` (§9). Interações = gostos + comentários; as visualizações não contam ([arquitetura.md §3.6](arquitetura.md#36-métricas-e-ordenações)).
-- **Não é possível gostar da própria experiência** (`400 CANNOT_LIKE_OWN`), para que "Mais gostadas" reflita a opinião de outras pessoas.
-- **Visualizações por pedido explícito:** a app chama `POST …/views` ao abrir o detalhe. **O `GET` nunca escreve nada**, por isso pré-visualizações feitas por outros serviços (mensagens, listas) e repetições do `GET` não contam.
-- **Quem conta:**
-  - com token, a pessoa é o `sub`;
-  - sem token, a app envia `X-Viewer-Key`: um UUID aleatório gerado uma vez por instalação, sem ligação à conta; o servidor guarda só o seu hash SHA-256;
-  - um visitante sem chave recebe `204`, mas a visualização não é contada.
-- **Exclusão do autor:** um pedido com o token do autor não conta. Um visitante não identificado não pode ser reconhecido como o autor; aceita-se.
-- **Eliminação de repetições:** no máximo **uma visualização contada por (experiência, pessoa ou chave) em cada 24 horas**; os pedidos seguintes nesse período respondem `204` e não contam.
-- **Limitações:** apagar os dados da app gera outra chave; a mesma pessoa conta uma vez com sessão e outra como visitante. É uma métrica de alcance aproximada para o dashboard, não uma medida resistente a fraude ([arquitetura.md §3.12](arquitetura.md#312-dashboard)).
-- Implementação apenas na etapa E3.
-- Gostos e comentários **não** alteram as avaliações (§7).
-- Moderação fica fora do âmbito: o autor da experiência não pode apagar comentários de outros.
+| Método | Caminho | Acesso | Resposta |
+|---|---|---|---|
+| GET | `/experiences/{id}/comments` | público | `200`, comentários ativos, mais antigos primeiro, paginado |
+| POST | `/experiences/{id}/comments` | access token + `Idempotency-Key` | `201` (criado) ou `200` + `Idempotent-Replayed: true` (repetição) |
+| PATCH | `/comments/{commentId}` | autor do comentário | `200` com o comentário |
+| DELETE | `/comments/{commentId}` | autor do comentário | `204` (idempotente para o autor) |
+| PUT | `/experiences/{id}/like` | access token | `204` (idempotente) |
+| DELETE | `/experiences/{id}/like` | access token | `204` (idempotente) |
+| POST | `/experiences/{id}/views` | público (token opcional; visitantes enviam `X-Viewer-Key`) | `204`, conte ou não |
+
+Regras gerais:
+
+- **Leituras públicas, escritas autenticadas.** Quem comenta, gosta ou vê vem sempre do `sub` do token, nunca do corpo; o `username` dos comentários é copiado do token, como nas experiências (§2.3).
+- **Experiência inexistente ou eliminada → `404 NOT_FOUND`** em todos estes endpoints (listar, comentar, gostar, retirar o gosto e visualizar). Para a app, uma experiência eliminada deixa de existir, com tudo o que lhe pertencia.
+- Gostos e comentários **não** alteram as avaliações (§7). Moderação fica fora do âmbito: o autor da experiência não apaga comentários de outros.
 - A partir da etapa 10, gostos e comentários geram eventos na outbox.
+
+### 13.1 Comentários
+
+```json
+{
+  "id": "019a0c51-0d1e-7f20-9a3b-4c5d6e7f8a9b",
+  "experienceId": "019a0c4e-5b2f-7a31-8c4d-2e6f8a0b1c3d",
+  "author": { "userId": "8f1c…", "username": "ana_run" },
+  "text": "Também gostei muito!",
+  "createdAt": "2026-10-19T10:15:00Z",
+  "editedAt": null
+}
+```
+
+- **Texto simples de 1 a 1000 caracteres** (pontos de código Unicode), com as mesmas regras do texto da experiência (§4.1): `\r\n` passa a `\n`, pontas aparadas, **só espaços → rejeitado**, caracteres de controlo (exceto `\n` e `\t`) recusados. Corpo `{"text": "…"}`; outros campos → `400`. A app mostra o texto como texto, sem HTML nem Markdown.
+- **Lista:** só comentários ativos, por `createdAt` crescente e desempate `id` crescente (`uuidv7()`, por isso a ordem é a de criação). Envelope e limites do §9. Comentários eliminados não aparecem nem contam.
+- **Publicar** exige `Idempotency-Key` (UUID), com a mesma política do §5, por autor:
+  - mesma chave e mesmo conteúdo (experiência + texto normalizado) → `200`, o mesmo comentário e `Idempotent-Replayed: true`;
+  - mesma chave com outro conteúdo → `409 IDEMPOTENCY_CONFLICT`, `reason: DIFFERENT_CONTENT`, com `commentId`;
+  - chave de um comentário entretanto eliminado → `409 IDEMPOTENCY_CONFLICT`, `reason: COMMENT_DELETED`, sem recriar nem devolver conteúdo;
+  - pedidos simultâneos com a mesma chave → um só comentário; chaves guardadas 7 dias.
+- **Editar** (`PATCH`, corpo `{"text": "…"}`): só o autor (`403 FORBIDDEN` para outra pessoa); `editedAt` só muda se o texto mudar; comentário eliminado → `404`.
+- **Eliminar:** só o autor; o texto é apagado e fica só uma marca (ids e datas), que nunca é exposta. Repetir → `204` para o autor; para outra pessoa, um comentário eliminado não existe (`404`), como em §4.5.
+- **Eliminar a experiência** elimina, na mesma transação, os seus comentários (texto apagado), gostos e visualizações. Repetir a chave de um desses comentários → `409 COMMENT_DELETED`.
+
+### 13.2 Gostos
+
+- `PUT …/like` cria o gosto e `DELETE …/like` retira-o; repetir qualquer um → `204` sem mudar nada.
+- **Um gosto por (pessoa, experiência)**, garantido pela chave primária na base de dados; pedidos simultâneos da mesma pessoa deixam um único gosto.
+- **Não é possível gostar da própria experiência** → `400 CANNOT_LIKE_OWN`, para que "Mais gostadas" reflita a opinião de outras pessoas. `DELETE` na própria → `204` (não há nada a retirar).
+
+### 13.3 Contagens nas experiências
+
+Todas as respostas com o formato `Experience` (§4.1: listas, detalhe, publicar, editar) passam a ter:
+
+| Campo | Significado |
+|---|---|
+| `likesCount` | número de gostos |
+| `commentsCount` | número de comentários **ativos** |
+| `likedByMe` | `true`/`false` só quando o pedido traz um token válido de **outra** pessoa; **omitido** sem sessão e para o próprio autor |
+
+- `likedByMe` ausente quer dizer "relação desconhecida" (visitante) ou "não aplicável" (o autor); nunca é `false` por falta de sessão. É o mesmo critério de `followedByMe` no users-service. Para o saber, a app envia o token também nas leituras; um token inválido continua a dar `401` (§3).
+- Campos só acrescentados: clientes que os ignoram continuam a funcionar.
+- Contagens calculadas em cada pedido a partir das tabelas (sem contadores duplicados que possam divergir).
+
+### 13.4 Ordenações
+
+- `sort=likes` (gostos) e `sort=interactions` (**interações = gostos + comentários ativos**), maior primeiro, desempate `createdAt` e `id` decrescentes (§9). As visualizações não entram em nenhuma ordenação ([arquitetura.md §3.6](arquitetura.md#36-métricas-e-ordenações)).
+
+### 13.5 Visualizações
+
+- **Por pedido explícito:** a app chama `POST …/views` ao abrir o detalhe. **O `GET` nunca escreve nada**, por isso pré-visualizações feitas por outros serviços e repetições do `GET` não contam.
+- **Quem conta:**
+  - com token, a pessoa é o `sub` (um `X-Viewer-Key` enviado junto é ignorado);
+  - sem token, a app envia `X-Viewer-Key`: um UUID aleatório gerado uma vez por instalação, sem ligação à conta nem ao aparelho; **não se usa o IP**;
+  - visitante sem chave → `204`, não contado; chave que não seja um UUID → `400 VALIDATION_FAILED`.
+- **O autor não conta** (pedido com o token do autor → `204`, não contado). Um visitante não pode ser reconhecido como o autor; aceita-se.
+- **Eliminação de repetições por período fixo:** no máximo **uma visualização contada por (experiência, pessoa ou chave) em cada período**, de 24 h por omissão (configurável), alinhado a 00:00 UTC. A unicidade (experiência, quem vê, início do período) está na base de dados, por isso pedidos simultâneos contam uma vez. Duas aberturas às 23:59 e às 00:01 contam duas vezes; aceita-se, em troca de uma regra simples e sem condições de corrida.
+- **Guardado:** só o hash SHA-256 de `user:<sub>` ou `key:<X-Viewer-Key>`, o início do período e a data. Não se guarda o IP, o `User-Agent` nem a chave original. O hash de um `userId` é uma pseudonimização (quem conhece os ids pode recalculá-lo), não anonimização.
+- **Não são públicas:** nenhuma resposta mostra visualizações nesta etapa; serão só totais no dashboard do autor (E4).
+- **Limitações (documentadas, aceites):** a chave é manipulável (o cliente pode enviar chaves novas em cada pedido) e apagar os dados da app gera outra; a mesma pessoa conta uma vez com sessão e outra como visitante. **Não mede pessoas únicas**: é uma métrica de alcance aproximada para o dashboard, não resistente a fraude ([arquitetura.md §3.12](arquitetura.md#312-dashboard)).
+
+### 13.6 Limites e erros
+
+- Limites configuráveis, em memória por pessoa e com janela fixa, como o de publicações (§4.1, com as mesmas limitações): **comentários criados** (60 por hora) e **mudanças de gosto** (300 por hora; só contam pedidos que mudam alguma coisa, não repetições). Acima → `429 TOO_MANY_REQUESTS` com `Retry-After`. As visualizações não têm limite próprio: as repetições já não contam (§13.5).
+- Erros com o formato e os códigos do §8; nenhuma resposta pública inclui dados privados (email, hash de quem viu, chaves). Logs sem tokens, sem `X-Viewer-Key` nem texto dos comentários.
+
+### 13.7 Lacunas resolvidas na revisão
+
+| # | Lacuna | Decisão |
+|---|---|---|
+| 1 | Comprimento dos comentários (o contrato dizia 1–500) | 1–1000 caracteres, só espaços rejeitado |
+| 2 | Comentários, gostos e visualizações numa experiência eliminada | `404`; eliminar a experiência apaga-os na mesma transação |
+| 3 | Eliminar comentários | Marca com texto apagado; `DELETE` idempotente para o autor; `404` para outros |
+| 4 | Repetir a chave de um comentário eliminado | `409 IDEMPOTENCY_CONFLICT`, `reason: COMMENT_DELETED` |
+| 5 | "Em cada 24 horas" (janela deslizante ou fixa) | Período fixo alinhado a 00:00 UTC, configurável; unicidade na base de dados |
+| 6 | Chave de visitante inválida | `400`; sem chave → `204` não contado |
+| 7 | `likedByMe` para visitantes | Omitido (relação desconhecida), nunca `false` |
+| 8 | Limites contra repetições | Comentários e mudanças de gosto por pessoa, `429` + `Retry-After` |
+| 9 | Interações | Gostos + comentários **ativos**; visualizações à parte |
 
 ## 14. Etapa E4: feeds e dashboard
 
@@ -874,7 +947,7 @@ Revisão de 2026-10-19, antes da implementação da E1.
 | 13 | Eliminação com marca e conteúdo apagado; `DELETE` idempotente para o autor | §4.5 |
 | 14 | Em E1, ordenações `recent` e `stars`; `likes` e `interactions` em E3 | §9 |
 | 15 | Sem publicações de demonstração nesta etapa; dados temporários só nos testes | §16 |
-| 16 | E3: não é possível gostar da própria experiência; visualizações por `POST …/views`, sem escrita no `GET`, uma por pessoa ou chave em 24 h, sem contar o autor | §13 |
+| 16 | E3: não é possível gostar da própria experiência; visualizações por `POST …/views`, sem escrita no `GET`, uma por pessoa ou chave em cada período fixo de 24 h, sem contar o autor (lacunas resolvidas em §13.7) | §13 |
 | 17 | Fotografias (E2) recodificadas para JPEG (remove metadados, aplica orientação), nomes gerados, acesso só por UUID | §12 |
 | 18 | Locais fictícios retirados e não apagados; experiências nunca passadas automaticamente para locais reais | §15 |
 

@@ -228,7 +228,7 @@ As métricas são **distintas** e nunca se misturam:
 | **Gostos** | A **publicação** | Outros utilizadores |
 | **Comentários** | A **publicação** (participação) | Outros utilizadores |
 | **Interações** | A **publicação**: `gostos + comentários` | Calculada no EXP |
-| **Visualizações** | Alcance da publicação: aberturas do detalhe, registadas pela app com um pedido próprio, no máximo uma por pessoa em 24 h e sem contar o autor (regras em [experiences-api.md §13](experiences-api.md#13-etapa-e3-comentários-gostos-e-visualizações)) | Calculada no EXP; só usada no dashboard |
+| **Visualizações** | Alcance da publicação: aberturas do detalhe, registadas pela app com um pedido próprio, no máximo uma por pessoa em cada período fixo de 24 h e sem contar o autor (regras em [experiences-api.md §13](experiences-api.md#13-etapa-e3-comentários-gostos-e-visualizações)) | Calculada no EXP; só usada no dashboard |
 
 Ordenações de listas de experiências (`sort`), **disponíveis a todos, incluindo visitantes sem sessão**, em qualquer lista de experiências (de um local, de uma atividade, de uma modalidade, de um perfil ou de uma pesquisa):
 
@@ -372,7 +372,7 @@ O que esta solução oferece, e o que não oferece:
 
 `GET /me/stats` (EXP) devolve, para cada publicação do utilizador e no total: visualizações, gostos, comentários, interações e estrelas atribuídas. A app junta "vezes guardada" com `GET /stats/saves?experienceIds=…` (COL). Partilhas por mensagem não entram nesta fase (exigiria contagens do MSG; pode ser acrescentado da mesma forma).
 
-Visualizações: no máximo uma por pessoa (ou por instalação, para visitantes) em cada 24 h, sem contar o autor ([experiences-api.md §13](experiences-api.md#13-etapa-e3-comentários-gostos-e-visualizações)). É uma métrica aproximada: apagar os dados da app ou alternar entre visitante e sessão conta de novo.
+Visualizações: no máximo uma por pessoa (ou por chave de instalação, para visitantes; nunca pelo IP) em cada período fixo de 24 h, sem contar o autor ([experiences-api.md §13.5](experiences-api.md#135-visualizações)). É uma métrica aproximada e manipulável, que não mede pessoas únicas: apagar os dados da app, enviar chaves novas ou alternar entre visitante e sessão conta de novo.
 
 ### 3.13 Estrutura da app
 
@@ -493,7 +493,7 @@ Cada etapa termina com algo demonstrável. As versões de ferramentas e bibliote
 | 4 ✅ (pesquisa, detalhe e voltar confirmados no emulador) | App: estrutura MVVM, navegação, ecrãs de pesquisa e de local ligados ao catálogo ([app-android.md](app-android.md)) | Pesquisar "boxe" no emulador e abrir um local |
 | 5 (backend ✅; app ✅ registo, login, sessão, logout, o meu perfil, pesquisa de pessoas, perfis públicos, seguir e listas de seguidores/seguidos, confirmados no emulador) | users-service ([users-api.md](users-api.md)): registo, login (JWT + refresh token), perfil, interesses, pesquisa de utilizadores; app: login e perfil | Backend: 24 testes e pedidos HTTP (ver [users-api.md §12](users-api.md#12-estado-da-implementação)); app: criar conta e editar perfil |
 | 6 (backend ✅; app ✅, testes, pedidos HTTP e percurso confirmado no emulador pelo utilizador; E2 backend em curso) | experiences-service, etapa E1 ([experiences-api.md](experiences-api.md)): `GET /offerings/{id}` no catálogo; experiências de texto e estrelas, consulta e pesquisa públicas, listas por local/atividade/modalidade/autor (`recent`, `stars`), editar e apagar pelo autor, publicação idempotente, avaliações agregadas ligadas ao catálogo | Publicar, editar estrelas e apagar, e ver a avaliação do local mudar conforme [3.7](#37-avaliação-geral-sem-distorção) (backend: 17 + 30 testes e pedidos HTTP, [experiences-api.md §20](experiences-api.md#20-estado-da-implementação)) |
-| 7 (backend ✅; app ✅, testes e pedidos HTTP; interface no emulador/aparelho por verificar) | Etapa E2: fotografia opcional, da galeria (Photo Picker) e da câmara do sistema chamada pela app | Publicar uma fotografia tirada na app e outra da galeria |
+| 7 (backend ✅; app ✅, testes, pedidos HTTP e percurso confirmado no emulador pelo utilizador; orientação numa câmara física por verificar) | Etapa E2: fotografia opcional, da galeria (Photo Picker) e da câmara do sistema chamada pela app | Publicar uma fotografia tirada na app e outra da galeria |
 | 8 | Etapa E3: comentários, gostos, visualizações e ordenações por gostos e interações | Sem sessão, mesma lista ordenada por data, gostos, interações e estrelas |
 | 9 | Etapa E4: feeds (EXP; seguir já existe desde a etapa 5) e dashboard (estatísticas do EXP) | Feed muda após seguir/escolher interesses; dashboard coerente com as ações feitas |
 | 10 | notifications-service; outbox em USR, EXP e MSG (tentativas, deduplicação, `FAILED`); notificações Android com WorkManager | Gosto gera notificação; com NOT parado o gosto é aceite e a notificação chega depois de o reiniciar |
