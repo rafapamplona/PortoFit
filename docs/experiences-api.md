@@ -1,7 +1,7 @@
 # experiences-service — Contrato da API
 
 > Contrato das experiências (publicações), das avaliações agregadas e, nas etapas seguintes, das fotografias, comentários, gostos, visualizações, feeds e estatísticas. Contexto geral em [arquitetura.md](arquitetura.md) (§3.5 cópias, §3.6 métricas, §3.7 avaliação, §3.8 autenticação, §3.9 fotografias, §3.10 feeds, §4 falhas).
-> Estado: **E1 implementada** (backend e app, etapa 6) e **E2 implementada no backend** (fotografias, etapa 7; a app ainda não envia fotografias). Estado em [§20](#20-estado-da-implementação); decisões em [§19](#19-decisões-da-revisão) e lacunas da E2 resolvidas em [§12.1](#121-endpoints). E3–E4 ficam definidas e são revistas no início de cada etapa.
+> Estado: **E1 implementada** (backend e app, etapa 6) **E2 implementada** (fotografias, etapa 7, backend e app) e **E3 implementada no backend** (comentários, gostos e visualizações, etapa 8; a app ainda não os usa). Estado em [§20](#20-estado-da-implementação); decisões em [§19](#19-decisões-da-revisão) e lacunas da E2 resolvidas em [§12.1](#121-endpoints). Lacunas da E3 resolvidas em [§13.7](#137-lacunas-resolvidas-na-revisão); a E4 fica definida e é revista no início da etapa.
 > Mesmas convenções do [catalog-api.md](catalog-api.md) e do [users-api.md](users-api.md): JSON UTF-8, nomes de campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`, envelope de paginação comum.
 
 ## Índice
@@ -981,7 +981,14 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 
 **E2 na app (etapa 7):** escolher, tirar, pré-visualizar e remover antes de publicar; fotografias nas listas e no detalhe; adicionar, substituir e remover ao editar ([app-android.md §15](app-android.md#15-fotografias-etapa-7-e2)).
 
-**Ainda não implementado:** E3–E4 (comentários, gostos, visualizações, feeds, dashboard).
+**E3 (backend, etapa 8):**
+- `GET`/`POST /experiences/{id}/comments`, `PATCH`/`DELETE /comments/{id}`;
+- `PUT`/`DELETE /experiences/{id}/like`; `POST /experiences/{id}/views`;
+- `likesCount`, `commentsCount` e `likedByMe` no formato `Experience`; `sort=likes|interactions`;
+- migração `V3__interactions.sql` (tabelas `comment`, `comment_request`, `experience_like`, `experience_view`);
+- configuração `portofit.interactions.*` (limites e período das visualizações).
+
+**Ainda não implementado:** E3 na app (detalhe com comentários e gosto, quatro ordenações, registo das visualizações) e E4 (feeds, dashboard).
 
 **Notas da implementação**
 
@@ -1074,6 +1081,61 @@ Na primeira execução, a verificação do catálogo parado veio logo depois de 
 | Reiniciar o contentor | a fotografia continua com o mesmo conteúdo (SHA-256 igual) |
 | Remover a fotografia | `photo: null`, texto intacto; `404`; ficheiro apagado |
 | Eliminar a experiência com fotografia | `204`; `404`; ficheiro apagado |
+
+**Notas da implementação da E3**
+
+- **Contagens:** calculadas em cada consulta com `CROSS JOIN LATERAL (SELECT count(*) …)` por experiência (gostos e comentários ativos), usando a chave primária de `experience_like` e o índice parcial `comment_experience_idx`. As ordenações usam as mesmas expressões: `likes` → `gostos DESC, created_at DESC, id DESC`; `interactions` → `gostos + comentários DESC, created_at DESC, id DESC`. `likedByMe` vem de uma única consulta por página (`user_id = :quem AND experience_id IN (…)`).
+- **Concorrência:**
+  - gostos e visualizações: `INSERT … ON CONFLICT DO NOTHING` sobre a chave primária (`(experience_id, user_id)`; `(experience_id, viewer_hash, period_start)`);
+  - comentários: tentativa registada antes do comentário, como na publicação (`comment_request`, referência `DEFERRABLE INITIALLY DEFERRED`);
+  - comentar, gostar e visualizar bloqueiam a experiência com `FOR SHARE`; eliminar usa `FOR UPDATE`. Por isso uma eliminação espera pelos pedidos em curso, e os pedidos seguintes já veem a experiência eliminada (`404`): nada fica associado a uma experiência eliminada.
+- **Período das visualizações:** início = `floor(segundos desde a época / período) × período`, com o relógio do serviço (os testes adiantam-no). Com 24 h fica alinhado a 00:00 UTC.
+- **Limites:** `WindowLimiter` em memória (janela fixa por pessoa), como o de publicações; comentários contam ao ser criados e gostos só quando mudam.
+- **Leituras com sessão:** `GET /experiences` e `GET /experiences/{id}` leem o token opcional só para `likedByMe`; sem token continuam iguais (mais as contagens).
+
+**Testes automáticos da E3** (`InteractionApiIntegrationTest`, **10 testes**), executados depois da última alteração ao código:
+
+- comentar: `201` com autor do token e texto normalizado; repetição `200` + `Idempotent-Replayed`; lista mais antigos primeiro, paginada; `editedAt` só quando o texto muda; experiência inexistente → `404`;
+- validação e autorização: sem sessão `401`; vazio, só espaços, 1001 caracteres, caracteres de controlo, texto não textual, campos extra, corpo não objeto, chave em falta → `400`; 1000 emojis aceite; editar/eliminar o de outra pessoa → `403`; ids inválidos → `400`;
+- idempotência: outro texto ou outra experiência com a mesma chave → `409 DIFFERENT_CONTENT` (com `commentId`); chave por autor; comentário eliminado → `409 COMMENT_DELETED` sem texto; 8 pedidos simultâneos com a mesma chave → 1 comentário;
+- eliminar comentário: `204`, repetir `204`, outra pessoa `404`, editar depois `404`; deixa de aparecer e de contar; fica só a marca;
+- gostos: repetir `204` sem duplicar; própria → `400 CANNOT_LIKE_OWN`; retirar idempotente; 8 pedidos simultâneos da mesma pessoa → 1 gosto; `likedByMe` ausente para visitantes e para o autor, `true`/`false` para outra pessoa (detalhe e lista); token inválido numa leitura → `401`; avaliação inalterada;
+- 8 pessoas diferentes em simultâneo (gosto + comentário cada) → contagens exatas 8 e 8;
+- ordenações `likes` e `interactions` com empates resolvidos pela data, paginação, visualizações sem efeito, e um comentário eliminado a deixar de contar;
+- eliminar a experiência: comentários (só marca), gostos e visualizações apagados; depois listar, comentar, gostar, retirar e visualizar → `404`; repetir a chave do comentário → `409 COMMENT_DELETED`;
+- visualizações: pessoa ×3 → 1; chave ×2 → 1; outra chave → 1; sem chave, autor e token com chave inválida → não contam; chave inválida sem sessão → `400`; token inválido `401`; `GET` não escreve; só hashes guardados; 8 pedidos simultâneos com a mesma chave → 1; no período seguinte (relógio +24 h) a mesma pessoa e a mesma chave contam de novo e o autor continua sem contar;
+- limites: comentários acima do limite → `429` com `Retry-After`, repetições continuam `200`; gostos: só as mudanças contam, acima do limite → `429`.
+
+Total do serviço: **40 testes, 0 falhas** (17 da E1, 13 da E2 e 10 da E3); o teste da E1 que esperava `sort=likes` → `400` passou a usar uma ordenação inexistente.
+
+**Verificação por HTTP da E3 (2026-10-19)**, no contentor reconstruído (migração V3 aplicada ao volume existente), com três contas temporárias (palavras-passe aleatórias, não mostradas; apagadas no fim com as suas experiências, comentários e gostos; `pamplona`, os dados existentes e os volumes preservados). 27 verificações, 0 falhas:
+
+| Verificação | Resultado |
+|---|---|
+| Publicar | `201` com `likesCount: 0`, `commentsCount: 0`, sem `likedByMe` |
+| Comentar; repetir a chave; outro texto com a mesma chave | `201` (texto normalizado, autor do token); `200` + `Idempotent-Replayed`; `409 DIFFERENT_CONTENT` com `commentId` |
+| Só espaços; 1001 caracteres; sem sessão | `400`; `400`; `401` |
+| Editar o comentário de outra pessoa; o próprio | `403`; `200` com `editedAt` |
+| Lista pública com `size=1`, páginas 0 e 1 | mais antigo primeiro, `totalItems: 2` |
+| Gostar ×2; a própria | `204`, `204`; `400 CANNOT_LIKE_OWN` |
+| `likedByMe` | visitante ausente; quem gostou `true`; autor ausente; outra pessoa noutra experiência `false` |
+| Token inválido numa leitura | `401` |
+| Retirar o gosto ×2 | `204`, `204`; contagem desce |
+| `sort=likes`, `sort=interactions`; `sort=views` | ordem esperada; `400` |
+| Visualizações: pessoa ×3, chave ×2, autor, sem chave, 3 `GET` | todas `204`; 2 contadas; os `GET` não escrevem |
+| Chave inválida | `400` |
+| Base de dados | só hashes de 64 caracteres, sem a chave nem o id |
+| Catálogo (detalhe do local) | `200`, avaliação `AVAILABLE` (gostos não mexem na avaliação) |
+| Eliminar comentário ×2; outra pessoa | `204`, `204`; `404`; contagem desce |
+| Eliminar a experiência; depois listar, comentar, gostar, visualizar | `204`; `404` ×4; gostos, visualizações e textos de comentários: 0 |
+| Repetir a chave do comentário | `409 COMMENT_DELETED`, sem texto |
+| Logs do serviço | sem chave de visitante, tokens nem texto dos comentários |
+
+**Limitações da E3**
+
+- As visualizações são uma métrica aproximada e manipulável (§13.5): a chave de instalação é escolhida pelo cliente e não se usa o IP.
+- Os limites de comentários e de gostos são em memória e por instância, como o de publicações.
+- Contagens calculadas em cada pedido: suficiente para a escala do projeto. Com muitos dados, `sort=likes|interactions` sem filtros percorre todas as experiências ativas. Contadores materializados ficam como melhoria possível.
 
 **Limitações conhecidas**
 

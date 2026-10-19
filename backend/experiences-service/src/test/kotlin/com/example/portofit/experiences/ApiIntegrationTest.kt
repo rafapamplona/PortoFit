@@ -80,6 +80,10 @@ abstract class ApiIntegrationTest {
 		/** Fotografias pendentes por pessoa nos testes (o limite real é 20). */
 		const val PENDING_LIMIT = 3
 
+		/** Comentários e mudanças de gosto por pessoa nos testes (os reais são 60 e 300 por hora). */
+		const val COMMENT_LIMIT = 4
+		const val LIKE_LIMIT = 6
+
 		val keys: TestKeys = TestKeys.create()
 		val catalog: CatalogStub = CatalogStub.start()
 		val clock: MutableClock = MutableClock.instance
@@ -93,6 +97,8 @@ abstract class ApiIntegrationTest {
 			registry.add("portofit.publishing.max-per-author") { LIMIT }
 			registry.add("portofit.media.storage-dir") { mediaDir.toString() }
 			registry.add("portofit.media.max-pending-per-owner") { PENDING_LIMIT }
+			registry.add("portofit.interactions.max-comments-per-author") { COMMENT_LIMIT }
+			registry.add("portofit.interactions.max-like-changes-per-user") { LIKE_LIMIT }
 		}
 	}
 }

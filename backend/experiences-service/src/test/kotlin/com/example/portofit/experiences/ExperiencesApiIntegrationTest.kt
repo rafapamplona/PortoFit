@@ -362,7 +362,7 @@ class ExperiencesApiIntegrationTest : ApiIntegrationTest() {
 		assertEquals(emptyList(), ids("/api/v1/experiences?sportId=quidditch&placeId=$place"))
 		assertEquals(listOf(e3, e2, e1), ids("/api/v1/experiences?placeId=$place&q=&sort=&sportId="))
 
-		expectFieldErrors(mvc.get("/api/v1/experiences?sort=likes"), "sort")
+		expectFieldErrors(mvc.get("/api/v1/experiences?sort=views"), "sort")
 		expectFieldErrors(mvc.get("/api/v1/experiences?q=a&placeId=x&authorId=1&offeringId=2&sportId=Boxe!&page=-1&size=51"),
 			"q", "placeId", "authorId", "offeringId", "sportId", "page", "size")
 	}

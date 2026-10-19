@@ -225,7 +225,7 @@ curl.exe "http://localhost:8083/api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7
 - Valida atividades no catalog-service pela rede interna (`http://catalog-service:8081`, `includeRating=false`), com memória de 10 min. Com o catálogo parado, só falha publicar numa atividade não validada recentemente (`503 CATALOG_UNAVAILABLE`). Reiniciar o experiences-service esvazia essa memória.
 - Limite de publicações por autor e retenção das chaves de idempotência: `portofit.publishing.*` em `application.yaml` (o limite é em memória e reinicia com o serviço).
 - Fotografias (E2): `POST /api/v1/media` (multipart, campo `file`, até 10 MiB, JPEG ou PNG) devolve um `mediaId` pendente; associa-se com `"mediaId"` ao publicar ou editar. Limites e limpeza em `portofit.media.*` (`application.yaml`). A imagem guarda a pasta `/data/media` com dono `app` (o volume novo herda-o).
-- Testes: `cd backend\experiences-service; .\gradlew.bat test` (30 testes: 17 da E1 e 13 das fotografias; PostgreSQL real via Testcontainers; catálogo falso, chaves, relógio e pasta de fotografias dos próprios testes).
+- Testes: `cd backend\experiences-service; .\gradlew.bat test` (40 testes: 17 da E1, 13 das fotografias e 10 dos comentários, gostos e visualizações; PostgreSQL real via Testcontainers; catálogo falso, chaves, relógio e pasta de fotografias dos próprios testes).
 
 ## 7. Configuração relevante
 

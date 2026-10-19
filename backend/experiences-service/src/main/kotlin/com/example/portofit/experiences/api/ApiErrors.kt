@@ -114,6 +114,37 @@ object ApiErrors {
 		"Estão a ser processadas demasiadas fotografias. Tenta novamente daqui a pouco.",
 	)
 
+	// --- Comentários, gostos e visualizações (docs/experiences-api.md §13) ---
+
+	fun commentNotFound() = ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Não encontrado", "Não existe nenhum comentário com este identificador.")
+
+	fun commentForbidden() = ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Sem permissão", "Só o autor pode alterar este comentário.")
+
+	fun commentDifferentContent(commentId: UUID) = ApiException(
+		HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", "Comentário já feito",
+		"Esta tentativa de comentário já tinha sido aceite com outro conteúdo.",
+		extra = mapOf("reason" to "DIFFERENT_CONTENT", "commentId" to commentId),
+	)
+
+	fun commentDeleted() = ApiException(
+		HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", "Comentário já feito", "Este comentário já tinha sido feito e foi apagado.",
+		extra = mapOf("reason" to "COMMENT_DELETED"),
+	)
+
+	fun cannotLikeOwn() = ApiException(
+		HttpStatus.BAD_REQUEST, "CANNOT_LIKE_OWN", "Pedido inválido", "Não podes gostar da tua própria experiência.",
+	)
+
+	fun tooManyComments(retryAfterSeconds: Long) = ApiException(
+		HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS", "Demasiados comentários",
+		"Atingiste o limite de comentários por agora. Tenta novamente mais tarde.", retryAfterSeconds = retryAfterSeconds,
+	)
+
+	fun tooManyLikes(retryAfterSeconds: Long) = ApiException(
+		HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS", "Demasiados pedidos",
+		"Fizeste demasiadas alterações de gostos por agora. Tenta novamente mais tarde.", retryAfterSeconds = retryAfterSeconds,
+	)
+
 	/** Token válido mas sem a claim `username`: o autor não é guardado sem nome (docs/experiences-api.md §2.3). */
 	fun tokenWithoutUsername() = ApiException(
 		HttpStatus.UNAUTHORIZED, "INVALID_ACCESS_TOKEN", "Sessão inválida", "O token de acesso é inválido ou expirou.",

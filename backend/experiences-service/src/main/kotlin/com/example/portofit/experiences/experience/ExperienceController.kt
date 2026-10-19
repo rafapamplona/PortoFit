@@ -59,6 +59,7 @@ class ExperienceController(
 
 	@GetMapping
 	fun search(
+		@AuthenticationPrincipal jwt: Jwt?,
 		@RequestParam("placeId", required = false) placeId: String?,
 		@RequestParam("offeringId", required = false) offeringId: String?,
 		@RequestParam("sportId", required = false) sportId: String?,
@@ -85,18 +86,21 @@ class ExperienceController(
 		val order = when (sort?.trim()?.takeIf { it.isNotEmpty() }) {
 			null, "recent" -> ExperienceSort.RECENT
 			"stars" -> ExperienceSort.STARS
+			"likes" -> ExperienceSort.LIKES
+			"interactions" -> ExperienceSort.INTERACTIONS
 			else -> {
-				errors += FieldError("sort", "A ordenação deve ser recent ou stars.")
+				errors += FieldError("sort", "A ordenação deve ser recent, stars, likes ou interactions.")
 				ExperienceSort.RECENT
 			}
 		}
 		val (pageValue, sizeValue) = PageResponse.parse(page, size, errors)
 		if (errors.isNotEmpty()) throw ApiErrors.validation(errors)
-		return service.search(ExperienceCriteria(place, offering, sport, author, text, order, pageValue, sizeValue))
+		return service.search(ExperienceCriteria(place, offering, sport, author, text, order, pageValue, sizeValue), viewer(jwt))
 	}
 
 	@GetMapping("/{experienceId}")
-	fun detail(@PathVariable("experienceId") experienceId: String): ExperienceView = service.detail(pathId(experienceId))
+	fun detail(@AuthenticationPrincipal jwt: Jwt?, @PathVariable("experienceId") experienceId: String): ExperienceView =
+		service.detail(pathId(experienceId), viewer(jwt))
 
 	@PatchMapping("/{experienceId}", consumes = [MediaType.APPLICATION_JSON_VALUE])
 	fun edit(
@@ -114,19 +118,21 @@ class ExperienceController(
 		return ResponseEntity.noContent().build()
 	}
 
-	private fun pathId(value: String): UUID =
-		ExperienceRules.parseUuid(value) ?: throw ApiErrors.validation("experienceId", "Identificador de experiência inválido.")
+	private fun pathId(value: String): UUID = ExperienceRules.experienceId(value)
 
-	/** `sub` e `username` do token; um token sem username é recusado, em vez de guardar um autor sem nome. */
-	private fun author(jwt: Jwt): Pair<UUID, String> {
-		val id = ExperienceRules.parseUuid(jwt.subject) ?: throw ApiErrors.tokenWithoutUsername()
-		val username = jwt.getClaimAsString("username")?.takeIf { it.isNotBlank() } ?: throw ApiErrors.tokenWithoutUsername()
-		return id to username
-	}
-
-	private companion object {
+	companion object {
 		const val IDEMPOTENCY_KEY = "Idempotency-Key"
 		const val REPLAYED_HEADER = "Idempotent-Replayed"
 		const val KEY_MESSAGE = "Falta a chave de idempotência do pedido."
+
+		/** `sub` e `username` do token; um token sem username é recusado, em vez de guardar um autor sem nome. */
+		fun author(jwt: Jwt): Pair<UUID, String> {
+			val id = ExperienceRules.parseUuid(jwt.subject) ?: throw ApiErrors.tokenWithoutUsername()
+			val username = jwt.getClaimAsString("username")?.takeIf { it.isNotBlank() } ?: throw ApiErrors.tokenWithoutUsername()
+			return id to username
+		}
+
+		/** Quem pede numa leitura pública: null sem token; um token inválido já foi recusado com 401 (§3). */
+		fun viewer(jwt: Jwt?): UUID? = jwt?.let { ExperienceRules.parseUuid(it.subject) ?: throw ApiErrors.tokenWithoutUsername() }
 	}
 }

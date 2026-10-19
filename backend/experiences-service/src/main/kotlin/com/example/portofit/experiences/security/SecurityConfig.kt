@@ -53,6 +53,8 @@ class SecurityConfig(private val properties: SecurityProperties) {
 				authorize(HttpMethod.GET, "/api/v1/experiences", permitAll)
 				authorize(HttpMethod.GET, "/api/v1/experiences/**", permitAll)
 				authorize(HttpMethod.GET, "/api/v1/ratings/**", permitAll)
+				// Visualizações (E3): token opcional; um token inválido continua a dar 401 (filtro do resource server).
+				authorize(HttpMethod.POST, "/api/v1/experiences/*/views", permitAll)
 				// Fotografias: consulta pública (só as associadas); envio com sessão (regra geral abaixo).
 				authorize(HttpMethod.GET, "/api/v1/media/**", permitAll)
 				authorize("/actuator/health", permitAll)

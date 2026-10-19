@@ -57,11 +57,22 @@ class ExperienceService(
 		return PublishResult(created.toView(), replayed = false)
 	}
 
-	fun detail(id: UUID): ExperienceView = experiences.findAny(id)?.takeUnless { it.deleted }?.toView() ?: throw ApiErrors.notFound()
+	/** [viewerId]: quem pede, com sessão; null para visitantes (sem `likedByMe`). */
+	fun detail(id: UUID, viewerId: UUID?): ExperienceView {
+		val row = experiences.findAny(id)?.takeUnless { it.deleted } ?: throw ApiErrors.notFound()
+		return views(listOf(row), viewerId).single()
+	}
 
-	fun search(criteria: ExperienceCriteria): PageResponse<ExperienceView> {
+	fun search(criteria: ExperienceCriteria, viewerId: UUID?): PageResponse<ExperienceView> {
 		val (rows, total) = experiences.search(criteria)
-		return PageResponse.of(rows.map { it.toView() }, criteria.page, criteria.size, total)
+		return PageResponse.of(views(rows, viewerId), criteria.page, criteria.size, total)
+	}
+
+	/** `likedByMe` só para outra pessoa com sessão; numa só consulta por página (docs/experiences-api.md §13.3). */
+	private fun views(rows: List<ExperienceRow>, viewerId: UUID?): List<ExperienceView> {
+		if (viewerId == null) return rows.map { it.toView() }
+		val liked = experiences.likedBy(viewerId, rows.filter { it.authorId != viewerId }.map { it.id })
+		return rows.map { row -> row.toView(likedByMe = if (row.authorId == viewerId) null else row.id in liked) }
 	}
 
 	/**
@@ -94,7 +105,8 @@ class ExperienceService(
 
 	/**
 	 * Só o autor; repetir é seguro (204). Para outra pessoa, uma experiência eliminada não existe. A fotografia
-	 * deixa de ser servida na mesma transação; o ficheiro é apagado depois (ou pela limpeza).
+	 * deixa de ser servida na mesma transação; o ficheiro é apagado depois (ou pela limpeza). Comentários, gostos e
+	 * visualizações saem na mesma transação; o bloqueio da linha espera pelos que estejam a ser gravados.
 	 */
 	fun delete(id: UUID, userId: UUID) {
 		val released = mutableListOf<UUID>()
@@ -109,6 +121,7 @@ class ExperienceService(
 						media.release(it)
 						released += it
 					}
+					experiences.purgeInteractions(id)
 					experiences.markDeleted(id)
 				}
 			}

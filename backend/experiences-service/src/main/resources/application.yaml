@@ -66,6 +66,14 @@ portofit:
     # Garantia contra duplicação só dentro deste prazo (docs/experiences-api.md §5).
     idempotency-retention: 7d
     max-body-bytes: 16384
+  interactions:
+    # Limites por pessoa, em memória (docs/experiences-api.md §13.6).
+    max-comments-per-author: 60
+    comment-window: 1h
+    max-like-changes-per-user: 300
+    like-window: 1h
+    # Uma visualização contada por pessoa ou chave em cada período fixo (docs/experiences-api.md §13.5).
+    view-period: 24h
   media:
     # Volume próprio e persistente (docker-compose.yml); fora da imagem Docker.
     storage-dir: ${MEDIA_DIR:./build/media-dev}

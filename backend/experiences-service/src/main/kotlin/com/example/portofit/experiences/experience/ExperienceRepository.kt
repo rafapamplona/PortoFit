@@ -28,6 +28,9 @@ data class ExperienceRow(
 	val photoMediaId: UUID? = null,
 	val photoWidth: Int? = null,
 	val photoHeight: Int? = null,
+	/** Gostos e comentários ativos (E3), calculados na consulta. */
+	val likesCount: Long = 0,
+	val commentsCount: Long = 0,
 ) {
 	val deleted: Boolean get() = deletedAt != null
 }
@@ -35,7 +38,7 @@ data class ExperienceRow(
 /** Tentativa de publicação já registada (docs/experiences-api.md §2.2). */
 data class PublishRequestRow(val requestHash: String, val experienceId: UUID)
 
-enum class ExperienceSort { RECENT, STARS }
+enum class ExperienceSort { RECENT, STARS, LIKES, INTERACTIONS }
 
 data class ExperienceCriteria(
 	val placeId: UUID?,
@@ -97,10 +100,32 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 	/** Qualquer experiência, incluindo eliminadas; com [lock], bloqueia a linha até ao fim da transação. */
 	fun findAny(id: UUID, lock: Boolean = false): ExperienceRow? =
 		// FOR UPDATE OF e: bloqueia só a experiência (a fotografia vem de um LEFT JOIN).
-		jdbc.sql("$SELECT_WITH_PHOTO WHERE e.id = :id" + if (lock) " FOR UPDATE OF e" else "")
+		jdbc.sql("$SELECT_FULL WHERE e.id = :id" + if (lock) " FOR UPDATE OF e" else "")
 			.param("id", id)
 			.query { rs, _ -> rs.toRow() }
 			.optional().orElse(null)
+
+	/**
+	 * Autor de uma experiência não eliminada, ou null. Com [lock], bloqueia-a em modo partilhado até ao fim da
+	 * transação: comentar, gostar e visualizar usam-no, e uma eliminação em curso (FOR UPDATE) espera por eles, e
+	 * eles por ela, por isso nada fica associado a uma experiência já eliminada (docs/experiences-api.md §13).
+	 */
+	fun activeAuthor(id: UUID, lock: Boolean = false): UUID? =
+		jdbc.sql("SELECT author_id FROM experience WHERE id = :id AND deleted_at IS NULL" + if (lock) " FOR SHARE" else "")
+			.param("id", id)
+			.query(UUID::class.java)
+			.optional().orElse(null)
+
+	/** Das experiências [ids], as que [userId] gostou (likedByMe). */
+	fun likedBy(userId: UUID, ids: Collection<UUID>): Set<UUID> =
+		if (ids.isEmpty()) {
+			emptySet()
+		} else {
+			jdbc.sql("SELECT experience_id FROM experience_like WHERE user_id = :user AND experience_id IN (:ids)")
+				.param("user", userId).param("ids", ids)
+				.query { rs, _ -> rs.getObject("experience_id", UUID::class.java) }
+				.set()
+		}
 
 	/** Grava os valores finais (texto, estrelas e fotografia atual) e marca a edição. */
 	fun update(id: UUID, text: String, stars: Int, photoMediaId: UUID?) {
@@ -118,6 +143,16 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 	fun markDeleted(id: UUID) {
 		jdbc.sql("UPDATE experience SET deleted_at = now(), text = NULL, stars = NULL, photo_media_id = NULL WHERE id = :id AND deleted_at IS NULL")
 			.param("id", id).update()
+	}
+
+	/**
+	 * Ao eliminar a experiência, na mesma transação: comentários ficam só com a marca (texto apagado), gostos e
+	 * visualizações são apagados (docs/experiences-api.md §13.1).
+	 */
+	fun purgeInteractions(id: UUID) {
+		jdbc.sql("UPDATE comment SET deleted_at = now(), text = NULL WHERE experience_id = :id AND deleted_at IS NULL").param("id", id).update()
+		jdbc.sql("DELETE FROM experience_like WHERE experience_id = :id").param("id", id).update()
+		jdbc.sql("DELETE FROM experience_view WHERE experience_id = :id").param("id", id).update()
 	}
 
 	fun search(criteria: ExperienceCriteria): Pair<List<ExperienceRow>, Long> {
@@ -144,8 +179,11 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 		val orderBy = when (criteria.sort) {
 			ExperienceSort.RECENT -> "e.created_at DESC, e.id DESC"
 			ExperienceSort.STARS -> "e.stars DESC, e.created_at DESC, e.id DESC"
+			ExperienceSort.LIKES -> "lc.n DESC, e.created_at DESC, e.id DESC"
+			// Interações = gostos + comentários ativos; as visualizações não entram (§13.4).
+			ExperienceSort.INTERACTIONS -> "lc.n + cc.n DESC, e.created_at DESC, e.id DESC"
 		}
-		val rows = jdbc.sql("$SELECT_WITH_PHOTO $where ORDER BY $orderBy LIMIT :limit OFFSET :offset")
+		val rows = jdbc.sql("$SELECT_FULL $where ORDER BY $orderBy LIMIT :limit OFFSET :offset")
 			.params(params)
 			.param("limit", criteria.size)
 			.param("offset", criteria.page.toLong() * criteria.size)
@@ -179,11 +217,19 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 		photoMediaId = getObject("photo_media_id", UUID::class.java),
 		photoWidth = getInt("photo_width").takeUnless { wasNull() },
 		photoHeight = getInt("photo_height").takeUnless { wasNull() },
+		likesCount = getLong("likes_count"),
+		commentsCount = getLong("comments_count"),
 	)
 
 	private companion object {
-		const val SELECT_WITH_PHOTO =
-			"SELECT e.*, m.width AS photo_width, m.height AS photo_height FROM experience e LEFT JOIN media m ON m.id = e.photo_media_id"
+		/** Experiência com as dimensões da fotografia e as contagens (cada uma por índice, só desta experiência). */
+		const val SELECT_FULL = """
+			SELECT e.*, m.width AS photo_width, m.height AS photo_height, lc.n AS likes_count, cc.n AS comments_count
+			FROM experience e
+			LEFT JOIN media m ON m.id = e.photo_media_id
+			CROSS JOIN LATERAL (SELECT count(*) AS n FROM experience_like l WHERE l.experience_id = e.id) lc
+			CROSS JOIN LATERAL (SELECT count(*) AS n FROM comment c WHERE c.experience_id = e.id AND c.deleted_at IS NULL) cc
+		"""
 
 		/** Os caracteres especiais do LIKE (\ % _) escritos pelo utilizador são procurados literalmente. */
 		fun escapeLike(text: String): String = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

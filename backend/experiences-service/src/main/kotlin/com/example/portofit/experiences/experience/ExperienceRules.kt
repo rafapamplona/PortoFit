@@ -81,15 +81,33 @@ object ExperienceRules {
 	/** `\r\n` e `\r` passam a `\n`; espaços e mudanças de linha nas pontas são removidos. */
 	fun normalizeText(raw: String): String = raw.replace("\r\n", "\n").replace('\r', '\n').trim()
 
+	/**
+	 * Texto simples normalizado com 1 a [maxLength] caracteres (pontos de código), sem caracteres de controlo além
+	 * de `\n` e `\t`; vazio, só espaços ou inválido → null. Também para os comentários (docs/experiences-api.md §13.1).
+	 */
+	fun cleanText(raw: String, maxLength: Int): String? {
+		val text = normalizeText(raw)
+		val length = text.codePointCount(0, text.length)
+		val invalidChar = text.codePoints().anyMatch { c ->
+			val type = Character.getType(c)
+			(type == Character.CONTROL.toInt() && c != '\n'.code && c != '\t'.code) || type == Character.SURROGATE.toInt()
+		}
+		return text.takeUnless { it.isEmpty() || length > maxLength || invalidChar }
+	}
+
 	/** UUID na forma canónica (36 caracteres), sem distinguir maiúsculas; outra forma → null. */
 	fun parseUuid(value: String?): UUID? {
 		val text = value?.trim() ?: return null
 		return runCatching { UUID.fromString(text) }.getOrNull()?.takeIf { it.toString().equals(text, ignoreCase = true) }
 	}
 
+	/** Id de experiência no caminho; outra forma → 400. */
+	fun experienceId(value: String): UUID =
+		parseUuid(value) ?: throw ApiErrors.validation("experienceId", "Identificador de experiência inválido.")
+
 	fun isSportId(value: String) = value.length in 2..40 && SLUG.matches(value)
 
-	private fun parseObject(body: String?, mapper: JsonMapper): JsonNode {
+	fun parseObject(body: String?, mapper: JsonMapper): JsonNode {
 		val node = try {
 			body?.takeIf { it.isNotBlank() }?.let { mapper.readTree(it) }
 		} catch (_: JacksonException) {
@@ -120,17 +138,7 @@ object ExperienceRules {
 			errors += FieldError("text", TEXT_MESSAGE)
 			return null
 		}
-		val text = normalizeText(value.stringValue())
-		val length = text.codePointCount(0, text.length)
-		val invalidChar = text.codePoints().anyMatch { c ->
-			val type = Character.getType(c)
-			(type == Character.CONTROL.toInt() && c != '\n'.code && c != '\t'.code) || type == Character.SURROGATE.toInt()
-		}
-		if (text.isEmpty() || length > MAX_TEXT_LENGTH || invalidChar) {
-			errors += FieldError("text", TEXT_MESSAGE)
-			return null
-		}
-		return text
+		return cleanText(value.stringValue(), MAX_TEXT_LENGTH) ?: null.also { errors += FieldError("text", TEXT_MESSAGE) }
 	}
 
 	/** Só números inteiros JSON de 1 a 5: `4.5`, `4.0`, `"4"` e `null` são recusados. */

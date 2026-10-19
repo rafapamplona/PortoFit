@@ -49,3 +49,15 @@ data class MediaProperties(
 	/** Idade a partir da qual ficheiros sem linha e temporários são apagados. */
 	val orphanAge: Duration,
 )
+
+/** Comentários, gostos e visualizações (docs/experiences-api.md §13.5, §13.6). */
+@ConfigurationProperties("portofit.interactions")
+data class InteractionProperties(
+	val maxCommentsPerAuthor: Int,
+	val commentWindow: Duration,
+	/** Só contam pedidos que criam ou retiram um gosto, não as repetições. */
+	val maxLikeChangesPerUser: Int,
+	val likeWindow: Duration,
+	/** Período fixo (alinhado a 00:00 UTC) em que cada pessoa ou chave conta uma visualização. */
+	val viewPeriod: Duration,
+)
