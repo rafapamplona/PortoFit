@@ -765,4 +765,29 @@ Não têm testes JVM: os ecrãs Compose, as `SharedPreferences` reais da chave e
 | Retirar o gosto e eliminar o comentário | `204`, `204`; 0/0, `likedByMe: false` |
 | Experiência eliminada: detalhe, comentários, gosto | `404` ×3 |
 
-**Pendente (verificação na interface, no emulador ou num telemóvel):** comentar, editar e apagar um comentário, gostar e retirar, login e regresso ao detalhe, as quatro ordenações e falha/recuperação (ex.: parar o experiences-service e voltar a ligar).
+**Verificação na interface (2026-10-19, pelo utilizador):**
+
+| Percurso | Resultado |
+|---|---|
+| Criar, editar e eliminar comentários | feito, com as contagens atualizadas |
+| Própria experiência | sem botão para gostar |
+| Gostar e retirar o gosto numa experiência de outra conta | feito |
+| Ordenações nas listas | as quatro presentes |
+
+**Verificação na interface (2026-10-19, pelo assistente, no emulador já aberto pelo utilizador, com a sessão da `pamplona`):** sem arrancar o emulador nem reinstalar a app, sem limpar dados. Foi usado `adb` (toques e leitura do ecrã) e `docker compose stop`/`start experiences-service`. Com ~0,4 GB livres, só foi usado o necessário. A memória dos outros serviços não foi alterada.
+
+| Passo | Resultado |
+|---|---|
+| Escrever um comentário; parar o experiences-service; **Comentar** | "Não foi possível confirmar se o comentário foi publicado…"; texto mantido no campo e bloqueado |
+| Voltar a ligar o serviço; **Tentar novamente** | publicado uma vez (mesma chave; um só registo na base de dados); "1 comentário" e "0 gostos · 1 comentário" |
+| Editar esse comentário; parar o serviço; **Guardar** | "Sem ligação ao serviço de experiências. O texto mantém-se; tenta novamente."; texto editado mantido, com **Guardar** e **Cancelar** |
+| Voltar a ligar; **Guardar** | guardado, marcado "editado" |
+| **Eliminar** o comentário | pede confirmação ("Eliminar este comentário?"); depois "0 gostos · 0 comentários" |
+| Serviço parado: pesquisa de locais | 10 locais; "Avaliações temporariamente indisponíveis" (não 0 estrelas) |
+| Serviço parado: detalhe do local | atividades e "Partilhar experiência" disponíveis; só a secção de experiências mostra o erro, com **Tentar novamente** (seletor de ordenação visível) |
+| Serviço parado: o meu perfil | descrição, interesses e dados privados (users-service) disponíveis; só "Publicações" mostra o erro |
+| Voltar a ligar; **Tentar novamente** no perfil; reabrir o local | publicações e experiências de volta; local "★ 4,0 (1 pessoa)". A primeira pesquisa logo a seguir ao arranque ainda mostrou avaliações indisponíveis (arranque a frio, prazo de 1 s já documentado); a seguinte já as mostrou |
+
+O comentário temporário (criado pelo assistente na experiência da `pamplona`) foi eliminado pela interface e, depois, a sua marca e o registo da chave foram removidos da base de dados. Os dados ficaram como estavam antes da verificação: a marca de comentário anterior, as publicações e as contas mantêm-se. O experiences-service ficou saudável no fim.
+
+**Pendente:** login a partir de uma interação (por exemplo, "Entrar para gostar" ou "Entrar" nos comentários) e regresso ao detalhe sem executar a ação. Exige a app sem sessão: terminar a sessão da `pamplona` revogaria a renovação e obrigaria a entrar de novo com a palavra-passe, por isso não foi feito. O comportamento está coberto pelos testes JVM ("regressar do login atualiza o estado sem gostar nem comentar automaticamente").
