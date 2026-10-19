@@ -2,7 +2,6 @@ package com.example.portofit.catalog.place
 
 import com.example.portofit.catalog.api.NotFoundException
 import com.example.portofit.catalog.api.PageResponse
-import com.example.portofit.catalog.rating.Rating
 import com.example.portofit.catalog.rating.RatingProvider
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
@@ -20,7 +19,8 @@ class PlaceService(
 		val (rows, total) = places.search(criteria)
 		val ids = rows.map { it.id }
 		val sports = places.sportsByPlace(ids)
-		val placeRatings = ratings.placeRatings(ids)
+		// Um só pedido ao experiences-service para a página inteira, só com os locais.
+		val placeRatings = ratings.ratings(ids, includeOfferings = false)
 
 		val items = rows.map { row ->
 			PlaceSummary(
@@ -30,7 +30,7 @@ class PlaceService(
 				location = row.location,
 				sports = sports[row.id].orEmpty(),
 				distanceKm = row.distanceKm?.let(::roundKm),
-				rating = placeRatings[row.id] ?: Rating.UNAVAILABLE,
+				rating = placeRatings.place(row.id),
 				demo = row.demo,
 			)
 		}
@@ -40,7 +40,8 @@ class PlaceService(
 	fun detail(id: UUID): PlaceDetail {
 		val row = places.findById(id) ?: throw NotFoundException("Não existe nenhum local com este identificador.")
 		val offeringRows = places.offeringsOf(id)
-		val offeringRatings = ratings.offeringRatings(offeringRows.map { it.id })
+		// Um só pedido: avaliação do local e das suas atividades.
+		val placeRatings = ratings.ratings(listOf(id), includeOfferings = true)
 
 		return PlaceDetail(
 			id = row.id,
@@ -49,7 +50,7 @@ class PlaceService(
 			address = row.address,
 			location = row.location,
 			contacts = row.contacts,
-			rating = ratings.placeRatings(listOf(id))[id] ?: Rating.UNAVAILABLE,
+			rating = placeRatings.place(id),
 			offerings = offeringRows.map {
 				Offering(
 					id = it.id,
@@ -58,7 +59,7 @@ class PlaceService(
 					description = it.description,
 					level = it.level,
 					scheduleNotes = it.scheduleNotes,
-					rating = offeringRatings[it.id] ?: Rating.UNAVAILABLE,
+					rating = placeRatings.offering(it.id),
 				)
 			},
 			demo = row.demo,

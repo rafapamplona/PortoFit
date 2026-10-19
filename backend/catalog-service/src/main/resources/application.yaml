@@ -45,3 +45,11 @@ management:
       # Só o estado agregado (UP/DOWN): sem nomes de componentes, versões ou detalhes da base de dados.
       show-details: never
       show-components: never
+
+portofit:
+  experiences:
+    # Avaliações agregadas (docs/catalog-api.md §5). Vazio: avaliações UNAVAILABLE sem fazer pedidos.
+    base-url: ${EXPERIENCES_BASE_URL:}
+    # Prazo curto e sem novas tentativas: a falha só marca as avaliações como UNAVAILABLE.
+    connect-timeout: 500ms
+    timeout: 1s

@@ -12,6 +12,8 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import tools.jackson.databind.JsonNode
@@ -184,6 +186,7 @@ class CatalogApiIntegrationTest {
 
 	@Test
 	fun `avaliacoes indisponiveis nunca aparecem como zero`() {
+		experiences.reset(ExperiencesStub.Mode.ERROR)
 		mvc.get("/api/v1/places?q=boxe").andExpect {
 			jsonPath("$.items[*].rating.status") { value(everyItem(org.hamcrest.Matchers.equalTo("UNAVAILABLE"))) }
 			jsonPath("$.items[0].rating.average") { value(null as Any?) }
@@ -291,6 +294,136 @@ class CatalogApiIntegrationTest {
 		assertEquals(10L to 19L, before)
 	}
 
+	// --- Atividade oferecida (GET /offerings/{id}) ---
+
+	private val boxeRibeira = "8a7b6c5d-4e3f-4a1b-9c8d-000000000101"
+	private val kickRibeira = "8a7b6c5d-4e3f-4a1b-9c8d-000000000102"
+
+	@Test
+	fun `detalhe de uma atividade com local, estado e avaliacao`() {
+		experiences.reset(ExperiencesStub.Mode.UP)
+		experiences.offeringRatings[boxeRibeira] = ribeira to """{"status":"AVAILABLE","average":4.2,"ratingsCount":9}"""
+		mvc.get("/api/v1/offerings/$boxeRibeira").andExpect {
+			status { isOk() }
+			jsonPath("$.id") { value(boxeRibeira) }
+			jsonPath("$.name") { value("Boxe iniciação") }
+			jsonPath("$.level") { value("BEGINNER") }
+			jsonPath("$.status") { value("ACTIVE") }
+			jsonPath("$.sport.id") { value("boxe") }
+			jsonPath("$.place.id") { value(ribeira) }
+			jsonPath("$.place.name") { value("Clube de Combate Ribeira (fictício)") }
+			jsonPath("$.place.demo") { value(true) }
+			jsonPath("$.rating.status") { value("AVAILABLE") }
+			jsonPath("$.rating.average") { value(4.2) }
+			jsonPath("$.rating.ratingsCount") { value(9) }
+		}
+		assertEquals(listOf("ids=$ribeira&includeOfferings=true"), experiences.requests.toList())
+
+		// Atividade sem avaliações na resposta do experiences-service.
+		mvc.get("/api/v1/offerings/$kickRibeira").andExpect { jsonPath("$.rating.status") { value("NO_RATINGS") } }
+	}
+
+	@Test
+	fun `includeRating false nao consulta o experiences-service`() {
+		experiences.reset(ExperiencesStub.Mode.UP)
+		mvc.get("/api/v1/offerings/$boxeRibeira?includeRating=false").andExpect {
+			status { isOk() }
+			jsonPath("$.status") { value("ACTIVE") }
+			jsonPath("$.rating") { doesNotExist() }
+		}
+		assertTrue(experiences.requests.isEmpty())
+	}
+
+	@Test
+	fun `atividade inexistente, id mal formado e includeRating invalido`() {
+		experiences.reset(ExperiencesStub.Mode.UP)
+		mvc.get("/api/v1/offerings/00000000-0000-0000-0000-000000000000").andExpect {
+			status { isNotFound() }
+			jsonPath("$.detail") { value("Não existe nenhuma atividade com este identificador.") }
+		}
+		expectInvalid("/api/v1/offerings/nao-e-um-uuid", "offeringId")
+		expectInvalid("/api/v1/offerings/$boxeRibeira?includeRating=talvez", "includeRating")
+	}
+
+	@Test
+	fun `atividade ou local retirados aparecem como RETIRED`() {
+		try {
+			jdbc.sql("UPDATE activity_offering SET status = 'RETIRED' WHERE id = CAST(:id AS uuid)").param("id", boxeRibeira).update()
+			mvc.get("/api/v1/offerings/$boxeRibeira?includeRating=false").andExpect { jsonPath("$.status") { value("RETIRED") } }
+			mvc.get("/api/v1/offerings/$kickRibeira?includeRating=false").andExpect { jsonPath("$.status") { value("ACTIVE") } }
+
+			jdbc.sql("UPDATE place SET status = 'RETIRED' WHERE id = CAST(:id AS uuid)").param("id", ribeira).update()
+			mvc.get("/api/v1/offerings/$kickRibeira?includeRating=false").andExpect { jsonPath("$.status") { value("RETIRED") } }
+		} finally {
+			jdbc.sql("UPDATE activity_offering SET status = 'ACTIVE' WHERE id = CAST(:id AS uuid)").param("id", boxeRibeira).update()
+			jdbc.sql("UPDATE place SET status = 'ACTIVE' WHERE id = CAST(:id AS uuid)").param("id", ribeira).update()
+		}
+	}
+
+	// --- Avaliações do experiences-service ---
+
+	@Test
+	fun `avaliacoes vindas do experiences-service num so pedido por resposta`() {
+		experiences.reset(ExperiencesStub.Mode.UP)
+		experiences.placeRatings[ribeira] = """{"status":"AVAILABLE","average":3.2,"ratingsCount":3}"""
+		experiences.offeringRatings[boxeRibeira] = ribeira to """{"status":"AVAILABLE","average":3.5,"ratingsCount":2}"""
+
+		val page = json("/api/v1/places?q=boxe")
+		val byId = page["items"].elements.associate { it["id"].asString() to it["rating"] }
+		assertEquals("AVAILABLE", byId.getValue(ribeira)["status"].asString())
+		assertEquals(3.2, byId.getValue(ribeira)["average"].asDouble())
+		assertEquals(3, byId.getValue(ribeira)["ratingsCount"].asInt())
+		assertEquals("NO_RATINGS", byId.getValue(bonfim)["status"].asString())
+		assertEquals(0, byId.getValue(bonfim)["ratingsCount"].asInt())
+		assertEquals(1, experiences.requests.size)
+		assertTrue(experiences.requests.single().endsWith("&includeOfferings=false"))
+
+		experiences.requests.clear()
+		mvc.get("/api/v1/places/$ribeira").andExpect {
+			jsonPath("$.rating.average") { value(3.2) }
+			jsonPath("$.offerings[0].rating.status") { value("AVAILABLE") }
+			jsonPath("$.offerings[0].rating.average") { value(3.5) }
+			jsonPath("$.offerings[1].rating.status") { value("NO_RATINGS") }
+		}
+		assertEquals(listOf("ids=$ribeira&includeOfferings=true"), experiences.requests.toList())
+	}
+
+	@Test
+	fun `experiences-service com erro ou lento nao impede pesquisa nem detalhe`() {
+		for (mode in listOf(ExperiencesStub.Mode.ERROR, ExperiencesStub.Mode.SLOW)) {
+			experiences.reset(mode)
+			val started = System.nanoTime()
+			mvc.get("/api/v1/places?q=boxe").andExpect {
+				status { isOk() }
+				jsonPath("$.totalItems") { value(4) }
+				jsonPath("$.items[*].rating.status") { value(everyItem(org.hamcrest.Matchers.equalTo("UNAVAILABLE"))) }
+			}
+			mvc.get("/api/v1/places/$ribeira").andExpect {
+				status { isOk() }
+				jsonPath("$.offerings.length()") { value(2) }
+				jsonPath("$.rating.status") { value("UNAVAILABLE") }
+				jsonPath("$.offerings[*].rating.status") { value(everyItem(org.hamcrest.Matchers.equalTo("UNAVAILABLE"))) }
+			}
+			mvc.get("/api/v1/offerings/$boxeRibeira").andExpect {
+				status { isOk() }
+				jsonPath("$.rating.status") { value("UNAVAILABLE") }
+			}
+			// Três pedidos; cada um espera no máximo o prazo de ~1 s (o falso demora 3 s em SLOW).
+			val elapsedMs = (System.nanoTime() - started) / 1_000_000
+			assertTrue(elapsedMs < 6000, "demorou $elapsedMs ms em $mode")
+		}
+	}
+
+	@Test
+	fun `resposta invalida do experiences-service da UNAVAILABLE`() {
+		experiences.reset(ExperiencesStub.Mode.UP)
+		experiences.placeRatings[ribeira] = """{"status":"AVAILABLE","average":0,"ratingsCount":0}"""
+		mvc.get("/api/v1/places/$ribeira").andExpect {
+			status { isOk() }
+			jsonPath("$.rating.status") { value("UNAVAILABLE") }
+		}
+	}
+
 	// --- Auxiliares ---
 
 	/** Minúsculas e sem acentos, para comparar ordenações. */
@@ -312,6 +445,16 @@ class CatalogApiIntegrationTest {
 			content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
 			jsonPath("$.errors[*].field") { value(hasItem(field)) }
 			jsonPath("$.errors[*].message") { value(everyItem(org.hamcrest.Matchers.notNullValue())) }
+		}
+	}
+
+	companion object {
+		val experiences: ExperiencesStub = ExperiencesStub.start()
+
+		@JvmStatic
+		@DynamicPropertySource
+		fun properties(registry: DynamicPropertyRegistry) {
+			registry.add("portofit.experiences.base-url") { experiences.url }
 		}
 	}
 

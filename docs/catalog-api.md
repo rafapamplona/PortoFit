@@ -1,7 +1,7 @@
 # catalog-service — Contrato da API
 
 > Primeiro contrato detalhado do PortoFit. Contexto geral em [arquitetura.md](arquitetura.md).
-> Estado: **v1 implementada no backend** (etapa 3): `GET /sports`, `GET /places` e `GET /places/{placeId}`. `GET /offerings/{offeringId}` continua pendente: está especificado em §3.4 e é implementado no início da etapa 6, antes da publicação de experiências ([experiences-api.md §6](experiences-api.md#6-validação-da-atividade-no-catálogo)). Ajustes feitos durante a implementação em [§8](#8-registo-de-ajustes).
+> Estado: **v1 implementada no backend**: `GET /sports`, `GET /places` e `GET /places/{placeId}` (etapa 3); `GET /offerings/{offeringId}`, estado `ACTIVE`/`RETIRED` e avaliações reais pedidas ao experiences-service (etapa 6, [experiences-api.md §6](experiences-api.md#6-validação-da-atividade-no-catálogo)). Ajustes feitos durante a implementação em [§8](#8-registo-de-ajustes).
 
 ## 1. Responsabilidade
 
@@ -83,7 +83,7 @@ As avaliações **não pertencem ao catálogo**: são calculadas pelo experience
 | GET | `/sports` | Listar modalidades |
 | GET | `/places` | Pesquisar locais (texto, modalidade, proximidade), paginado |
 | GET | `/places/{placeId}` | Detalhe de um local com atividades oferecidas |
-| GET | `/offerings/{offeringId}` | Detalhe de uma atividade oferecida — **pendente** (etapa 6; usado pelo experiences-service para validar publicações) |
+| GET | `/offerings/{offeringId}` | Detalhe de uma atividade oferecida (também usado pelo experiences-service para validar publicações) |
 | GET | `/actuator/health` | Estado do serviço (fora do prefixo `/api/v1`) |
 
 ### 3.1 `GET /sports`
@@ -471,7 +471,7 @@ GET /api/v1/places/00000000-0000-0000-0000-000000000000
 
 ## 5. Dependência do experiences-service
 
-**Estado atual:** o experiences-service ainda não existe. O catálogo **não faz nenhuma chamada** e devolve todas as avaliações com `"status": "UNAVAILABLE"` (componente `UnavailableRatingProvider`). Não há avaliações inventadas nem zeros. O comportamento abaixo é o planeado.
+**Estado atual (etapa 6):** implementado como descrito abaixo (componente `ExperiencesRatingProvider`, configurado por `EXPERIENCES_BASE_URL`; sem esse valor não faz pedidos e devolve `UNAVAILABLE`). Até à etapa 5 todas as avaliações vinham `UNAVAILABLE`.
 
 O catálogo obtém as avaliações com **um único pedido por resposta** (nunca um pedido por local), através de um endpoint público do experiences-service, definido em [experiences-api.md §4.6](experiences-api.md#46-get-ratingsplaces--avaliações-agregadas-em-lote):
 
@@ -487,7 +487,7 @@ Comportamento do catálogo:
 | Situação | Resultado |
 |---|---|
 | Resposta dentro do prazo | `rating` com `AVAILABLE` ou `NO_RATINGS` |
-| Sem resposta em ~1 s, erro de ligação ou resposta 5xx | Todos os `rating` da resposta com `UNAVAILABLE`; o pedido não é repetido |
+| Sem resposta em ~1 s, erro de ligação, resposta 4xx/5xx ou resposta inválida (ex.: média fora de 1–5) | Todos os `rating` da resposta com `UNAVAILABLE`; o pedido não é repetido |
 | Local ausente na resposta do experiences-service | `NO_RATINGS` |
 
 - O catálogo **não guarda** avaliações; não há risco de mostrar valores antigos como atuais.
@@ -525,5 +525,6 @@ Ajustes feitos na implementação da etapa 3 (backend do catálogo), por ordem d
 | 6 | Erros sem o campo `type` (equivale a `about:blank`); acrescentado o código 405. | Comportamento por omissão do Spring, equivalente pelo RFC 9457. |
 | 7 | O nome da modalidade é único sem distinguir maiúsculas/minúsculas **nem acentos**. | Coerente com a regra de pesquisa. |
 | 8 | A modalidade mantém-se "Ioga" (id `ioga`), como no contrato. Pesquisar "yoga" não encontra resultados. | Grafia em português europeu; sinónimos na pesquisa ficam como melhoria possível. |
+| 9 | Etapa 6: `GET /offerings/{id}` com `includeRating` e `status`; migração `V4__catalog_status.sql` com `status` em locais e atividades (todos `ACTIVE`); o detalhe do local pede local e atividades num só pedido (antes eram duas chamadas ao fornecedor de avaliações). | Validação de publicações sem chamada de volta; retirar em vez de apagar ([experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração)). |
 
 **Implementação da pesquisa sem maiúsculas/acentos:** função SQL `portofit_normalize(text)` (minúsculas + substituição dos caracteres acentuados), aplicada ao texto pesquisado e aos nomes. Usa só funções nativas do PostgreSQL, sem extensões nem privilégios adicionais, e é `IMMUTABLE`, por isso também serve nos índices únicos.
