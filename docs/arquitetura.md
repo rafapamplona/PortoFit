@@ -206,7 +206,7 @@ Para que os serviços continuem a responder quando outros falham, alguns dados s
 
 | Serviço | Referência guardada | Cópia de apresentação | Origem da cópia |
 |---|---|---|---|
-| EXP | `authorId`, `offeringId`, `placeId`, `sportId` | username do autor; nome do local e da atividade | token do autor; CAT ao publicar |
+| EXP | `authorId`, `offeringId`, `placeId`, `sportId` | username do autor; nome do local, da atividade e da modalidade; indicação de local fictício | token do autor; CAT ao publicar ([experiences-api.md §2](experiences-api.md#2-entidades-e-responsabilidade-pelos-dados)) |
 | MSG | `senderId`, `recipientId`, `experienceId` | username do remetente; título e miniatura da experiência partilhada | token; EXP ao partilhar |
 | COL | `ownerId`, `experienceId` | — | — |
 | NOT | `recipientId`, `actorId`, id do objeto | texto da notificação | evento |
@@ -228,7 +228,7 @@ As métricas são **distintas** e nunca se misturam:
 | **Gostos** | A **publicação** | Outros utilizadores |
 | **Comentários** | A **publicação** (participação) | Outros utilizadores |
 | **Interações** | A **publicação**: `gostos + comentários` | Calculada no EXP |
-| **Visualizações** | Alcance da publicação: aberturas do detalhe (exceto pelo autor) | Calculada no EXP; só usada no dashboard |
+| **Visualizações** | Alcance da publicação: aberturas do detalhe, registadas pela app com um pedido próprio, no máximo uma por pessoa em 24 h e sem contar o autor (regras em [experiences-api.md §13](experiences-api.md#13-etapa-e3-comentários-gostos-e-visualizações)) | Calculada no EXP; só usada no dashboard |
 
 Ordenações de listas de experiências (`sort`), **disponíveis a todos, incluindo visitantes sem sessão**, em qualquer lista de experiências (de um local, de uma atividade, de uma modalidade, de um perfil ou de uma pesquisa):
 
@@ -253,7 +253,7 @@ Problema: a mesma pessoa pode publicar várias experiências sobre a mesma ativi
 
 **Definições**
 
-1. **Avaliação vigente** de uma pessoa P para uma atividade oferecida A: as estrelas da experiência **não apagada** de P sobre A com a **data de criação mais recente** (desempate pelo id). As outras experiências de P sobre A continuam visíveis, mas não contam para a média.
+1. **Avaliação vigente** de uma pessoa P para uma atividade oferecida A: as estrelas da experiência **não apagada** de P sobre A com a **data de criação mais recente**; se duas tiverem exatamente a mesma data, conta a de `id` maior (UUID versão 7 gerado pelo servidor, comparado byte a byte; ver [experiences-api.md §7.2](experiences-api.md#72-desempate-determinístico)). As outras experiências de P sobre A continuam visíveis, mas não contam para a média.
 2. **Avaliação de uma atividade oferecida** A = média aritmética das avaliações vigentes de todas as pessoas que têm avaliação vigente em A. `ratingsCount` = número dessas pessoas.
 3. **Contribuição de uma pessoa** P para um local L = média aritmética das avaliações vigentes de P nas atividades de L em que P tem avaliação vigente.
 4. **Avaliação geral de um local** L = média aritmética das contribuições de todas as pessoas com pelo menos uma avaliação vigente em L. `ratingsCount` = número de pessoas distintas.
@@ -318,6 +318,7 @@ Limitações aceites nesta fase: access tokens não revogáveis antes de expirar
 - A app **reduz a imagem antes de enviar** (ex.: lado maior até ~1600 px, JPEG) para limitar dados móveis e tempo de upload.
 - Upload em dois passos: `POST /media` devolve um `mediaId`; `POST /experiences` referencia-o. Se o upload falhar, o texto e as estrelas ficam no ecrã para nova tentativa. Fotografias carregadas mas nunca usadas são apagadas por uma tarefa periódica.
 - **Fotografia opcional, no máximo uma por experiência.** Uma experiência pode ser publicada só com texto e estrelas (por exemplo, se o upload falhar). A captura pela câmara dentro da app tem de estar sempre disponível no ecrã de publicação e faz parte obrigatória da demonstração (R4).
+- No servidor, a imagem é validada pelo conteúdo real e recodificada (orientação aplicada, metadados como a localização GPS removidos), com nomes gerados pelo servidor e guardada num volume próprio. Detalhes, limites e falhas parciais em [experiences-api.md §12](experiences-api.md#12-etapa-e2-fotografias).
 - *Opcional:* gerar miniaturas e a app escolher a resolução conforme a ligação (Wi-Fi vs. dados móveis).
 
 ### 3.10 Feeds
@@ -371,7 +372,7 @@ O que esta solução oferece, e o que não oferece:
 
 `GET /me/stats` (EXP) devolve, para cada publicação do utilizador e no total: visualizações, gostos, comentários, interações e estrelas atribuídas. A app junta "vezes guardada" com `GET /stats/saves?experienceIds=…` (COL). Partilhas por mensagem não entram nesta fase (exigiria contagens do MSG; pode ser acrescentado da mesma forma).
 
-Limitação: visualizações contam cada abertura do detalhe por outra pessoa ou visitante, sem eliminar repetições; pode ser refinado (ex.: uma por utilizador por dia).
+Visualizações: no máximo uma por pessoa (ou por instalação, para visitantes) em cada 24 h, sem contar o autor ([experiences-api.md §13](experiences-api.md#13-etapa-e3-comentários-gostos-e-visualizações)). É uma métrica aproximada: apagar os dados da app ou alternar entre visitante e sessão conta de novo.
 
 ### 3.13 Estrutura da app
 
@@ -421,7 +422,7 @@ Ambos só são feitos depois de todos os requisitos obrigatórios estarem demons
 ```mermaid
 flowchart LR
     CAT -- "avaliações agregadas<br/>(complemento, síncrono)" --> EXP
-    EXP -- "validar atividade ao publicar<br/>(síncrono)" --> CAT
+    EXP -- "validar atividade ao publicar<br/>(síncrono, sem avaliações)" --> CAT
     EXP -- "seguidos e interesses p/ feed<br/>(síncrono)" --> USR
     USR -- "validar modalidades dos interesses<br/>(síncrono)" --> CAT
     COL -- "validar experiência ao guardar<br/>(síncrono)" --> EXP
@@ -432,7 +433,7 @@ flowchart LR
     MSG -. "eventos (outbox)" .-> NOT
 ```
 
-Existe uma dependência nos dois sentidos entre CAT e EXP, mas para operações diferentes e nenhuma é obrigatória para a outra parte funcionar: o catálogo só precisa do EXP para o complemento das avaliações; o EXP só precisa do CAT para validar novas publicações. Nenhuma chamada desencadeia outra chamada de volta.
+Existe uma dependência nos dois sentidos entre CAT e EXP, mas para operações diferentes e nenhuma é obrigatória para a outra parte funcionar: o catálogo só precisa do EXP para o complemento das avaliações; o EXP só precisa do CAT para validar novas publicações. Nenhuma chamada desencadeia outra chamada de volta: para validar, o EXP pede a atividade com `includeRating=false`, e o catálogo responde sem consultar as avaliações; o endpoint de avaliações do EXP não chama o catálogo ([experiences-api.md §7.5](experiences-api.md#75-integração-com-o-catálogo)).
 
 ### 4.3 Comportamento perante falhas
 
@@ -488,17 +489,17 @@ Cada etapa termina com algo demonstrável. As versões de ferramentas e bibliote
 | 0 ✅ | Preparação: Git, build do template, execução no emulador | "Hello Android!" no emulador |
 | 1 ✅ | Desenho: este documento e [catalog-api.md](catalog-api.md) | Documentos revistos pelo grupo |
 | 2 ✅ | **Infraestrutura base** ([infraestrutura.md](infraestrutura.md)): estrutura `backend/`, `docker-compose.yml`, PostgreSQL com uma base de dados e um utilizador por serviço, esqueleto do catalog-service com `/actuator/health` | `docker compose up` e `curl` ao health devolve `UP` |
-| 3 ✅ (backend) | catalog-service: migrações, dados fictícios (perfil `demo`), modalidades, pesquisa, proximidade, detalhe (avaliações como `UNAVAILABLE` até haver EXP). Pendente: `GET /offerings/{id}` | Pedidos do contrato respondem como documentado; 23 testes de integração |
+| 3 ✅ (backend) | catalog-service: migrações, dados fictícios (perfil `demo`), modalidades, pesquisa, proximidade, detalhe (avaliações como `UNAVAILABLE` até haver EXP). Pendente: `GET /offerings/{id}` (especificado; implementado no início da etapa 6) | Pedidos do contrato respondem como documentado; 23 testes de integração |
 | 4 ✅ (pesquisa, detalhe e voltar confirmados no emulador) | App: estrutura MVVM, navegação, ecrãs de pesquisa e de local ligados ao catálogo ([app-android.md](app-android.md)) | Pesquisar "boxe" no emulador e abrir um local |
 | 5 (backend ✅; app ✅ registo, login, sessão, logout, o meu perfil, pesquisa de pessoas, perfis públicos, seguir e listas de seguidores/seguidos, confirmados no emulador) | users-service ([users-api.md](users-api.md)): registo, login (JWT + refresh token), perfil, interesses, pesquisa de utilizadores; app: login e perfil | Backend: 24 testes e pedidos HTTP (ver [users-api.md §12](users-api.md#12-estado-da-implementação)); app: criar conta e editar perfil |
-| 6 | experiences-service (núcleo): publicar com estrelas e fotografia opcional da galeria, editar e apagar, listar por local/autor, avaliação agregada ligada ao catálogo | Publicar, editar estrelas e apagar, e ver a avaliação do local mudar conforme [3.7](#37-avaliação-geral-sem-distorção) |
-| 7 | Câmara (CameraX) no ecrã de publicação | Publicar uma fotografia tirada na app |
-| 8 | Comentários, gostos, visualizações, filtro por modalidade e ordenações | Sem sessão, mesma lista ordenada por data, gostos, interações e estrelas |
-| 9 | Seguir (USR) e feeds (EXP) | Feed muda após seguir/escolher interesses |
+| 6 | experiences-service, etapa E1 ([experiences-api.md](experiences-api.md)): `GET /offerings/{id}` no catálogo; experiências de texto e estrelas, consulta e pesquisa públicas, listas por local/atividade/modalidade/autor (`recent`, `stars`), editar e apagar pelo autor, publicação idempotente, avaliações agregadas ligadas ao catálogo | Publicar, editar estrelas e apagar, e ver a avaliação do local mudar conforme [3.7](#37-avaliação-geral-sem-distorção) |
+| 7 | Etapa E2: fotografia opcional, da galeria (Photo Picker) e da câmara dentro da app (CameraX) | Publicar uma fotografia tirada na app e outra da galeria |
+| 8 | Etapa E3: comentários, gostos, visualizações e ordenações por gostos e interações | Sem sessão, mesma lista ordenada por data, gostos, interações e estrelas |
+| 9 | Etapa E4: feeds (EXP; seguir já existe desde a etapa 5) e dashboard (estatísticas do EXP) | Feed muda após seguir/escolher interesses; dashboard coerente com as ações feitas |
 | 10 | notifications-service; outbox em USR, EXP e MSG (tentativas, deduplicação, `FAILED`); notificações Android com WorkManager | Gosto gera notificação; com NOT parado o gosto é aceite e a notificação chega depois de o reiniciar |
 | 11 | collections-service e listas na app | Criar lista e guardar experiências |
 | 12 | messaging-service, mensagens e partilha, com consulta periódica | Partilhar experiência entre dois utilizadores |
-| 13 | Dashboard | Estatísticas coerentes com as ações feitas |
+| 13 | Dashboard: "vezes guardada" (COL) junto às estatísticas do EXP | Contagem de vezes guardada coerente com as listas |
 | 14 | GPS na app (pesquisa por proximidade já existe no catálogo desde a etapa 3) | Localização simulada ordena locais por distância |
 | 15 | Revisão de degradação graciosa e guião de demonstração | Guião da [secção 4.4](#44-guião-de-demonstração-de-falhas) executado sem surpresas |
 | 16 | Opcionais: offline, imagens adaptadas, guardar locais, localização na publicação | Só se houver tempo |

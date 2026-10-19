@@ -12,7 +12,7 @@ O users-service é o dono das **contas** (credenciais), das **sessões** (refres
 
 **Fora desta etapa:** login social, recuperação ou alteração de palavra-passe, alteração de email ou username, verificação de email, eliminação de conta, fotografia de perfil, contas privadas ou bloqueio de utilizadores, dados de demonstração (utilizadores `demo_` virão num perfil de demonstração próprio, como no catálogo).
 
-**Publicações do perfil:** não pertencem a este serviço. A app obtê-las-á ao experiences-service (`GET /api/v1/experiences?authorId=<userId>`, a definir no contrato desse serviço). O users-service não guarda contagens de publicações nem depende do experiences-service.
+**Publicações do perfil:** não pertencem a este serviço. A app obtê-las-á ao experiences-service (`GET /api/v1/experiences?authorId=<userId>`, [experiences-api.md §4.2](experiences-api.md#42-get-experiences--listar-e-pesquisar)). O users-service não guarda contagens de publicações nem depende do experiences-service.
 
 - Base URL em desenvolvimento: `http://localhost:8082/api/v1` (no emulador: `http://10.0.2.2:8082/api/v1`)
 - Porta 8082, publicada só em `127.0.0.1`, como o catálogo.

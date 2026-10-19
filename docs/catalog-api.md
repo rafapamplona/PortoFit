@@ -1,7 +1,7 @@
 # catalog-service — Contrato da API
 
 > Primeiro contrato detalhado do PortoFit. Contexto geral em [arquitetura.md](arquitetura.md).
-> Estado: **v1 implementada no backend** (etapa 3): `GET /sports`, `GET /places` e `GET /places/{placeId}`. `GET /offerings/{offeringId}` continua pendente. Ajustes feitos durante a implementação em [§8](#8-registo-de-ajustes).
+> Estado: **v1 implementada no backend** (etapa 3): `GET /sports`, `GET /places` e `GET /places/{placeId}`. `GET /offerings/{offeringId}` continua pendente: está especificado em §3.4 e é implementado no início da etapa 6, antes da publicação de experiências ([experiences-api.md §6](experiences-api.md#6-validação-da-atividade-no-catálogo)). Ajustes feitos durante a implementação em [§8](#8-registo-de-ajustes).
 
 ## 1. Responsabilidade
 
@@ -49,6 +49,7 @@ O id é um *slug* (e não um UUID) porque é usado como filtro em URLs (`sport=b
 | `contacts.phone` | string | não | até 20 caracteres |
 | `contacts.website` | string | não | URL `http(s)://`, até 200 caracteres |
 | `demo` | booleano | sim | `true` em todos os dados fictícios |
+| `status` | enum | sim | `ACTIVE` (por omissão) ou `RETIRED`. Um local retirado deixa de aceitar publicações, mas continua a existir e a responder pelo id (ver [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração)). Nesta fase nenhum local está retirado, e a pesquisa e o detalhe não o filtram |
 
 ### 2.3 ActivityOffering — atividade oferecida
 
@@ -61,6 +62,7 @@ O id é um *slug* (e não um UUID) porque é usado como filtro em URLs (`sport=b
 | `description` | string | não | até 1000 caracteres |
 | `level` | enum | sim | `BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `ALL_LEVELS` |
 | `scheduleNotes` | string | não | até 300 caracteres. **Texto informativo** (ex.: "Seg. e qua., 19h–20h"); não é um horário reservável |
+| `status` | enum | sim | `ACTIVE` (por omissão) ou `RETIRED`, como no local. Em `GET /offerings/{id}` é o estado **efetivo**: `RETIRED` se a atividade ou o seu local estiverem retirados |
 
 ### 2.4 Rating — avaliação agregada (complemento)
 
@@ -81,7 +83,7 @@ As avaliações **não pertencem ao catálogo**: são calculadas pelo experience
 | GET | `/sports` | Listar modalidades |
 | GET | `/places` | Pesquisar locais (texto, modalidade, proximidade), paginado |
 | GET | `/places/{placeId}` | Detalhe de um local com atividades oferecidas |
-| GET | `/offerings/{offeringId}` | Detalhe de uma atividade oferecida — **pendente** (necessário quando o experiences-service for implementado) |
+| GET | `/offerings/{offeringId}` | Detalhe de uma atividade oferecida — **pendente** (etapa 6; usado pelo experiences-service para validar publicações) |
 | GET | `/actuator/health` | Estado do serviço (fora do prefixo `/api/v1`) |
 
 ### 3.1 `GET /sports`
@@ -343,6 +345,7 @@ GET /api/v1/offerings/8a7b6c5d-4e3f-4a1b-9c8d-000000000101
   "description": "Técnica base, condição física e sparring leve.",
   "level": "BEGINNER",
   "scheduleNotes": "Seg. e qua., 19h–20h (informativo)",
+  "status": "ACTIVE",
   "sport": { "id": "boxe", "name": "Boxe" },
   "place": {
     "id": "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01",
@@ -352,6 +355,13 @@ GET /api/v1/offerings/8a7b6c5d-4e3f-4a1b-9c8d-000000000101
   "rating": { "status": "AVAILABLE", "average": 4.2, "ratingsCount": 9 }
 }
 ```
+
+**Parâmetro `includeRating`** (`true` por omissão, ou `false`):
+
+- `true` (a app): acrescenta `rating`, obtido como no detalhe do local (§5), com os mesmos três estados.
+- `false` (o experiences-service, ao validar uma publicação): o campo `rating` é **omitido** e o catálogo **não faz nenhum pedido** ao experiences-service. Assim, validar uma publicação nunca leva o catálogo a chamar de volta o serviço que a está a processar ([experiences-api.md §6.1](experiences-api.md#61-endpoint-do-catálogo)).
+
+Erros: `404` se a atividade não existir (o experiences-service converte-o em `UNKNOWN_OFFERING`); `400` se o id não for um UUID ou `includeRating` não for `true`/`false`. A resposta inclui sempre `place.id`, que o experiences-service compara com o local indicado na publicação, e `status`, com que recusa publicações em atividades retiradas.
 
 ## 4. Erros
 
@@ -463,11 +473,14 @@ GET /api/v1/places/00000000-0000-0000-0000-000000000000
 
 **Estado atual:** o experiences-service ainda não existe. O catálogo **não faz nenhuma chamada** e devolve todas as avaliações com `"status": "UNAVAILABLE"` (componente `UnavailableRatingProvider`). Não há avaliações inventadas nem zeros. O comportamento abaixo é o planeado.
 
-O catálogo obtém as avaliações com **um único pedido por resposta** (nunca um pedido por local), através de um endpoint público do experiences-service. Este endpoint pertence ao contrato do experiences-service e será detalhado nesse documento; a forma prevista é:
+O catálogo obtém as avaliações com **um único pedido por resposta** (nunca um pedido por local), através de um endpoint público do experiences-service, definido em [experiences-api.md §4.6](experiences-api.md#46-get-ratingsplaces--avaliações-agregadas-em-lote):
 
 ```http
 GET /api/v1/ratings/places?ids=<placeId>,<placeId>,...&includeOfferings=true|false
 ```
+
+- Até 50 ids por pedido (o tamanho máximo de página). A pesquisa usa `includeOfferings=false`; o detalhe do local e o de uma atividade usam `includeOfferings=true`.
+- O experiences-service só devolve `AVAILABLE` ou `NO_RATINGS`; `UNAVAILABLE` é decidido aqui, quando o pedido falha.
 
 Comportamento do catálogo:
 
@@ -486,7 +499,7 @@ Comportamento do catálogo:
 - **Modalidades** (8: Boxe, Corrida, CrossFit, Escalada, Ioga, Kickboxing, Natação, Pilates): dados de referência reais, criados pela migração `V3__reference_sports.sql` em qualquer ambiente.
 - **Locais e atividades fictícios** (10 locais, 19 atividades): ficheiro `src/main/resources/demo/catalog-demo-data.sql`, carregado **só com o perfil Spring `demo`**, que o `docker-compose.yml` local ativa explicitamente. Não fazem parte das migrações normais.
 - O carregamento corre em cada arranque, depois das migrações, numa transação; usa ids fixos e `INSERT ... ON CONFLICT DO UPDATE`, pelo que reiniciar não cria duplicados e alterações ao ficheiro são aplicadas.
-- Desativar o perfil não apaga dados já carregados; podem ser identificados e removidos por `is_demo = true`.
+- Desativar o perfil não apaga dados já carregados; podem ser identificados por `is_demo = true`. **Só podem ser removidos enquanto não houver experiências sobre eles**: as experiências referem-se aos locais e atividades pelo id, sem chaves estrangeiras entre serviços. A estratégia para substituir os dados fictícios por locais reais (retirar em vez de apagar, ids novos, sem passar experiências automaticamente) está em [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração).
 - Todos os locais têm `demo: true`, "(fictício)" no nome e uma descrição que os identifica como dados de demonstração.
 - Coordenadas em zonas do Porto, para a pesquisa por proximidade ser realista; moradas genéricas ("Rua Exemplo").
 - Os nomes dos locais incluem "Exemplo" e "(fictício)"; as freguesias e coordenadas são reais apenas como zona aproximada.
