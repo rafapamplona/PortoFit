@@ -26,6 +26,17 @@ data class RateLimitProperties(
 	val refreshPerOrigin: Int,
 )
 
+/** Limite de produto de pessoas seguidas (docs/users-api.md §3.9). */
+@ConfigurationProperties("portofit.follows")
+data class FollowProperties(val maxFollowing: Int)
+
+/**
+ * Endpoints internos (docs/users-api.md §3.11). [feedContextKey] é a chave do experiences-service, vinda do `.env`
+ * (`USERS_INTERNAL_KEY`); vazia = o endpoint recusa sempre.
+ */
+@ConfigurationProperties("portofit.internal")
+data class InternalProperties(val feedContextKey: String = "")
+
 /** Ligação ao catalog-service para validar interesses (docs/users-api.md §7). */
 @ConfigurationProperties("portofit.catalog")
 data class CatalogProperties(

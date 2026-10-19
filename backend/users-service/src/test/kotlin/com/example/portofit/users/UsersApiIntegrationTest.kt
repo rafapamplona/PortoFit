@@ -431,7 +431,87 @@ class UsersApiIntegrationTest {
 		mvc.get("/api/v1/users/${target.userId}/following?size=51").andExpect { status { isBadRequest() } }
 	}
 
+	// --- Limite de seguidos e contexto do feed (E4, docs/users-api.md §3.9 e §3.11) ---
+
+	@Test
+	fun `limite de pessoas seguidas aplicado ao seguir, tambem com pedidos simultaneos`() {
+		val a = newSession()
+		val targets = (1..MAX_FOLLOWING + 2).map { newSession() }
+		targets.take(MAX_FOLLOWING).forEach { t -> mvc.put("/api/v1/users/${t.userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } } }
+		mvc.put("/api/v1/users/${targets.last().userId}/follow") { bearer(a.access) }.andExpect {
+			status { isConflict() }
+			jsonPath("$.code") { value("FOLLOW_LIMIT_REACHED") }
+		}
+		// Seguir de novo alguém já seguido continua 204 no limite; deixar de seguir abre espaço.
+		mvc.put("/api/v1/users/${targets.first().userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } }
+		mvc.delete("/api/v1/users/${targets.first().userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } }
+		mvc.put("/api/v1/users/${targets.last().userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } }
+		assertEquals(MAX_FOLLOWING.toLong(), followingCount(a.userId))
+
+		// Pedidos simultâneos de uma conta nova a seguir 6 pessoas: o limite não é ultrapassado.
+		val b = newSession()
+		val others = (1..6).map { newSession() }
+		val statuses = concurrently(6) { i ->
+			HttpClient.newHttpClient().send(
+				HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port/api/v1/users/${others[i].userId}/follow"))
+					.header("Authorization", "Bearer ${b.access}").PUT(HttpRequest.BodyPublishers.noBody()).build(),
+				HttpResponse.BodyHandlers.ofString(),
+			).statusCode()
+		}
+		assertEquals(MAX_FOLLOWING, statuses.count { it == 204 }, "estados: $statuses")
+		assertEquals(6 - MAX_FOLLOWING, statuses.count { it == 409 }, "estados: $statuses")
+		assertEquals(MAX_FOLLOWING.toLong(), followingCount(b.userId))
+	}
+
+	@Test
+	fun `feed-context so com o token do proprio e a chave interna`() {
+		val a = newSession()
+		val b = newSession()
+		val c = newSession()
+		putInterests(a, "[\"boxe\",\"corrida\"]").andExpect { status { isOk() } }
+		mvc.put("/api/v1/users/${b.userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } }
+		mvc.put("/api/v1/users/${c.userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } }
+		mvc.put("/api/v1/users/${a.userId}/follow") { bearer(b.access) }.andExpect { status { isNoContent() } }
+
+		val path = "/api/v1/internal/me/feed-context"
+		mvc.get(path) { header("X-Internal-Key", INTERNAL_KEY) }.andExpect {
+			status { isUnauthorized() }
+			jsonPath("$.code") { value("AUTHENTICATION_REQUIRED") }
+		}
+		mvc.get(path) { bearer("x.y.z"); header("X-Internal-Key", INTERNAL_KEY) }.andExpect {
+			status { isUnauthorized() }
+			jsonPath("$.code") { value("INVALID_ACCESS_TOKEN") }
+		}
+		mvc.get(path) { bearer(a.access) }.andExpect { status { isForbidden() }; jsonPath("$.code") { value("FORBIDDEN") } }
+		mvc.get(path) { bearer(a.access); header("X-Internal-Key", INTERNAL_KEY + "x") }.andExpect { status { isForbidden() } }
+		mvc.get(path) { bearer(a.access); header("X-Internal-Key", "") }.andExpect { status { isForbidden() } }
+
+		val body = mvc.get(path) { bearer(a.access); header("X-Internal-Key", INTERNAL_KEY) }.andExpect {
+			status { isOk() }
+			header { string("Cache-Control", containsString("no-store")) }
+			content { string(not(containsString("email"))) }
+			content { string(not(containsString(b.username))) }
+		}.andReturn().json()
+		// Todos os seguidos, mais recentes primeiro; interesses pela ordem do perfil; só ids.
+		assertEquals(listOf(c.userId.toString(), b.userId.toString()), texts(body["following"]))
+		assertEquals(listOf("boxe", "corrida"), texts(body["interests"]))
+		assertEquals(setOf("following", "interests"), body.propertyNames().toSet())
+
+		// O contexto é sempre o do token: o de b é o de b, mesmo com a mesma chave.
+		val ofB = mvc.get(path) { bearer(b.access); header("X-Internal-Key", INTERNAL_KEY) }.andExpect { status { isOk() } }.andReturn().json()
+		assertEquals(listOf(a.userId.toString()), texts(ofB["following"]))
+		assertEquals(0, ofB["interests"].size())
+		// Não há forma de pedir o contexto de outra pessoa pelo caminho.
+		mvc.get("/api/v1/internal/users/${a.userId}/feed-context") { bearer(b.access); header("X-Internal-Key", INTERNAL_KEY) }
+			.andExpect { status { isNotFound() } }
+	}
+
 	// --- Auxiliares ---
+
+	private fun texts(node: JsonNode): List<String> = (0 until node.size()).map { node[it].asString() }
+
+	private fun followingCount(userId: UUID): Long =
+		jdbc.sql("SELECT count(*) FROM follow WHERE follower_id = :id").param("id", userId).query(Long::class.javaObjectType).single()
 
 	data class Session(val userId: UUID, val username: String, val access: String, val refresh: String, val refreshExpiresIn: Long)
 
@@ -525,6 +605,10 @@ class UsersApiIntegrationTest {
 	}
 
 	companion object {
+		/** Limite de seguidos nos testes (o real é 500) e chave interna só dos testes. */
+		const val MAX_FOLLOWING = 3
+		const val INTERNAL_KEY = "chave-interna-dos-testes"
+
 		private val keys = TestKeys.create()
 		val catalog = CatalogStub.start()
 
@@ -540,6 +624,8 @@ class UsersApiIntegrationTest {
 			registry.add("portofit.rate-limit.login-attempts-per-origin") { 100000 }
 			registry.add("portofit.rate-limit.register-per-origin") { 100000 }
 			registry.add("portofit.rate-limit.refresh-per-origin") { 100000 }
+			registry.add("portofit.follows.max-following") { MAX_FOLLOWING }
+			registry.add("portofit.internal.feed-context-key") { INTERNAL_KEY }
 		}
 	}
 }

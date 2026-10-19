@@ -546,7 +546,9 @@ Etapa 5 (backend), `backend/users-service`. Operação em [infraestrutura.md](in
 
 Na app: botão Seguir / Deixar de seguir, contagens e listas, ver [app-android.md §13](app-android.md#13-seguir-utilizadores-e-listas-de-seguidoresseguidos-etapa-5-continuação).
 
-**Ainda não implementado:** `GET /internal/me/feed-context` (feeds, E4, §3.11) e os eventos de "novo seguidor" (notificações, etapa 10).
+**E4 (etapa 9):** `GET /api/v1/internal/me/feed-context` (§3.11: token do utilizador e chave interna `USERS_INTERNAL_KEY`, só ids, `no-store`) e o limite de 500 seguidos aplicado ao seguir (§3.9, `409 FOLLOW_LIMIT_REACHED`, com a linha do seguidor bloqueada na transação). Testes e verificação em [experiences-api.md §20](experiences-api.md#20-estado-da-implementação).
+
+**Ainda não implementado:** os eventos de "novo seguidor" (notificações, etapa 10).
 
 **Notas da implementação**
 

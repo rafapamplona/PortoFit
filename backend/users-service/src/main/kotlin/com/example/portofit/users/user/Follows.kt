@@ -3,6 +3,7 @@ package com.example.portofit.users.user
 import com.example.portofit.users.api.ApiErrors
 import com.example.portofit.users.api.ApiException
 import com.example.portofit.users.api.PageResponse
+import com.example.portofit.users.config.FollowProperties
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -11,6 +12,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Repository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -44,6 +46,19 @@ class FollowRepository(private val jdbc: JdbcClient) {
 			""",
 		).param("follower", followerId).param("followed", followedId).update()
 	}
+
+	/** Bloqueia a linha do seguidor até ao fim da transação (seguir em série, para o limite não ser ultrapassado). */
+	fun lockFollower(followerId: UUID) {
+		jdbc.sql("SELECT id FROM app_user WHERE id = :id FOR UPDATE").param("id", followerId).query(UUID::class.java).optional()
+	}
+
+	fun followingCount(followerId: UUID): Long =
+		jdbc.sql("SELECT count(*) FROM follow WHERE follower_id = :id").param("id", followerId).query(Long::class.javaObjectType).single()
+
+	/** Todos os ids seguidos por [followerId], mais recentes primeiro (contexto do feed; no máximo o limite de produto). */
+	fun followingIds(followerId: UUID): List<UUID> =
+		jdbc.sql("SELECT followed_id FROM follow WHERE follower_id = :id ORDER BY created_at DESC, followed_id")
+			.param("id", followerId).query { rs, _ -> rs.getObject(1, UUID::class.java) }.list()
 
 	fun unfollow(followerId: UUID, followedId: UUID) {
 		jdbc.sql("DELETE FROM follow WHERE follower_id = :follower AND followed_id = :followed")
@@ -96,12 +111,26 @@ class FollowRepository(private val jdbc: JdbcClient) {
 }
 
 @Service
-class FollowService(private val follows: FollowRepository, private val users: UserRepository) {
+class FollowService(
+	private val follows: FollowRepository,
+	private val users: UserRepository,
+	private val properties: FollowProperties,
+	private val transactions: TransactionTemplate,
+) {
 
+	/**
+	 * Idempotente. Limite de produto (docs/users-api.md §3.9): seguir alguém novo com o máximo já atingido → 409;
+	 * seguir alguém já seguido continua 204. Contagem e inserção na mesma transação, com o seguidor bloqueado.
+	 */
 	fun follow(followerId: UUID, followedId: UUID) {
 		checkTarget(followerId, followedId)
 		try {
-			follows.follow(followerId, followedId)
+			transactions.executeWithoutResult {
+				follows.lockFollower(followerId)
+				if (follows.isFollowing(followerId, followedId)) return@executeWithoutResult
+				if (follows.followingCount(followerId) >= properties.maxFollowing) throw ApiErrors.followLimitReached(properties.maxFollowing)
+				follows.follow(followerId, followedId)
+			}
 		} catch (e: DataIntegrityViolationException) {
 			// A pessoa foi apagada entre a verificação e a inserção (chave estrangeira).
 			throw ApiErrors.notFound()

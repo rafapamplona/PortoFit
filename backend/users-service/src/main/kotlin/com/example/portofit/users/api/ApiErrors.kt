@@ -53,6 +53,14 @@ object ApiErrors {
 		HttpStatus.NOT_FOUND, "NOT_FOUND", "Não encontrado", "Não existe nenhum utilizador com este identificador.",
 	)
 
+	fun followLimitReached(max: Int) = ApiException(
+		HttpStatus.CONFLICT, "FOLLOW_LIMIT_REACHED", "Limite atingido",
+		"Já segues $max pessoas, o máximo permitido. Deixa de seguir alguém para seguir outra pessoa.",
+	)
+
+	/** Chave interna em falta ou errada (docs/users-api.md §3.11). */
+	fun internalForbidden() = ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Acesso negado", "Não tens permissão para este pedido.")
+
 	fun catalogUnavailable() = ApiException(
 		HttpStatus.SERVICE_UNAVAILABLE, "CATALOG_UNAVAILABLE", "Serviço indisponível",
 		"Não foi possível validar as modalidades agora. Os interesses não foram alterados; tenta novamente.",

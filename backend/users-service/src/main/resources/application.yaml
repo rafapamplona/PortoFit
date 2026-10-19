@@ -56,6 +56,12 @@ portofit:
     login-attempts-per-origin: 30
     register-per-origin: 10
     refresh-per-origin: 60
+  follows:
+    # Limite de produto: o contexto do feed é sempre a lista completa (docs/users-api.md §3.9).
+    max-following: 500
+  internal:
+    # Chave do experiences-service para /api/v1/internal (docs/users-api.md §3.11), só do .env; vazia = recusa sempre.
+    feed-context-key: ${USERS_INTERNAL_KEY:}
   catalog:
     base-url: ${CATALOG_BASE_URL:http://localhost:8081}
     timeout: 2s
