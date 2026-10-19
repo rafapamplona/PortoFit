@@ -4,6 +4,7 @@ import com.example.portofit.users.api.ApiErrors
 import com.example.portofit.users.api.FieldError
 import com.example.portofit.users.api.PageResponse
 import com.example.portofit.users.catalog.CatalogClient
+import com.fasterxml.jackson.annotation.JsonInclude
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
@@ -27,15 +28,25 @@ data class PrivateProfile(
 	val email: String,
 	val description: String?,
 	val interests: List<String>,
+	val followersCount: Long,
+	val followingCount: Long,
 	val createdAt: Instant,
 )
 
-/** Perfil visível a todos: sem email, sem data de registo. */
+/**
+ * Perfil visível a todos: sem email, sem data de registo.
+ * `followedByMe` só existe quando quem pede tem sessão e é **outra** pessoa; para visitantes e para o
+ * próprio é omitido (não é "false": a relação simplesmente não foi consultada).
+ */
 data class PublicProfile(
 	val userId: UUID,
 	val username: String,
 	val description: String?,
 	val interests: List<String>,
+	val followersCount: Long,
+	val followingCount: Long,
+	@get:JsonInclude(JsonInclude.Include.NON_NULL)
+	val followedByMe: Boolean?,
 )
 
 data class UserSummary(
@@ -51,16 +62,24 @@ class ProfileService(
 	private val users: UserRepository,
 	private val catalog: CatalogClient,
 	private val transactions: TransactionTemplate,
+	private val follows: FollowRepository,
 ) {
 
 	fun privateProfile(id: UUID): PrivateProfile {
 		val user = users.findById(id) ?: throw ApiErrors.notFound()
-		return PrivateProfile(user.id, user.username, user.email, user.description, users.interests(id), user.createdAt)
+		val counts = follows.counts(id)
+		return PrivateProfile(
+			user.id, user.username, user.email, user.description, users.interests(id),
+			counts.followers, counts.following, user.createdAt,
+		)
 	}
 
-	fun publicProfile(id: UUID): PublicProfile {
+	/** [viewerId] = utilizador com sessão que pede o perfil (null para visitantes). */
+	fun publicProfile(id: UUID, viewerId: UUID?): PublicProfile {
 		val user = users.findById(id) ?: throw ApiErrors.notFound()
-		return PublicProfile(user.id, user.username, user.description, users.interests(id))
+		val counts = follows.counts(id)
+		val followedByMe = viewerId?.takeIf { it != id }?.let { follows.isFollowing(it, id) }
+		return PublicProfile(user.id, user.username, user.description, users.interests(id), counts.followers, counts.following, followedByMe)
 	}
 
 	/** Só `description` é editável; qualquer outro campo é recusado. */
@@ -98,14 +117,11 @@ class ProfileService(
 	}
 
 	fun search(q: String?, page: String?, size: String?): PageResponse<UserSummary> {
-		val errors = mutableListOf<FieldError>()
 		val query = q?.trim()?.lowercase(java.util.Locale.ROOT)
-		if (query == null || query.length !in 2..50) errors += FieldError("q", "Indica o texto a pesquisar (2 a 50 caracteres).")
-		val pageValue = page?.trim()?.takeIf { it.isNotEmpty() }?.let { it.toIntOrNull() ?: -1 } ?: 0
-		if (pageValue < 0) errors += FieldError("page", "A página deve ser um número inteiro maior ou igual a 0.")
-		val sizeValue = size?.trim()?.takeIf { it.isNotEmpty() }?.let { it.toIntOrNull() ?: -1 } ?: PageResponse.DEFAULT_SIZE
-		if (sizeValue !in 1..PageResponse.MAX_SIZE) errors += FieldError("size", "O tamanho da página deve estar entre 1 e 50.")
-		if (errors.isNotEmpty()) throw ApiErrors.validation(errors)
+		if (query == null || query.length !in 2..50) {
+			throw ApiErrors.validation("q", "Indica o texto a pesquisar (2 a 50 caracteres).")
+		}
+		val (pageValue, sizeValue) = PageResponse.parse(page, size)
 
 		val (rows, total) = users.search(query!!, pageValue, sizeValue)
 		return PageResponse.of(rows.map { UserSummary(it.id, it.username, it.description) }, pageValue, sizeValue, total)
@@ -140,12 +156,10 @@ class UsersController(private val profiles: ProfileService) {
 		@RequestParam("size", required = false) size: String?,
 	): PageResponse<UserSummary> = profiles.search(q, page, size)
 
+	/** Público; com um access token válido (de outra pessoa) acrescenta `followedByMe`. */
 	@GetMapping("/{userId}")
-	fun profile(@PathVariable("userId") userId: String): ResponseEntity<PublicProfile> {
-		val id = runCatching { UUID.fromString(userId) }.getOrNull()?.takeIf { it.toString().equals(userId, ignoreCase = true) }
-			?: throw ApiErrors.validation("userId", "Identificador de utilizador inválido.")
-		return ResponseEntity.ok(profiles.publicProfile(id))
-	}
+	fun profile(@PathVariable("userId") userId: String, @AuthenticationPrincipal jwt: Jwt?): ResponseEntity<PublicProfile> =
+		ResponseEntity.ok(profiles.publicProfile(parseUserId(userId), jwt?.userId()))
 }
 
 fun Jwt.userId(): UUID = UUID.fromString(subject)

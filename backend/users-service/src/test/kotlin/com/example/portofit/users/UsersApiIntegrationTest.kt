@@ -28,6 +28,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
@@ -332,6 +333,102 @@ class UsersApiIntegrationTest {
 			jsonPath("$.keys[0].d") { doesNotExist() }
 			jsonPath("$.keys[0].p") { doesNotExist() }
 		}
+	}
+
+	// --- Seguir ---
+
+	@Test
+	fun `seguir exige sessao e nao permite seguir-se a si proprio`() {
+		val a = newSession()
+		val b = newSession()
+		mvc.put("/api/v1/users/${b.userId}/follow").andExpect {
+			status { isUnauthorized() }
+			jsonPath("$.code") { value("AUTHENTICATION_REQUIRED") }
+		}
+		mvc.delete("/api/v1/users/${b.userId}/follow").andExpect { status { isUnauthorized() } }
+		mvc.put("/api/v1/users/${a.userId}/follow") { bearer(a.access) }.andExpect {
+			status { isBadRequest() }
+			jsonPath("$.code") { value("CANNOT_FOLLOW_SELF") }
+		}
+		mvc.put("/api/v1/users/${UUID.randomUUID()}/follow") { bearer(a.access) }.andExpect { status { isNotFound() } }
+		mvc.delete("/api/v1/users/${UUID.randomUUID()}/follow") { bearer(a.access) }.andExpect { status { isNotFound() } }
+		mvc.put("/api/v1/users/nao-e-uuid/follow") { bearer(a.access) }.andExpect { status { isBadRequest() } }
+	}
+
+	@Test
+	fun `seguir e deixar de seguir sao idempotentes e atualizam contagens`() {
+		val a = newSession()
+		val b = newSession()
+		repeat(2) { mvc.put("/api/v1/users/${b.userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } } }
+		mvc.get("/api/v1/users/${b.userId}").andExpect {
+			jsonPath("$.followersCount") { value(1) }
+			jsonPath("$.followingCount") { value(0) }
+		}
+		mvc.get("/api/v1/me") { bearer(a.access) }.andExpect {
+			jsonPath("$.followingCount") { value(1) }
+			jsonPath("$.followersCount") { value(0) }
+		}
+		repeat(2) { mvc.delete("/api/v1/users/${b.userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } } }
+		mvc.get("/api/v1/users/${b.userId}").andExpect { jsonPath("$.followersCount") { value(0) } }
+	}
+
+	@Test
+	fun `pedidos simultaneos para seguir criam uma unica relacao`() {
+		val a = newSession()
+		val b = newSession()
+		val statuses = concurrently(8) {
+			HttpClient.newHttpClient().send(
+				HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port/api/v1/users/${b.userId}/follow"))
+					.header("Authorization", "Bearer ${a.access}").PUT(HttpRequest.BodyPublishers.noBody()).build(),
+				HttpResponse.BodyHandlers.discarding(),
+			).statusCode()
+		}
+		assertTrue(statuses.all { it == 204 }, "estados: $statuses")
+		assertEquals(1L, jdbc.sql("SELECT count(*) FROM follow WHERE follower_id = :a AND followed_id = :b")
+			.param("a", a.userId).param("b", b.userId).query(Long::class.javaObjectType).single())
+	}
+
+	@Test
+	fun `seguido por mim so aparece com sessao de outra pessoa`() {
+		val a = newSession()
+		val b = newSession()
+		// Visitante: o campo não existe (a relação não foi consultada).
+		mvc.get("/api/v1/users/${b.userId}").andExpect { jsonPath("$.followedByMe") { doesNotExist() } }
+		mvc.get("/api/v1/users/${b.userId}") { bearer(a.access) }.andExpect { jsonPath("$.followedByMe") { value(false) } }
+		mvc.put("/api/v1/users/${b.userId}/follow") { bearer(a.access) }
+		mvc.get("/api/v1/users/${b.userId}") { bearer(a.access) }.andExpect { jsonPath("$.followedByMe") { value(true) } }
+		// O próprio perfil: omitido.
+		mvc.get("/api/v1/users/${b.userId}") { bearer(b.access) }.andExpect { jsonPath("$.followedByMe") { doesNotExist() } }
+		// Token inválido num pedido público não é tratado como visitante.
+		mvc.get("/api/v1/users/${b.userId}") { bearer("lixo") }.andExpect { status { isUnauthorized() } }
+	}
+
+	@Test
+	fun `listas de seguidores e seguidos paginadas, ordenadas e so com dados publicos`() {
+		val target = newSession()
+		val fans = (1..3).map { newSession() }
+		fans.forEach { f -> mvc.put("/api/v1/users/${target.userId}/follow") { bearer(f.access) }.andExpect { status { isNoContent() } } }
+
+		val page0 = mvc.get("/api/v1/users/${target.userId}/followers?size=2").andExpect {
+			status { isOk() }
+			jsonPath("$.totalItems") { value(3) }
+			jsonPath("$.totalPages") { value(2) }
+			jsonPath("$.items[0].since") { exists() }
+			jsonPath("$.items[*].email") { doesNotExist() }
+		}.andReturn().response.contentAsString
+		assertFalse("@example.org" in page0)
+		val page1 = mvc.get("/api/v1/users/${target.userId}/followers?size=2&page=1").andReturn().json()
+		val ids = mapper.readTree(page0)["items"].let { n -> (0 until n.size()).map { n[it]["userId"].asString() } } +
+			page1["items"].let { n -> (0 until n.size()).map { n[it]["userId"].asString() } }
+		// Relação mais antiga primeiro: a ordem em que começaram a seguir.
+		assertEquals(fans.map { it.userId.toString() }, ids)
+
+		mvc.get("/api/v1/users/${fans[0].userId}/following").andExpect {
+			jsonPath("$.items[0].userId") { value(target.userId.toString()) }
+			jsonPath("$.items[0].username") { value(target.username) }
+		}
+		mvc.get("/api/v1/users/${UUID.randomUUID()}/followers").andExpect { status { isNotFound() } }
+		mvc.get("/api/v1/users/${target.userId}/following?size=51").andExpect { status { isBadRequest() } }
 	}
 
 	// --- Auxiliares ---
