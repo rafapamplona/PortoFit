@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Só a pasta de rascunhos de fotografias (cache privada da app) é partilhável pelo FileProvider. -->
+<paths>
+    <cache-path name="photo_drafts" path="photo-drafts/" />
+</paths>

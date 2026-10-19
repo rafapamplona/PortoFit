@@ -3,9 +3,9 @@ package com.example.portofit.data.repository
 import com.example.portofit.data.auth.SessionManager
 import com.example.portofit.data.auth.SessionState
 import com.example.portofit.data.model.Experience
+import com.example.portofit.data.model.ExperiencePhoto
 import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.data.model.Page
-import com.example.portofit.data.remote.EditExperienceDto
 import com.example.portofit.data.remote.ExperienceDto
 import com.example.portofit.data.remote.ExperiencesApi
 import com.example.portofit.data.remote.ProblemDto
@@ -17,13 +17,51 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import retrofit2.Response
+import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
-/** Conteúdo a publicar, já normalizado. */
-data class ExperienceDraft(val placeId: String, val offeringId: String, val text: String, val stars: Int)
+/** Conteúdo a publicar, já normalizado; [mediaId] é a fotografia já enviada (E2), ou null. */
+data class ExperienceDraft(val placeId: String, val offeringId: String, val text: String, val stars: Int, val mediaId: String? = null)
+
+/** Alteração da fotografia num PATCH (docs/experiences-api.md §12.1). */
+sealed interface PhotoChange {
+    /** Campo `mediaId` ausente: a fotografia atual mantém-se. */
+    data object Keep : PhotoChange
+
+    /** `"mediaId": null`: remove a fotografia. */
+    data object Remove : PhotoChange
+
+    /** `"mediaId": "<id>"`: associa ou substitui (fotografia já enviada). */
+    data class Replace(val mediaId: String) : PhotoChange
+}
+
+/** Corpo do PATCH: só os campos a alterar; nunca envia `mediaId: null` por omissão. */
+fun editBody(text: String?, stars: Int?, photo: PhotoChange): JsonObject = buildJsonObject {
+    text?.let { put("text", JsonPrimitive(it)) }
+    stars?.let { put("stars", JsonPrimitive(it)) }
+    when (photo) {
+        PhotoChange.Keep -> Unit
+        PhotoChange.Remove -> put("mediaId", JsonNull)
+        is PhotoChange.Replace -> put("mediaId", JsonPrimitive(photo.mediaId))
+    }
+}
+
+enum class UploadError { NETWORK, SERVER, TOO_LARGE, INVALID_IMAGE, TOO_MANY_PENDING, SESSION_ENDED, SESSION_UNVERIFIED, NOT_CONFIGURED, UNEXPECTED }
+
+sealed interface UploadOutcome {
+    data class Uploaded(val mediaId: String, val width: Int, val height: Int) : UploadOutcome
+    data class Failed(val error: UploadError, val retryAfterSeconds: Long? = null) : UploadOutcome
+}
 
 /** Por que motivo uma publicação **não** foi feita (nada ficou gravado; docs/experiences-api.md §5). */
 enum class PublishRejection {
@@ -32,6 +70,9 @@ enum class PublishRejection {
     OFFERING_MISMATCH,
     OFFERING_RETIRED,
     CATALOG_UNAVAILABLE,
+
+    /** A fotografia enviada já não pode ser usada (expirou ou já foi usada): é preciso enviá-la de novo. */
+    MEDIA_NOT_USABLE,
     TOO_MANY,
     SESSION_ENDED,
     SESSION_UNVERIFIED,
@@ -58,7 +99,7 @@ sealed interface PublishOutcome {
     data object PublishedThenDeleted : PublishOutcome
 }
 
-enum class MutationError { NETWORK, SERVER, SESSION_ENDED, SESSION_UNVERIFIED, FORBIDDEN, NOT_FOUND, VALIDATION, NOT_CONFIGURED, UNEXPECTED }
+enum class MutationError { NETWORK, SERVER, SESSION_ENDED, SESSION_UNVERIFIED, FORBIDDEN, NOT_FOUND, VALIDATION, MEDIA_NOT_USABLE, NOT_CONFIGURED, UNEXPECTED }
 
 sealed interface MutationResult<out T> {
     data class Success<T>(val value: T) : MutationResult<T>
@@ -74,8 +115,11 @@ interface ExperiencesRepository {
     /** [idempotencyKey] identifica a tentativa lógica: repetir a mesma tentativa usa a mesma chave. */
     suspend fun publish(idempotencyKey: String, draft: ExperienceDraft): PublishOutcome
 
-    /** null = não alterar. A atividade não é editável. */
-    suspend fun edit(experienceId: String, text: String?, stars: Int?): MutationResult<Experience>
+    /** null = não alterar. A atividade não é editável. [photo] segue a semântica do PATCH (§12.1). */
+    suspend fun edit(experienceId: String, text: String?, stars: Int?, photo: PhotoChange = PhotoChange.Keep): MutationResult<Experience>
+
+    /** Envia a fotografia preparada (JPEG da app); fica pendente até ser associada. */
+    suspend fun uploadPhoto(file: File): UploadOutcome
 
     suspend fun delete(experienceId: String): MutationResult<Unit>
 }
@@ -96,7 +140,7 @@ class NetworkExperiencesRepository(
     override suspend fun get(experienceId: String) = apiCall { api.get(experienceId).toModel() }
 
     override suspend fun publish(idempotencyKey: String, draft: ExperienceDraft): PublishOutcome {
-        val body = PublishExperienceDto(draft.placeId, draft.offeringId, draft.text, draft.stars)
+        val body = PublishExperienceDto(draft.placeId, draft.offeringId, draft.text, draft.stars, draft.mediaId)
         val response = try {
             authorized { api.publish(it, idempotencyKey, body) } ?: return PublishOutcome.Rejected(sessionRejection())
         } catch (e: CancellationException) {
@@ -120,6 +164,7 @@ class NetworkExperiencesRepository(
             problem?.code == "OFFERING_PLACE_MISMATCH" -> PublishOutcome.Rejected(PublishRejection.OFFERING_MISMATCH)
             problem?.code == "OFFERING_RETIRED" -> PublishOutcome.Rejected(PublishRejection.OFFERING_RETIRED)
             problem?.code == "CATALOG_UNAVAILABLE" -> PublishOutcome.Rejected(PublishRejection.CATALOG_UNAVAILABLE)
+            problem?.code == "MEDIA_NOT_USABLE" -> PublishOutcome.Rejected(PublishRejection.MEDIA_NOT_USABLE)
             response.code() == 400 || response.code() == 413 -> PublishOutcome.Rejected(PublishRejection.VALIDATION)
             // Outros 5xx: o servidor pode ter gravado antes de falhar; tratar como resultado desconhecido.
             response.code() in 500..599 -> PublishOutcome.Unconfirmed
@@ -127,8 +172,36 @@ class NetworkExperiencesRepository(
         }
     }
 
-    override suspend fun edit(experienceId: String, text: String?, stars: Int?): MutationResult<Experience> =
-        mutation({ api.edit(it, experienceId, EditExperienceDto(text, stars)) }) { it.body()!!.toModel() }
+    override suspend fun edit(experienceId: String, text: String?, stars: Int?, photo: PhotoChange): MutationResult<Experience> =
+        mutation({ api.edit(it, experienceId, editBody(text, stars, photo)) }) { it.body()!!.toModel() }
+
+    override suspend fun uploadPhoto(file: File): UploadOutcome {
+        // O nome e o tipo enviados são informativos: o servidor decide pelo conteúdo.
+        val part = MultipartBody.Part.createFormData("file", "foto.jpg", file.asRequestBody("image/jpeg".toMediaType()))
+        val response = try {
+            authorized { api.uploadPhoto(it, part) }
+                ?: return UploadOutcome.Failed(if (session.state.value is SessionState.SignedOut) UploadError.SESSION_ENDED else UploadError.SESSION_UNVERIFIED)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            return UploadOutcome.Failed(UploadError.NETWORK)
+        }
+        if (response.isSuccessful) {
+            val body = response.body() ?: return UploadOutcome.Failed(UploadError.UNEXPECTED)
+            return UploadOutcome.Uploaded(body.mediaId, body.width, body.height)
+        }
+        return UploadOutcome.Failed(
+            when (response.code()) {
+                401 -> UploadError.SESSION_ENDED
+                400 -> UploadError.INVALID_IMAGE
+                413 -> UploadError.TOO_LARGE
+                429 -> UploadError.TOO_MANY_PENDING
+                in 500..599 -> UploadError.SERVER
+                else -> UploadError.UNEXPECTED
+            },
+            retryAfterSeconds = response.headers()["Retry-After"]?.toLongOrNull()?.takeIf { response.code() == 429 },
+        )
+    }
 
     override suspend fun delete(experienceId: String): MutationResult<Unit> = mutation({ api.delete(it, experienceId) }) { }
 
@@ -137,6 +210,8 @@ class NetworkExperiencesRepository(
             val response = authorized(call) ?: return MutationResult.Failure(mutationSessionError())
             if (response.isSuccessful) {
                 MutationResult.Success(onSuccess(response))
+            } else if (response.code() == 400 && problem(response)?.code == "MEDIA_NOT_USABLE") {
+                MutationResult.Failure(MutationError.MEDIA_NOT_USABLE)
             } else {
                 MutationResult.Failure(
                     when (response.code()) {
@@ -191,6 +266,7 @@ fun ExperienceDto.toModel(): Experience = try {
         stars = stars,
         createdAt = Instant.parse(createdAt),
         editedAt = editedAt?.let(Instant::parse),
+        photo = photo?.let { ExperiencePhoto(it.mediaId, it.url, it.width, it.height) },
     )
 } catch (e: DateTimeParseException) {
     throw SerializationException("Data inválida")
@@ -201,7 +277,8 @@ class UnconfiguredExperiencesRepository : ExperiencesRepository {
     override suspend fun list(placeId: String?, authorId: String?, sort: ExperienceSort, page: Int, pageSize: Int) = failure
     override suspend fun get(experienceId: String) = failure
     override suspend fun publish(idempotencyKey: String, draft: ExperienceDraft) = PublishOutcome.Rejected(PublishRejection.NOT_CONFIGURED)
-    override suspend fun edit(experienceId: String, text: String?, stars: Int?) = MutationResult.Failure(MutationError.NOT_CONFIGURED)
+    override suspend fun edit(experienceId: String, text: String?, stars: Int?, photo: PhotoChange) = MutationResult.Failure(MutationError.NOT_CONFIGURED)
+    override suspend fun uploadPhoto(file: File) = UploadOutcome.Failed(UploadError.NOT_CONFIGURED)
     override suspend fun delete(experienceId: String) = MutationResult.Failure(MutationError.NOT_CONFIGURED)
 }
 

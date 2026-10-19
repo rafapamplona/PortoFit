@@ -245,6 +245,38 @@
     <string name="experience_error_session_ended">A tua sessão terminou. Entra novamente para alterar a experiência.</string>
     <string name="experience_error_forbidden">Só o autor pode alterar esta experiência.</string>
 
+    <!-- Fotografias (E2) -->
+    <string name="photo_section">Fotografia (opcional)</string>
+    <string name="photo_none">Sem fotografia.</string>
+    <string name="photo_pick">Escolher da galeria</string>
+    <string name="photo_take">Tirar fotografia</string>
+    <string name="photo_remove">Remover fotografia</string>
+    <string name="photo_discard_new">Descartar a nova</string>
+    <string name="photo_keep_current">Manter a atual</string>
+    <string name="photo_will_be_removed">A fotografia atual vai ser removida ao guardar.</string>
+    <string name="photo_preparing">A preparar a fotografia…</string>
+    <string name="photo_description">Fotografia da experiência</string>
+    <string name="photo_preview_description">Pré-visualização da fotografia escolhida</string>
+    <string name="photo_unavailable">Fotografia indisponível</string>
+    <string name="photo_error_cancelled">Nenhuma fotografia foi tirada.</string>
+    <string name="photo_error_camera">Não foi possível abrir a câmara. Podes escolher uma fotografia da galeria ou publicar sem fotografia.</string>
+    <string name="photo_error_unreadable">Não foi possível ler esta imagem. Escolhe outra.</string>
+    <string name="photo_error_too_small">A fotografia tem de ter pelo menos 200 píxeis em cada lado.</string>
+    <string name="photo_error_storage">Não foi possível guardar a fotografia na app. Liberta espaço e tenta novamente.</string>
+    <string name="photo_error_missing">A fotografia escolhida já não está disponível. Escolhe-a de novo ou remove-a; o texto e as estrelas mantêm-se.</string>
+    <string name="publish_uploading_photo">A enviar a fotografia…</string>
+    <string name="publish_upload_failed">A fotografia não foi enviada e a experiência não foi publicada.</string>
+    <string name="publish_without_photo">Publicar sem fotografia</string>
+    <string name="publish_photo_already_sent">A fotografia desta tentativa já foi enviada e não volta a ser enviada.</string>
+    <string name="publish_error_media_not_usable">A fotografia enviada já não pode ser usada. Toca em «Publicar» para a enviar de novo.</string>
+    <string name="edit_upload_failed">A fotografia nova não foi enviada e nada foi alterado.</string>
+    <string name="edit_error_media_not_usable">A fotografia nova já não pode ser usada. Toca em «Guardar» para a enviar de novo.</string>
+    <string name="upload_error_network">Sem ligação ao serviço de experiências. Tenta novamente.</string>
+    <string name="upload_error_server">O serviço de experiências está temporariamente indisponível. Tenta novamente daqui a pouco.</string>
+    <string name="upload_error_too_large">A fotografia é demasiado grande.</string>
+    <string name="upload_error_invalid">O servidor não aceitou esta imagem. Escolhe outra.</string>
+    <string name="upload_error_too_many">Tens demasiadas fotografias enviadas por usar. Tenta novamente mais tarde.</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

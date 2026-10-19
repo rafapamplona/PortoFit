@@ -4,6 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import com.example.portofit.data.auth.SessionState
 import com.example.portofit.data.auth.SessionStatus
 import com.example.portofit.data.model.CatalogStatus
+import com.example.portofit.data.model.ExperiencePhoto
+import com.example.portofit.data.repository.PhotoChange
+import com.example.portofit.data.repository.UploadError
+import com.example.portofit.data.repository.UploadOutcome
 import com.example.portofit.data.model.OfferingSummary
 import com.example.portofit.data.repository.DataError
 import com.example.portofit.data.repository.DataResult
@@ -13,6 +17,7 @@ import com.example.portofit.data.repository.MutationError
 import com.example.portofit.data.repository.MutationResult
 import com.example.portofit.testing.FakeCatalogRepository
 import com.example.portofit.testing.FakeExperiencesRepository
+import com.example.portofit.testing.FakePhotoDrafts
 import com.example.portofit.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +43,9 @@ class ExperienceDetailViewModelTest {
 
     private fun saved() = SavedStateHandle(mapOf(ExperienceDetailViewModel.EXPERIENCE_ID_ARG to "e1"))
 
-    private fun viewModel(state: SavedStateHandle = saved()) = ExperienceDetailViewModel(repository, catalog, changes, session, state)
+    private val drafts = FakePhotoDrafts()
+
+    private fun viewModel(state: SavedStateHandle = saved()) = ExperienceDetailViewModel(repository, catalog, changes, session, state, drafts)
 
     @Test
     fun `detalhe publico e estado da atividade`() {
@@ -160,5 +167,89 @@ class ExperienceDetailViewModelTest {
         vm.confirmDelete()
         assertFalse(vm.uiState.value.deleted)
         assertEquals(MutationError.FORBIDDEN, vm.uiState.value.actionError)
+    }
+
+    // --- Fotografia na edição (E2) ---
+
+    private val withPhoto = FakeExperiencesRepository.experience("e1").copy(photo = ExperiencePhoto("m-old", "/api/v1/media/m-old", 1600, 1200))
+
+    @Test
+    fun `substituir envia a nova fotografia e so depois faz o PATCH com o novo id`() {
+        repository.onGet = { DataResult.Success(withPhoto) }
+        val vm = viewModel()
+        vm.startEdit()
+        vm.onPicked("content://media/picker/0/7")
+        vm.saveEdit()
+        assertEquals(1, repository.uploadCalls.size)
+        assertEquals(listOf<PhotoChange>(PhotoChange.Replace("media-1")), repository.editPhotoChanges)
+        assertNull(vm.uiState.value.edit)
+        assertTrue(drafts.files().isEmpty())
+    }
+
+    @Test
+    fun `remover envia null e manter nao envia o campo`() {
+        repository.onGet = { DataResult.Success(withPhoto) }
+        repository.onEdit = { _, _, stars -> MutationResult.Success(withPhoto.copy(stars = stars ?: withPhoto.stars)) }
+        val vm = viewModel()
+        vm.startEdit()
+        vm.onEditStars(2)
+        vm.saveEdit()
+        assertEquals(PhotoChange.Keep, repository.editPhotoChanges.last())
+
+        vm.startEdit()
+        vm.removePhoto()
+        assertTrue(vm.uiState.value.edit!!.removePhoto)
+        vm.keepCurrentPhoto()
+        vm.saveEdit()
+        assertEquals("sem alterações não há pedido", 1, repository.editCalls.size)
+
+        vm.startEdit()
+        vm.removePhoto()
+        vm.saveEdit()
+        assertEquals(PhotoChange.Remove, repository.editPhotoChanges.last())
+        assertTrue(repository.uploadCalls.isEmpty())
+    }
+
+    @Test
+    fun `falha do envio da fotografia nao faz PATCH e mantem a edicao`() {
+        repository.onUpload = { UploadOutcome.Failed(UploadError.TOO_MANY_PENDING, 60) }
+        val vm = viewModel()
+        vm.startEdit()
+        vm.onEditText("Texto revisto")
+        vm.onPicked("content://media/picker/0/7")
+        vm.saveEdit()
+        assertTrue(repository.editCalls.isEmpty())
+        assertEquals(UploadError.TOO_MANY_PENDING, vm.uiState.value.uploadError)
+        assertEquals("Texto revisto", vm.uiState.value.edit?.text)
+        assertTrue(vm.uiState.value.editPhoto is PhotoDraftState.Ready)
+    }
+
+    @Test
+    fun `PATCH falhado reaproveita a fotografia enviada, salvo MEDIA_NOT_USABLE`() {
+        repository.onEdit = { _, _, _ -> MutationResult.Failure(MutationError.NETWORK) }
+        val vm = viewModel()
+        vm.startEdit()
+        vm.onPicked("content://media/picker/0/7")
+        vm.saveEdit()
+        vm.saveEdit()
+        assertEquals(1, repository.uploadCalls.size)
+        assertEquals(listOf<PhotoChange>(PhotoChange.Replace("media-1"), PhotoChange.Replace("media-1")), repository.editPhotoChanges)
+
+        repository.onEdit = { _, _, _ -> MutationResult.Failure(MutationError.MEDIA_NOT_USABLE) }
+        vm.saveEdit()
+        vm.saveEdit()
+        assertEquals(2, repository.uploadCalls.size)
+    }
+
+    @Test
+    fun `fotografia nova da edicao sobrevive a recriacao e cancelar apaga o ficheiro temporario`() {
+        val state = saved()
+        viewModel(state).apply { startEdit(); onPicked("content://media/picker/0/7") }
+        val restored = viewModel(state)
+        val photo = restored.uiState.value.editPhoto as PhotoDraftState.Ready
+        assertTrue(drafts.exists(photo.name))
+        restored.cancelEdit()
+        assertFalse(drafts.exists(photo.name))
+        assertNull(restored.uiState.value.edit)
     }
 }

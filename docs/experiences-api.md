@@ -38,7 +38,7 @@ O contrato é completo, mas a implementação divide-se em quatro etapas do serv
 | Etapa do serviço | Conteúdo | Etapa do projeto ([arquitetura.md §5](arquitetura.md#5-etapas-de-implementação)) |
 |---|---|---|
 | **E1** | Experiências de texto e estrelas; consulta e pesquisa públicas; edição e eliminação pelo autor; avaliações agregadas ligadas ao catálogo | 6 |
-| **E2** | Fotografia opcional: galeria (Photo Picker) e câmara dentro da app (CameraX) | 7 |
+| **E2** | Fotografia opcional: galeria (Photo Picker) e câmara do sistema chamada pela app | 7 |
 | **E3** | Comentários, gostos, visualizações e ordenações por gostos e interações | 8 |
 | **E4** | Feeds (popular e pessoal) e dashboard do autor | 9 |
 
@@ -711,8 +711,8 @@ A limpeza só considera ficheiros regulares com nomes gerados pelo serviço dent
 
 ### 12.5 Câmara dentro da app (requisito R4)
 
-- O ecrã de publicação tem sempre duas opções: **"Tirar fotografia"** (pré-visualização e captura com CameraX, dentro da app) e **"Escolher da galeria"** (Photo Picker, sem permissão de armazenamento).
-- A permissão `CAMERA` só é pedida quando o utilizador toca em "Tirar fotografia". Se recusar, a galeria e a publicação sem fotografia continuam disponíveis.
+- O ecrã de publicação (e o de edição) tem sempre duas opções: **"Tirar fotografia"** e **"Escolher da galeria"** (Photo Picker, sem permissão de armazenamento).
+- "Tirar fotografia": Captura pela **aplicação de câmara do sistema**, chamada a partir do ecrã de publicação (Activity Result API `TakePicture`, com uma URI do FileProvider: fotografia em resolução completa, não a miniatura). Não exige a permissão `CAMERA` nem CameraX. Sem aplicação de câmara, ou se for cancelada, o texto e as estrelas mantêm-se, e a galeria e a publicação sem fotografia continuam disponíveis.
 - A fotografia capturada segue o mesmo caminho da galeria: reduzida na app, enviada com `POST /media` e associada na publicação. Para o servidor, uma fotografia da câmara e uma da galeria são iguais.
 - A demonstração inclui obrigatoriamente publicar uma fotografia tirada com a câmara dentro da app (§17.2).
 
@@ -847,7 +847,7 @@ E2–E4 acrescentam os seus testes no início de cada etapa. Em E2 incluem: imag
 | Etapa | Backend | App | Pronto quando |
 |---|---|---|---|
 | **E1** (6) | `GET /offerings/{id}` no catálogo; experiences-service com experiências, idempotência, validação no catálogo e avaliações; catálogo passa a pedir avaliações (sai o `UnavailableRatingProvider`) | Experiências no local (por atividade, ordenações `recent`/`stars`) e no perfil público ("Publicações"); publicar (com login), editar e eliminar as próprias; avaliações reais no catálogo | Testes do §17.1 e demonstração E1 |
-| **E2** (7) | `POST /media`, `GET /media/{id}`, `mediaId` em publicar/editar, limpeza periódica, volume | Galeria (Photo Picker) e câmara (CameraX) no ecrã de publicação | Demonstração E2, incluindo a câmara |
+| **E2** (7) | `POST /media`, `GET /media/{id}`, `mediaId` em publicar/editar, limpeza periódica, volume | Galeria (Photo Picker) e câmara do sistema no ecrã de publicação e na edição | Demonstração E2, incluindo a câmara |
 | **E3** (8) | Comentários, gostos, visualizações, `sort=likes`/`interactions` | Detalhe com comentários e gosto; seletor com as quatro ordenações | Demonstração E3 |
 | **E4** (9) | Feeds e `/me/stats` | Feed na abertura da app; dashboard | Demonstração E4 |
 
@@ -906,7 +906,9 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 - volume `experiences-media` montado em `/data/media`;
 - limpeza periódica (§12).
 
-**Ainda não implementado:** fotografias na app (galeria e câmara), E3–E4 (comentários, gostos, visualizações, feeds, dashboard).
+**E2 na app (etapa 7):** escolher, tirar, pré-visualizar e remover antes de publicar; fotografias nas listas e no detalhe; adicionar, substituir e remover ao editar ([app-android.md §15](app-android.md#15-fotografias-etapa-7-e2)).
+
+**Ainda não implementado:** E3–E4 (comentários, gostos, visualizações, feeds, dashboard).
 
 **Notas da implementação**
 

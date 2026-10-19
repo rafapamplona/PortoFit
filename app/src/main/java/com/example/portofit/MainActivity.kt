@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.portofit.ui.components.LocalPhotoUrls
+import com.example.portofit.ui.components.PhotoUrls
 import com.example.portofit.ui.navigation.PortoFitNavHost
 import com.example.portofit.ui.theme.PortoFitTheme
 
@@ -21,7 +24,10 @@ class MainActivity : ComponentActivity() {
         requestLocalNetworkAccessForDevelopment()
         setContent {
             PortoFitTheme {
-                PortoFitNavHost()
+                // Endereço das fotografias resolvido a partir da configuração (nunca fixo nos modelos).
+                CompositionLocalProvider(LocalPhotoUrls provides PhotoUrls((application as PortoFitApplication).container.experiencesBaseUrl)) {
+                    PortoFitNavHost()
+                }
             }
         }
     }

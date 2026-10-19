@@ -538,3 +538,108 @@ O fluxo foi verificado com os **mesmos pedidos que a app faz**, nos contentores,
 | Eliminar | desaparece das listas; a avaliação volta a "Sem avaliações" |
 
 Não verificado na interface (coberto pelos testes automáticos e pelos pedidos HTTP acima): resultado de publicação desconhecido e repetição, regresso do login sem publicar, estados retirados e secção de experiências com o serviço parado.
+
+## 15. Fotografias (etapa 7, E2)
+
+Contrato: [experiences-api.md §12](experiences-api.md#12-etapa-e2-fotografias). Fotografia opcional, no máximo uma por experiência. Sem comentários, gostos nem feeds.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `PhotoDrafts` / `AndroidPhotoDrafts` | `data/photo/` | Prepara a fotografia, fora da thread principal: lê as dimensões antes de descodificar e descodifica já reduzida (`ImageDecoder.setTargetSize` no Android 9+; `BitmapFactory` com `inSampleSize` no 8). Aplica a orientação EXIF e grava um JPEG (qualidade 85, lado maior até 1600 px, cada lado ≥ 200 px) em `cache/photo-drafts/`. Cria o ficheiro de destino da câmara e a URI do FileProvider |
+| `PhotoSizing` | `data/photo/PhotoDrafts.kt` | Regras puras: tamanho final segundo os limites do servidor, subamostragem e nomes de ficheiros válidos |
+| `PhotoDraftController` | `ui/feature/experience/` | Estado da fotografia do rascunho (nenhuma, a preparar, pronta, em falta) partilhado pela publicação e pela edição; captura em curso; limpeza dos ficheiros |
+| `ExperiencesRepository` | `data/repository/` | `uploadPhoto` (multipart, campo `file`, com token e renovação após `401`); `mediaId` na publicação; `editBody` com `PhotoChange` (Keep, Remove, Replace) |
+| `PhotoDraftSection`, `ExperiencePhotoView` | `ui/feature/experience/ExperiencePhotos.kt` | Photo Picker e `TakePicture`, pré-visualização, remover; fotografia nas listas e no detalhe (Coil, com espaço reservado e erro isolado) |
+| `PhotoUrls` | `ui/components/PhotoUrls.kt` | Resolve `/api/v1/media/{id}` com o URL configurado (`EXPERIENCES_BASE_URL`), fornecido por `CompositionLocal` na `MainActivity` |
+
+**Dependência nova:** Coil 3.3.0 (`coil-compose`, `coil-network-okhttp`), com o cliente OkHttp da app; não altera versões existentes (OkHttp continua 4.12.0, Kotlin 2.2.10). A câmara usa a aplicação do sistema e não acrescenta CameraX nem a permissão `CAMERA`.
+
+### Regras
+
+- **Escolher:** Photo Picker (`PickVisualMedia`, só imagens), sem acesso amplo à galeria. A imagem é logo preparada para a pasta privada da app, por isso a autorização temporária da URI escolhida deixa de ser precisa. São aceites os formatos que o aparelho descodifica (JPEG, PNG, WebP, HEIF…); o servidor recebe sempre JPEG.
+- **Tirar:** "Tirar fotografia" no formulário abre a aplicação de câmara do sistema (`TakePicture`) com uma URI `content://` do FileProvider. Só a pasta `cache/photo-drafts/` é partilhada, com permissão temporária. A fotografia é em resolução completa (não a miniatura) e é preparada como as da galeria, e a captura original é apagada.
+  - Cancelada → "Nenhuma fotografia foi tirada."
+  - Sem câmara → aviso, com a galeria e a publicação sem fotografia disponíveis.
+  - Em nenhum dos casos se perdem o texto, as estrelas ou a fotografia anterior.
+- **SavedStateHandle:** só nomes de ficheiros gerados pela app (o preparado, o de captura em curso), o `mediaId` já enviado e o rascunho a que pertence; nunca bitmaps, ficheiros nem URIs de terceiros.
+  - Uma captura em curso sobrevive à recriação do processo enquanto a câmara está aberta.
+  - Se o ficheiro preparado desaparecer (ex.: cache limpa), aparece "A fotografia escolhida já não está disponível…": o texto mantém-se e é possível escolher de novo ou remover.
+- **Publicar:** primeiro "A enviar a fotografia…" (`POST /media`), e só depois de sucesso o `mediaId` entra na publicação ("A publicar…"). Envios repetidos são ignorados e o conteúdo fica bloqueado durante o envio.
+  - **Falha do envio da fotografia:** "A fotografia não foi enviada e a experiência não foi publicada", com "Publicar sem fotografia"; nada é criado e o rascunho mantém-se.
+  - **Falha ao criar a experiência:** são as mensagens da E1.
+  - **Fotografia já enviada:** reaproveitada nas novas tentativas depois de uma recusa definitiva. É enviada de novo só se o servidor responder `MEDIA_NOT_USABLE`, se a fotografia mudar, ou depois de descartar uma tentativa.
+- **Resultado ambíguo:** a tentativa guarda a chave, o conteúdo **e o `mediaId`**. "Tentar novamente" repete exatamente o mesmo pedido, sem novo envio da fotografia, e a fotografia dessa tentativa não pode ser mudada nem removida. Para mudar, segue-se o descarte com confirmação já definido.
+- **Editar:** "Escolher da galeria", "Tirar fotografia", "Remover fotografia"/"Descartar a nova" e "Manter a atual". O PATCH segue o contrato:
+  - campo `mediaId` ausente: mantém (nunca se envia `null` por omissão);
+  - `null`: remove;
+  - novo id: substitui, depois de enviada a fotografia nova.
+
+  A falha do envio da fotografia nova não faz PATCH e mantém a edição. Um PATCH falhado reaproveita o `mediaId` já enviado (salvo `MEDIA_NOT_USABLE`).
+- **Mostrar:** as fotografias aparecem nas listas (corte 16:9) e no detalhe (proporção real), com espaço reservado enquanto carregam e "Fotografia indisponível" se falharem. O texto aparece sempre. O URL completo resolve-se com o endereço configurado; os modelos só têm o caminho relativo, e só caminhos `/api/v1/media/{uuid}` do mesmo serviço são aceites.
+- **Limpeza:** só ficheiros da app em `cache/photo-drafts/` (nunca fotografias da galeria):
+  - ao publicar ou guardar;
+  - ao sair do ecrã;
+  - ao trocar ou remover a fotografia;
+  - ao arrancar a app, os esquecidos há mais de 3 dias.
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest`: **168 testes, 0 falhas** (eram 140), executados de novo, sem cache, depois da última alteração. `assembleDebug` e `lintDebug` concluídos.
+
+Avisos novos do lint: `ExifInterface` da plataforma em vez do da AndroidX. Só é usado no Android 8, onde é suficiente, e trocá-lo acrescentaria uma dependência.
+
+- **`PublishExperienceViewModelTest` (+11):**
+  - fotografia enviada antes de publicar e `mediaId` só depois do sucesso, com os ficheiros apagados no fim;
+  - falha do envio sem publicar nem perder o rascunho, e "Publicar sem fotografia";
+  - envios repetidos ignorados durante o envio, com a fotografia bloqueada;
+  - resultado ambíguo: mesma chave, conteúdo e `mediaId`, sem novo envio, também depois da recriação do processo;
+  - reaproveitamento depois de uma recusa definitiva, e novo envio depois de `MEDIA_NOT_USABLE` ou de descartar;
+  - fotografia em falta depois da recriação (aviso, texto mantido, nova escolha) e antes de enviar;
+  - captura que sobrevive à recriação, cancelamento e câmara indisponível;
+  - falha a preparar que mantém a anterior;
+  - trocar de fotografia apaga a anterior e obriga a novo envio;
+  - sair do ecrã apaga os ficheiros temporários.
+- **`ExperienceDetailViewModelTest` (+5):**
+  - substituir: envio e depois PATCH com o novo id;
+  - remover → `null`, manter → campo ausente, sem alterações → sem pedido;
+  - falha do envio sem PATCH;
+  - PATCH falhado reaproveita o `mediaId` (salvo `MEDIA_NOT_USABLE`);
+  - fotografia nova restaurada depois da recriação, e cancelar apaga o ficheiro.
+- **`NetworkExperiencesRepositoryTest` (+6):**
+  - corpo do PATCH nos três casos;
+  - PATCH com `MEDIA_NOT_USABLE`;
+  - `mediaId` na publicação (e ausente sem fotografia);
+  - fotografia convertida com o caminho relativo;
+  - multipart com o campo `file`, token, `401` renovado e erros (`400`, `413`, `429` com `Retry-After`, `503`, rede);
+  - envio sem sessão não faz pedidos.
+- **`PhotoSizingTest` (4) e `PhotoUrlsTest` (2):** tamanho final, mínimos e panorâmicas, subamostragem, nomes aceites; resolução com o URL configurado e recusa de endereços absolutos, outros caminhos e falta de configuração.
+
+Não têm testes JVM (dependem do Android): a descodificação real (`ImageDecoder`/`BitmapFactory`), a orientação no aparelho, o FileProvider e os ecrãs.
+
+### Verificação (2026-10-19, pelo assistente)
+
+**Emulador não usado:** havia ~0,5 GB de memória livre e o `Pixel_9` precisa de 4 GB (diagnóstico do ambiente). Verificaram-se por HTTP, nos contentores, **os pedidos que a app faz**, com contas temporárias (apagadas no fim; `pamplona`, o registo de experiência já existente e os volumes preservados):
+
+| Verificação | Resultado |
+|---|---|
+| Envio multipart com nome `foto.jpg` e tipo `image/jpeg` (conteúdo PNG) | `201`; o servidor decide pelo conteúdo |
+| Publicar com `mediaId` | `201`, `photo.url` relativo |
+| URL resolvido com o endereço configurado + caminho | `200`, JPEG |
+| Envio de um JPEG preparado | `201` |
+| PATCH `{"stars":3}` (sem `mediaId`) | fotografia mantida |
+| PATCH `{"mediaId":"<novo>"}` | substituída; URL antigo `404` |
+| PATCH `{"mediaId":null}` | removida; texto intacto; URL `404` |
+| Eliminar | `204` |
+
+As duas primeiras execuções receberam `503 CATALOG_UNAVAILABLE` (`HttpTimeoutException`): o catálogo estava parado há 2 h e, com ~0,2 GB livres, a sua memória tinha ido para o disco. É o arranque a frio já documentado. A terceira, com o catálogo a responder em ~15 ms, passou. As fotografias pendentes dessas tentativas foram marcadas como eliminadas e a limpeza automática do serviço apagou os ficheiros e as linhas (volume vazio no fim).
+
+**Pendente:** verificar no emulador ou num aparelho:
+- galeria;
+- captura pela câmara, cancelamento e rotação com uma fotografia escolhida;
+- publicar, consultar, substituir e remover;
+- falha de envio na interface;
+- orientação de uma fotografia real tirada ao alto.
+
+A câmara do emulador é simulada (cena virtual ou webcam), o que chega para testar o percurso. A orientação EXIF real e a câmara de um fabricante concreto só se verificam num telemóvel.

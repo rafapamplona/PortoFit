@@ -120,7 +120,32 @@ fun PublishExperienceScreen(
                 Text(stringResource(R.string.publish_stars_missing), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
 
-            if (state.sending) LinearProgressIndicator(Modifier.fillMaxWidth())
+            // Fotografia opcional: bloqueada durante o envio e numa tentativa por confirmar.
+            PhotoDraftSection(
+                photo = state.photo,
+                error = state.photoError,
+                previewFile = viewModel.photos.previewFile(state.photo),
+                enabled = !state.contentLocked,
+                actions = PhotoActions(
+                    onPicked = viewModel::onPicked,
+                    onStartCapture = viewModel::startCapture,
+                    onCaptureResult = viewModel::onCaptureResult,
+                    onCaptureUnavailable = viewModel::onCaptureUnavailable,
+                    onRemove = viewModel::removePhoto,
+                    onDismissError = viewModel::dismissPhotoError,
+                ),
+            )
+            if (state.pendingAttempt && state.pendingHasPhoto) {
+                Text(stringResource(R.string.publish_photo_already_sent), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            if (state.sending) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(
+                    stringResource(if (state.sendPhase == SendPhase.UPLOADING_PHOTO) R.string.publish_uploading_photo else R.string.publish_sending),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
 
             if (state.pendingAttempt && !state.sending) {
                 Notice(stringResource(R.string.publish_unconfirmed), error = true)
@@ -128,6 +153,11 @@ fun PublishExperienceScreen(
             state.message?.let { message ->
                 when (message) {
                     is PublishMessage.Rejected -> Notice(rejectionText(message), error = true)
+                    is PublishMessage.UploadFailed -> {
+                        // A experiência não foi criada: só o envio da fotografia falhou.
+                        Notice(stringResource(R.string.publish_upload_failed) + " " + stringResource(uploadErrorMessage(message.error)), error = true)
+                        TextButton(onClick = viewModel::removePhoto) { Text(stringResource(R.string.publish_without_photo)) }
+                    }
                     is PublishMessage.AlreadyPublished -> {
                         Notice(stringResource(R.string.publish_already), error = false)
                         message.experienceId?.let { id -> OutlinedButton(onClick = { onOpenExperience(id) }) { Text(stringResource(R.string.publish_open_existing)) } }
@@ -178,6 +208,7 @@ private fun rejectionMessage(reason: PublishRejection): Int = when (reason) {
     PublishRejection.OFFERING_MISMATCH -> R.string.publish_error_mismatch
     PublishRejection.OFFERING_RETIRED -> R.string.publish_error_retired
     PublishRejection.CATALOG_UNAVAILABLE -> R.string.publish_error_catalog
+    PublishRejection.MEDIA_NOT_USABLE -> R.string.publish_error_media_not_usable
     PublishRejection.TOO_MANY -> R.string.publish_error_too_many
     PublishRejection.SESSION_ENDED -> R.string.publish_error_session_ended
     PublishRejection.SESSION_UNVERIFIED -> R.string.profile_error_session_unverified
@@ -297,6 +328,7 @@ fun ExperienceDetailScreen(
                     if (edit != null && state.isAuthor) {
                         EditForm(state, edit, viewModel)
                     } else {
+                        experience.photo?.let { ExperiencePhotoView(it) }
                         StarsText(experience.stars)
                         Text(experience.text, style = MaterialTheme.typography.bodyLarge)
                     }
@@ -339,7 +371,29 @@ private fun EditForm(state: ExperienceDetailUiState, edit: ExperienceEdit, viewM
                 )
             },
         )
-        StarsPicker(edit.stars, enabled = !state.saving, onSelect = viewModel::onEditStars)
+        StarsPicker(edit.stars, enabled = !state.saving && !state.uploadingPhoto, onSelect = viewModel::onEditStars)
+        val locked = state.saving || state.uploadingPhoto
+        PhotoDraftSection(
+            photo = state.editPhoto,
+            error = state.editPhotoError,
+            previewFile = viewModel.photos.previewFile(state.editPhoto),
+            enabled = !locked,
+            actions = PhotoActions(
+                onPicked = viewModel::onPicked,
+                onStartCapture = viewModel::startCapture,
+                onCaptureResult = viewModel::onCaptureResult,
+                onCaptureUnavailable = viewModel::onCaptureUnavailable,
+                onRemove = viewModel::removePhoto,
+                onDismissError = viewModel::dismissPhotoError,
+            ),
+            current = state.experience?.photo,
+            removingCurrent = edit.removePhoto,
+            onKeepCurrent = viewModel::keepCurrentPhoto,
+        )
+        if (state.uploadingPhoto) Text(stringResource(R.string.publish_uploading_photo), style = MaterialTheme.typography.bodySmall)
+        state.uploadError?.let {
+            Text(stringResource(R.string.edit_upload_failed) + " " + stringResource(uploadErrorMessage(it)), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = viewModel::saveEdit, enabled = !state.saving) { Text(stringResource(R.string.experience_save)) }
             TextButton(onClick = viewModel::cancelEdit, enabled = !state.saving) { Text(stringResource(R.string.experience_cancel)) }
@@ -356,6 +410,7 @@ private fun mutationErrorMessage(error: MutationError): Int = when (error) {
     MutationError.FORBIDDEN -> R.string.experience_error_forbidden
     MutationError.NOT_FOUND -> R.string.experience_not_found
     MutationError.VALIDATION -> R.string.publish_error_validation
+    MutationError.MEDIA_NOT_USABLE -> R.string.edit_error_media_not_usable
     MutationError.NOT_CONFIGURED -> R.string.experiences_not_configured
     MutationError.UNEXPECTED -> R.string.error_unexpected
 }

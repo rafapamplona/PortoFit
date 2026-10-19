@@ -7,6 +7,8 @@ import com.example.portofit.data.auth.KeystoreSecretCipher
 import com.example.portofit.data.auth.RetrofitAuthGateway
 import com.example.portofit.data.auth.SessionManager
 import com.example.portofit.data.auth.UnconfiguredAuthGateway
+import com.example.portofit.data.photo.AndroidPhotoDrafts
+import com.example.portofit.data.photo.PhotoDrafts
 import com.example.portofit.data.remote.CatalogApi
 import com.example.portofit.data.remote.ExperiencesApi
 import com.example.portofit.data.remote.PeopleApi
@@ -28,6 +30,7 @@ import com.example.portofit.data.repository.UnconfiguredProfileRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -39,7 +42,7 @@ import java.io.File
  * Injeção de dependências manual: cria uma única vez os objetos partilhados pela app.
  * Criado em PortoFitApplication; os ViewModels obtêm daqui os repositórios e a sessão.
  */
-class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: String, experiencesBaseUrl: String) {
+class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: String, val experiencesBaseUrl: String) {
 
     private val json = Json {
         // Campos novos acrescentados pelo backend não partem a app.
@@ -92,6 +95,18 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
 
     /** Avisos de publicação/edição/eliminação, para atualizar listas e avaliações noutros ecrãs. */
     val experienceChanges = ExperienceChanges()
+
+    /** Rascunhos de fotografias na pasta privada da app; os esquecidos há mais de 3 dias são apagados. */
+    val photoDrafts: PhotoDrafts = AndroidPhotoDrafts(context.applicationContext).also { drafts ->
+        appScope.launch(Dispatchers.IO) { drafts.deleteStale(STALE_DRAFT_MILLIS) }
+    }
+
+    /** Cliente das fotografias (Coil): o mesmo do experiences-service, que respeita a cache HTTP do servidor. */
+    val imageHttpClient: OkHttpClient get() = experiencesHttpClient
+
+    private companion object {
+        const val STALE_DRAFT_MILLIS = 3L * 24 * 60 * 60 * 1000
+    }
 
     private fun retrofit(baseUrl: String, client: OkHttpClient) = Retrofit.Builder()
         .baseUrl(baseUrl.trimEnd('/') + "/")

@@ -2,13 +2,22 @@ package com.example.portofit.ui.feature.experience
 
 import androidx.lifecycle.SavedStateHandle
 import com.example.portofit.data.auth.SessionState
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.portofit.data.model.ExperienceTextProblem
+import com.example.portofit.data.photo.PhotoError
+import com.example.portofit.data.photo.PrepareResult
+import com.example.portofit.data.repository.UploadError
+import com.example.portofit.data.repository.UploadOutcome
 import com.example.portofit.data.repository.ExperienceChange
 import com.example.portofit.data.repository.ExperienceChanges
 import com.example.portofit.data.repository.ExperienceDraft
 import com.example.portofit.data.repository.PublishOutcome
 import com.example.portofit.data.repository.PublishRejection
 import com.example.portofit.testing.FakeExperiencesRepository
+import com.example.portofit.testing.FakePhotoDrafts
 import com.example.portofit.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,8 +51,10 @@ class PublishExperienceViewModelTest {
         ),
     )
 
+    private val drafts = FakePhotoDrafts()
+
     private fun viewModel(state: SavedStateHandle = savedState()) =
-        PublishExperienceViewModel(repository, changes, session, state, clock = { now }, newKey = { "key-${++keys}" })
+        PublishExperienceViewModel(repository, changes, session, state, drafts, clock = { now }, newKey = { "key-${++keys}" })
 
     private fun PublishExperienceViewModel.fill(text: String = "  Boa aula.\r\n", stars: Int = 4) {
         onTextChange(text)
@@ -254,5 +265,215 @@ class PublishExperienceViewModelTest {
         vm.submit()
         assertEquals(PublishMessage.Rejected(PublishRejection.SESSION_ENDED), vm.uiState.value.message)
         assertEquals(4, vm.uiState.value.stars)
+    }
+
+    // --- Fotografia (E2) ---
+
+    private fun PublishExperienceViewModel.pick() = onPicked("content://media/picker/0/1")
+
+    @Test
+    fun `fotografia enviada antes de publicar e mediaId usado so depois do sucesso`() {
+        val vm = viewModel()
+        vm.fill()
+        vm.pick()
+        assertTrue(vm.uiState.value.photo is PhotoDraftState.Ready)
+        vm.submit()
+
+        assertEquals(1, repository.uploadCalls.size)
+        assertEquals("media-1", repository.publishCalls.single().second.mediaId)
+        assertEquals("e-new", vm.uiState.value.publishedId)
+        assertTrue("ficheiros temporários apagados depois de publicar", drafts.files().isEmpty())
+    }
+
+    @Test
+    fun `falha do envio da fotografia nao publica nem perde o rascunho`() {
+        repository.onUpload = { UploadOutcome.Failed(UploadError.NETWORK) }
+        val vm = viewModel()
+        vm.fill()
+        vm.pick()
+        vm.submit()
+
+        assertEquals(PublishMessage.UploadFailed(UploadError.NETWORK), vm.uiState.value.message)
+        assertTrue(repository.publishCalls.isEmpty())
+        assertFalse(vm.uiState.value.pendingAttempt)
+        assertEquals("  Boa aula.\r\n", vm.uiState.value.text)
+        assertTrue(vm.uiState.value.photo is PhotoDraftState.Ready)
+
+        // "Publicar sem fotografia".
+        vm.removePhoto()
+        assertNull(vm.uiState.value.message)
+        vm.submit()
+        assertNull(repository.publishCalls.single().second.mediaId)
+    }
+
+    @Test
+    fun `envios repetidos durante o envio da fotografia sao ignorados`() {
+        val pending = CompletableDeferred<UploadOutcome>()
+        repository.onUpload = { pending.await() }
+        val vm = viewModel()
+        vm.fill()
+        vm.pick()
+        vm.submit()
+        vm.submit()
+        assertEquals(SendPhase.UPLOADING_PHOTO, vm.uiState.value.sendPhase)
+        assertFalse(vm.uiState.value.canSubmit)
+        vm.removePhoto()
+        assertTrue("fotografia bloqueada durante o envio", vm.uiState.value.photo is PhotoDraftState.Ready)
+        pending.complete(UploadOutcome.Uploaded("m1", 1600, 1200))
+        assertEquals(1, repository.uploadCalls.size)
+        assertEquals(1, repository.publishCalls.size)
+    }
+
+    @Test
+    fun `resultado ambiguo com fotografia repete a mesma chave, conteudo e mediaId sem novo envio`() {
+        repository.onPublish = { _, _ -> PublishOutcome.Unconfirmed }
+        val saved = savedState()
+        val vm = viewModel(saved)
+        vm.fill()
+        vm.pick()
+        vm.submit()
+        assertTrue(vm.uiState.value.pendingAttempt)
+        assertTrue(vm.uiState.value.pendingHasPhoto)
+
+        // A fotografia desta tentativa não pode ser alterada.
+        val photoBefore = vm.uiState.value.photo
+        vm.pick()
+        vm.removePhoto()
+        assertEquals(photoBefore, vm.uiState.value.photo)
+        assertNull(vm.startCapture())
+
+        vm.submit()
+        assertEquals(1, repository.uploadCalls.size)
+        assertEquals(repository.publishCalls[0], repository.publishCalls[1])
+
+        // Depois da recriação do processo: a mesma tentativa, sem novo envio.
+        val restored = viewModel(saved)
+        assertTrue(restored.uiState.value.pendingHasPhoto)
+        restored.submit()
+        assertEquals(1, repository.uploadCalls.size)
+        assertEquals(repository.publishCalls[0], repository.publishCalls[2])
+    }
+
+    @Test
+    fun `recusa definitiva reaproveita a fotografia enviada, mas nao se ja nao servir ou depois de descartar`() {
+        repository.onPublish = { _, _ -> PublishOutcome.Rejected(PublishRejection.CATALOG_UNAVAILABLE) }
+        val vm = viewModel()
+        vm.fill()
+        vm.pick()
+        vm.submit()
+        vm.submit()
+        assertEquals(1, repository.uploadCalls.size)
+        assertEquals(listOf("key-1", "key-2"), repository.publishCalls.map { it.first })
+        assertEquals(listOf("media-1", "media-1"), repository.publishCalls.map { it.second.mediaId })
+
+        repository.onPublish = { _, _ -> PublishOutcome.Rejected(PublishRejection.MEDIA_NOT_USABLE) }
+        vm.submit()
+        vm.submit()
+        assertEquals(2, repository.uploadCalls.size)
+
+        repository.onPublish = { _, _ -> PublishOutcome.Unconfirmed }
+        vm.submit()
+        vm.discardAttempt()
+        repository.onPublish = { _, d -> PublishOutcome.Published(FakeExperiencesRepository.experience("e-9", placeId = d.placeId), false) }
+        vm.submit()
+        // Envio 3: a tentativa que ficou por confirmar; envio 4: depois de a descartar.
+        assertEquals(4, repository.uploadCalls.size)
+        assertEquals("media-4", repository.publishCalls.last().second.mediaId)
+    }
+
+    @Test
+    fun `fotografia em falta depois da recriacao - aviso, texto mantido e nova escolha`() {
+        val saved = savedState()
+        viewModel(saved).apply { fill(); pick() }
+        drafts.files().forEach { java.io.File(drafts.dir, it).delete() }
+
+        val restored = viewModel(saved)
+        assertEquals(PhotoDraftState.Missing, restored.uiState.value.photo)
+        assertEquals(PhotoError.MISSING, restored.uiState.value.photoError)
+        assertEquals("  Boa aula.\r\n", restored.uiState.value.text)
+        restored.submit()
+        assertTrue(repository.uploadCalls.isEmpty())
+        assertTrue(repository.publishCalls.isEmpty())
+
+        restored.pick()
+        assertTrue(restored.uiState.value.photo is PhotoDraftState.Ready)
+        assertNull(restored.uiState.value.photoError)
+    }
+
+    @Test
+    fun `fotografia apagada antes de enviar - aviso sem publicar`() {
+        val vm = viewModel()
+        vm.fill()
+        vm.pick()
+        drafts.files().forEach { java.io.File(drafts.dir, it).delete() }
+        vm.submit()
+        assertEquals(PhotoDraftState.Missing, vm.uiState.value.photo)
+        assertTrue(repository.uploadCalls.isEmpty())
+        assertTrue(repository.publishCalls.isEmpty())
+    }
+
+    @Test
+    fun `captura - sobrevive a recriacao, cancelamento e camara indisponivel sem perder o rascunho`() {
+        val saved = savedState()
+        val vm = viewModel(saved)
+        vm.fill()
+        val uri = vm.startCapture()
+        assertTrue(uri!!.startsWith("content://com.example.portofit.photos/"))
+
+        // A app é terminada com a câmara aberta; ao voltar, o resultado chega ao novo ViewModel.
+        val restored = viewModel(saved)
+        restored.onCaptureResult(true)
+        assertTrue(restored.uiState.value.photo is PhotoDraftState.Ready)
+        assertTrue("captura apagada depois de preparada", drafts.files().none { it.startsWith("capture-") })
+
+        // Cancelada: fica a fotografia anterior e o texto.
+        restored.startCapture()
+        restored.onCaptureResult(false)
+        assertEquals(PhotoError.CAPTURE_CANCELLED, restored.uiState.value.photoError)
+        assertTrue(restored.uiState.value.photo is PhotoDraftState.Ready)
+        assertTrue(drafts.files().none { it.startsWith("capture-") })
+        assertEquals("  Boa aula.\r\n", restored.uiState.value.text)
+
+        restored.startCapture()
+        restored.onCaptureUnavailable()
+        assertEquals(PhotoError.CAMERA_UNAVAILABLE, restored.uiState.value.photoError)
+        assertEquals(4, restored.uiState.value.stars)
+    }
+
+    @Test
+    fun `falha a preparar mantem a fotografia anterior`() {
+        val vm = viewModel()
+        vm.pick()
+        val first = vm.uiState.value.photo
+        drafts.onPrepare = { PrepareResult.Failure(PhotoError.UNREADABLE) }
+        vm.pick()
+        assertEquals(first, vm.uiState.value.photo)
+        assertEquals(PhotoError.UNREADABLE, vm.uiState.value.photoError)
+        assertTrue(drafts.exists((first as PhotoDraftState.Ready).name))
+    }
+
+    @Test
+    fun `escolher outra fotografia apaga a anterior da app e obriga a novo envio`() {
+        repository.onPublish = { _, _ -> PublishOutcome.Rejected(PublishRejection.CATALOG_UNAVAILABLE) }
+        val vm = viewModel()
+        vm.fill()
+        vm.pick()
+        val first = (vm.uiState.value.photo as PhotoDraftState.Ready).name
+        vm.submit()
+        vm.pick()
+        assertFalse(drafts.exists(first))
+        vm.submit()
+        assertEquals(2, repository.uploadCalls.size)
+    }
+
+    @Test
+    fun `sair do ecra apaga so os ficheiros temporarios do rascunho`() {
+        val store = ViewModelStore()
+        val vm = ViewModelProvider.create(store, viewModelFactory { initializer { viewModel() } })[PublishExperienceViewModel::class.java]
+        vm.pick()
+        vm.startCapture()
+        assertEquals(2, drafts.files().size)
+        store.clear()
+        assertTrue(drafts.files().isEmpty())
     }
 }

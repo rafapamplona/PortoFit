@@ -201,6 +201,8 @@ fun ExperienceCard(experience: Experience, showPlace: Boolean, onClick: () -> Un
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
+            // Fotografia (se houver) com erro isolado: o texto aparece sempre.
+            experience.photo?.let { ExperiencePhotoView(it, crop = true) }
             Text(experience.text, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
     }

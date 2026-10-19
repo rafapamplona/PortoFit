@@ -7,6 +7,9 @@ import com.example.portofit.data.repository.DataResult
 import com.example.portofit.data.repository.ExperienceDraft
 import com.example.portofit.data.repository.ExperiencesRepository
 import com.example.portofit.data.repository.MutationResult
+import com.example.portofit.data.repository.PhotoChange
+import com.example.portofit.data.repository.UploadOutcome
+import java.io.File
 import com.example.portofit.data.repository.PublishOutcome
 import java.time.Instant
 
@@ -17,6 +20,9 @@ class FakeExperiencesRepository : ExperiencesRepository {
     val listCalls = mutableListOf<ListCall>()
     val publishCalls = mutableListOf<Pair<String, ExperienceDraft>>()
     val editCalls = mutableListOf<Triple<String, String?, Int?>>()
+    val editPhotoChanges = mutableListOf<PhotoChange>()
+    val uploadCalls = mutableListOf<File>()
+    var onUpload: suspend (File) -> UploadOutcome = { UploadOutcome.Uploaded("media-${uploadCalls.size}", 1600, 1200) }
     val deleteCalls = mutableListOf<String>()
 
     var onList: suspend (ListCall) -> DataResult<Page<Experience>> = { call -> DataResult.Success(pageOf(call.page, 1, call.placeId ?: "p1")) }
@@ -43,9 +49,15 @@ class FakeExperiencesRepository : ExperiencesRepository {
         return onPublish(idempotencyKey, draft)
     }
 
-    override suspend fun edit(experienceId: String, text: String?, stars: Int?): MutationResult<Experience> {
+    override suspend fun edit(experienceId: String, text: String?, stars: Int?, photo: PhotoChange): MutationResult<Experience> {
         editCalls += Triple(experienceId, text, stars)
+        editPhotoChanges += photo
         return onEdit(experienceId, text, stars)
+    }
+
+    override suspend fun uploadPhoto(file: File): UploadOutcome {
+        uploadCalls += file
+        return onUpload(file)
     }
 
     override suspend fun delete(experienceId: String): MutationResult<Unit> {

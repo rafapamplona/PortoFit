@@ -21,7 +21,14 @@ data class Experience(
     val stars: Int,
     val createdAt: Instant,
     val editedAt: Instant?,
+    val photo: ExperiencePhoto? = null,
 )
+
+/**
+ * Fotografia de uma experiência (E2). [path] é o caminho relativo devolvido pelo serviço
+ * (`/api/v1/media/{mediaId}`); o endereço completo resolve-se na interface com o URL configurado.
+ */
+data class ExperiencePhoto(val mediaId: String, val path: String, val width: Int, val height: Int)
 
 enum class ExperienceSort(val apiValue: String) { RECENT("recent"), STARS("stars") }
 
