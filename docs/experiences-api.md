@@ -98,7 +98,7 @@ Registo interno que torna a publicação idempotente (§5). Não é exposto pela
 |---|---|---|---|
 | `authorId`, `authorUsername` | users-service | claims `sub` e `username` do access token, validado localmente | ao publicar |
 | atividade, local e modalidade (ids e nomes) | catalog-service | `GET /api/v1/offerings/{offeringId}?includeRating=false` | ao publicar |
-| seguidos e interesses | users-service | `GET /internal/users/{userId}/feed-context` | feed pessoal (E4) |
+| seguidos e interesses do utilizador do token | users-service | `GET /internal/me/feed-context` (token do utilizador + `X-Internal-Key`, §14.3) | feed pessoal (E4) |
 
 Consequências:
 
@@ -124,7 +124,7 @@ Consequências:
 - **Token num endpoint público:** pedido sem token → visitante. Token inválido ou expirado → `401 INVALID_ACCESS_TOKEN`, como no users-service ([users-api.md §3.8](users-api.md#38-get-usersuserid--perfil-público)); um token inválido nunca é tratado como visitante. Em E1 nenhuma leitura depende de quem pede, por isso a app pode pedir sem token.
 - **Autorização por dono:** só o autor (`sub` do token igual a `authorId`) edita ou elimina a sua experiência. O `authorId` vem sempre do token, nunca do corpo.
 - **Limites aceites** ([arquitetura.md §3.8](arquitetura.md#38-autenticação-e-autorização)): um access token continua aceite até expirar (máx. 15 min), mesmo depois do logout; sem users-service, quem tem token válido pode publicar até ele expirar.
-- **Endpoints internos** (`/internal`, a partir de E4, se forem precisos) usam `X-Internal-Key`, como no users-service.
+- **Endpoints internos:** o experiences-service não expõe nenhum. Em E4 passa a **chamar** um do users-service (`/internal/me/feed-context`), com o token do utilizador e `X-Internal-Key` (§14.3).
 
 ## 4. Endpoints da etapa E1
 
@@ -609,7 +609,7 @@ Envelope e limites comuns (`items`, `page`, `size`, `totalItems`, `totalPages`; 
 - As experiências são **públicas**: texto, estrelas, datas, local e atividade, e o autor como `userId` e `username` (dados já públicos no users-service). **Nunca** email nem outros dados privados: o serviço nem os recebe (o token não tem email).
 - Eliminar apaga o conteúdo (§4.5); a marca restante não é exposta.
 - Fotografias (E2): os metadados (incluindo localização GPS) são removidos antes de guardar (§12).
-- Visualizações (E3): guardam só o hash de quem viu (pessoa ou chave de instalação) e o período, nunca o IP; nunca são expostas por pessoa, só como totais no dashboard do autor (§13.5).
+- Visualizações (E3): guardam só o hash de quem viu (pessoa ou chave de instalação) e o período, nunca o IP; nunca são expostas por pessoa, só como totais no dashboard do próprio autor (§13.5, §14.4). Os feeds nunca as usam nem mostram.
 - Logs: nunca tokens nem o cabeçalho `Authorization`; o texto das experiências e comentários também não é registado. Utilizadores identificados pelo `userId`.
 - O `authorId` permite listar as publicações de uma pessoa, o mesmo que o perfil público mostra; não há publicações privadas nesta fase.
 
@@ -795,7 +795,7 @@ Todas as respostas com o formato `Experience` (§4.1: listas, detalhe, publicar,
 - **O autor não conta** (pedido com o token do autor → `204`, não contado). Um visitante não pode ser reconhecido como o autor; aceita-se.
 - **Eliminação de repetições por período fixo:** no máximo **uma visualização contada por (experiência, pessoa ou chave) em cada período**, de 24 h por omissão (configurável), alinhado a 00:00 UTC. A unicidade (experiência, quem vê, início do período) está na base de dados, por isso pedidos simultâneos contam uma vez. Duas aberturas às 23:59 e às 00:01 contam duas vezes; aceita-se, em troca de uma regra simples e sem condições de corrida.
 - **Guardado:** só o hash SHA-256 de `user:<sub>` ou `key:<X-Viewer-Key>`, o início do período e a data. Não se guarda o IP, o `User-Agent` nem a chave original. O hash de um `userId` é uma pseudonimização (quem conhece os ids pode recalculá-lo), não anonimização.
-- **Não são públicas:** nenhuma resposta mostra visualizações nesta etapa; serão só totais no dashboard do autor (E4).
+- **Não são públicas:** nenhuma resposta pública mostra visualizações; só o próprio autor vê totais no dashboard (E4, §14.4).
 - **Limitações (documentadas, aceites):** a chave é manipulável (o cliente pode enviar chaves novas em cada pedido) e apagar os dados da app gera outra; a mesma pessoa conta uma vez com sessão e outra como visitante. **Não mede pessoas únicas**: é uma métrica de alcance aproximada para o dashboard, não resistente a fraude ([arquitetura.md §3.12](arquitetura.md#312-dashboard)).
 
 ### 13.6 Limites e erros
@@ -819,15 +819,246 @@ Todas as respostas com o formato `Experience` (§4.1: listas, detalhe, publicar,
 
 ## 14. Etapa E4: feeds e dashboard
 
+Revisto em 2026-10-19 e aprovado com ajustes (decisões em §14.8). Só usa dados que o experiences-service já guarda, mais o contexto do feed pedido ao users-service. Não há aprendizagem automática, filas, caches partilhadas nem serviços novos.
+
 | Método | Caminho | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/feed/popular` | público | Experiências dos últimos 30 dias por interações e data; completa com mais antigas ([arquitetura.md §3.10](arquitetura.md#310-feeds)) |
-| GET | `/feed` | access token | Pessoas seguidas **ou** modalidades de interesse, excluindo as próprias, por data; vazio → popular |
-| GET | `/me/stats` | access token | Por publicação e no total: visualizações, gostos, comentários, interações e estrelas ([arquitetura.md §3.12](arquitetura.md#312-dashboard)) |
+| GET | `/feed/popular` | público (token opcional, só para `likedByMe`) | Feed popular (§14.1) |
+| GET | `/feed` | access token | Feed pessoal, com degradação para o popular (§14.2) |
+| GET | `/me/stats` | access token | Totais e histograma das estrelas dadas, do próprio autor (§14.4) |
+| GET | `/me/stats/experiences` | access token | Métricas por publicação do próprio autor, paginadas (§14.4) |
 
-- O feed pessoal pede ao users-service `GET /internal/users/{userId}/feed-context` ([users-api.md §3.11](users-api.md#311-get-internalusersuseridfeed-context)) com timeout curto. Se falhar, responde com o feed popular e `"mode": "POPULAR_FALLBACK"` (caso normal: `"mode": "PERSONAL"`; sem seguidos nem resultados: `"mode": "POPULAR"`).
-- Os dois feeds usam o envelope de paginação comum, mais `mode`.
-- "Vezes guardada" vem do collections-service (etapa 11) e é juntada pela app.
+Os dois feeds e a lista por publicação usam o envelope de paginação comum (§9: `page` ≥ 0, `size` 1–50, por omissão 20, página para além do fim → `items: []`). Os itens dos feeds têm o formato `Experience` (§4.1, com as contagens e o `likedByMe` da §13.3). Nenhuma resposta destes endpoints inclui visualizações por pessoa, hashes, chaves de instalação ou dados de quem viu.
+
+### 14.1 Feed popular (`GET /feed/popular`)
+
+- **Fórmula:** `interações = gostos + comentários ativos`, a mesma métrica de `sort=interactions` (§13.4). As visualizações não entram: são fáceis de inflacionar e não exprimem opinião ([arquitetura.md §3.6](arquitetura.md#36-métricas-e-ordenações)).
+- **Recência em dois blocos:**
+  - primeiro, as experiências publicadas desde `recentSince = inícioDoDiaUTC(hoje) − 30 dias`;
+  - depois, as mais antigas;
+  - dentro de cada bloco: `interações DESC, createdAt DESC, id DESC`.
+
+  O limite muda só uma vez por dia UTC; o segundo bloco garante que a lista nunca fica vazia enquanto houver experiências.
+- **Determinismo:** a ordem é total (termina no `id`) e só depende dos dados e do dia UTC do pedido. Gostos e comentários novos mudam a ordem entre pedidos; a app remove repetições pelo `id`, como nas outras listas (§9).
+- **Filtro opcional:** `sportId` (uma modalidade, com o formato e a validação de `GET /experiences`). Não há outros filtros: as listas por local, por autor e a pesquisa continuam em `GET /experiences`.
+- **Inclui as do próprio utilizador:** é uma lista pública, igual para todos; `likedByMe` só aparece com o token de outra pessoa.
+- **Modo de demonstração** (§14.6): com `portofit.feed.include-demo-places=true` (valor atual), entram as experiências de locais de demonstração.
+- **Autenticação:** pedido sem token ou com token válido → `200`; token inválido → `401`, como em todas as leituras (§3).
+
+Resposta (os mesmos campos de modo da §14.2, para a app tratar os dois feeds da mesma forma):
+
+```json
+{
+  "items": [ { "id": "019a…", "likesCount": 4, "commentsCount": 2, "…": "formato Experience" } ],
+  "page": 0, "size": 20, "totalItems": 37, "totalPages": 2,
+  "mode": "POPULAR",
+  "fallbackReason": null,
+  "recentSince": "2026-09-19T00:00:00Z",
+  "generatedAt": "2026-10-19T21:30:00Z"
+}
+```
+
+### 14.2 Feed pessoal (`GET /feed`)
+
+1. O `userId` vem do token (`sub`); não há parâmetro para pedir o feed de outra pessoa.
+2. O experiences-service pede ao users-service o contexto **do utilizador do token** (`GET /internal/me/feed-context`, [users-api.md §3.11](users-api.md#311-get-internalmefeed-context)): ids das pessoas seguidas (todas, no máximo 500 pelo limite de produto de [users-api.md §3.9](users-api.md#39-seguir)) e ids das modalidades de interesse (0–10).
+3. Seleciona as experiências não eliminadas em que `author_id` está nos seguidos **ou** `sport_id` está nos interesses, **excluindo as do próprio**. Aplica o filtro opcional `sportId` e o modo de demonstração (§14.6).
+4. A ordem é `createdAt DESC, id DESC` (cronológica, sem popularidade). Cada item traz `matchedBy`: `["FOLLOWING"]`, `["INTEREST"]` ou os dois. É informação do próprio utilizador, para a app explicar porque aparece.
+
+**Modo e motivo** (sempre presentes; `fallbackReason` é `null` em `PERSONAL`):
+
+| Situação | `mode` | `fallbackReason` | Conteúdo |
+|---|---|---|---|
+| O conjunto pessoal filtrado (todas as páginas) tem pelo menos uma experiência | `PERSONAL` | `null` | seguidos/interesses, por data |
+| Não segue ninguém e não tem interesses | `POPULAR` | `NO_PREFERENCES` | feed popular (§14.1), com o mesmo `sportId` |
+| Tem seguidos/interesses, mas o conjunto pessoal filtrado **completo** está vazio (`totalItems = 0`) | `POPULAR` | `NO_MATCHES` | feed popular, com o mesmo `sportId` |
+| users-service temporariamente indisponível (§14.3) | `POPULAR_FALLBACK` | `USERS_UNAVAILABLE` | feed popular, com o mesmo `sportId` |
+
+- **A decisão usa o conjunto completo, nunca a página:** uma página para além do fim de um feed pessoal com resultados devolve `PERSONAL` com `items: []`, não o popular.
+- **Nunca há mistura:** uma página é toda pessoal ou toda popular, e um resultado popular nunca é marcado como `PERSONAL`.
+- **Mudança de modo entre páginas:** o modo é decidido em cada pedido. Se uma página seguinte vier com `mode` ou `fallbackReason` diferentes dos da primeira (ex.: o users-service falhou a meio), a app **descarta a lista e recomeça na página 0** com o modo novo, sem juntar resultados.
+- **Aviso na app:** em `POPULAR_FALLBACK` a app mostra "Não foi possível personalizar agora; a mostrar publicações populares", com **Tentar novamente**.
+- **Sem cache do contexto** (nem em memória): seguir alguém ou mudar interesses reflete-se no pedido seguinte.
+- **Falha do catálogo:** os feeds nunca consultam o catalog-service. Mostram os nomes copiados no momento da publicação e funcionam com o catálogo parado.
+- **Locais/atividades retirados:** as experiências continuam nos feeds com as cópias de apresentação, como registo histórico. O experiences-service não conhece o estado atual do catálogo e não o consulta numa leitura (§11). O detalhe continua a indicar "atividade retirada" quando o catálogo responde.
+
+Resposta: como em §14.1, com `mode`, `fallbackReason`, `generatedAt`, `recentSince` (só nos modos populares; `null` em `PERSONAL`) e `matchedBy` em cada item (só em `PERSONAL`).
+
+### 14.3 Chamada ao users-service
+
+| Aspeto | Decisão |
+|---|---|
+| Pedido | `GET http://users-service:8082/api/v1/internal/me/feed-context`, pela rede interna do Compose |
+| Autorização | o **access token do utilizador** reencaminhado (`Authorization`) **e** `X-Internal-Key` (chave partilhada só entre os dois serviços). O users-service devolve só o contexto do `sub` do token: a chave sozinha não chega para ler o contexto de ninguém, e o token sozinho (a app) não chega para chamar `/internal` |
+| Tempos | ligação 0,5 s, resposta 1 s, sem novas tentativas e sem cache (como o catálogo, §6, e [arquitetura.md §4.1](arquitetura.md#41-princípios)) |
+| Dados | só ids (seguidos e modalidades), lista completa; nenhum username, email ou outro dado de perfil |
+| Bases de dados | nenhuma consulta direta à `users_db`: só esta API |
+| Configuração | `portofit.users.base-url` e `portofit.users.internal-key`. A chave vem da variável `USERS_INTERNAL_KEY` no `.env` (fora do Git e das imagens), passada só ao users-service e ao experiences-service, e é comparada em tempo constante |
+
+**Resultados do pedido ao users-service:**
+
+| Resposta | Resultado do `/feed` | Registo (sem token nem chave) |
+|---|---|---|
+| `200` com corpo válido | `PERSONAL` ou `POPULAR` (`NO_PREFERENCES`/`NO_MATCHES`) | — |
+| `401` (o users-service rejeitou o token: expirado entretanto, assinatura, etc.) | **`401 INVALID_ACCESS_TOKEN`** para a app, como qualquer token inválido; não é degradação | `INFO` |
+| `403` (chave interna em falta ou errada) | `POPULAR_FALLBACK` / `USERS_UNAVAILABLE`; **nunca** apresentado como "sem preferências" | **`ERROR`**: "chave interna recusada pelo users-service (configuração)" |
+| timeout, ligação recusada, `5xx`, outro estado, corpo inválido ou ids mal formados | `POPULAR_FALLBACK` / `USERS_UNAVAILABLE` | `WARN` com o tipo da falha |
+
+### 14.4 Dashboard (`GET /me/stats` e `GET /me/stats/experiences`)
+
+Só o próprio utilizador: o autor é o `sub` do token, sem parâmetro `userId`. Sem token → `401`. Mostra contagens agregadas, nunca quem gostou, comentou ou viu.
+
+**Período:** parâmetro `period` = `ALL` ("Sempre", por omissão), `LAST_7_DAYS` ("7 dias") ou `LAST_30_DAYS` ("30 dias"). Não há intervalos livres.
+
+- **Fuso e limites:** dias UTC, os mesmos das visualizações.
+  - `LAST_7_DAYS`: `from = inícioDoDiaUTC(hoje) − 6 dias`, ou seja, 7 dias UTC contando o de hoje;
+  - `LAST_30_DAYS`: `from = inícioDoDiaUTC(hoje) − 29 dias`;
+  - `ALL`: `from = null`;
+  - `to = generatedAt`, o instante do pedido.
+
+  As respostas incluem `period`, `from`, `to`, `generatedAt` e `timezone: "UTC"`.
+- **O que cada métrica conta no período:**
+
+| Métrica | Data usada | Conjunto |
+|---|---|---|
+| `publications` | data de criação da publicação | publicações **ativas** do autor criadas no período |
+| `likes` | data do gosto | gostos atuais em publicações ativas do autor, com o gosto dado no período, **qualquer que seja a data da publicação** |
+| `comments` | data de criação do comentário | comentários ativos em publicações ativas do autor, criados no período, qualquer que seja a data da publicação, **incluindo os do próprio autor** |
+| `interactions` | — | `likes + comments` |
+| `views` | dia UTC em que a visualização foi contada | visualizações contadas em publicações ativas do autor nesse período, qualquer que seja a data da publicação |
+| `starsGiven` | data de criação da publicação | **histograma das estrelas que o autor deu aos locais/atividades** nas publicações ativas criadas no período (cinco chaves `1`–`5`, sempre presentes) |
+
+  Uma interação recente numa publicação antiga conta, por isso, no período recente.
+- **Efeito de alterações:**
+
+| Alteração | Efeito |
+|---|---|
+| Editar texto ou fotografia | nenhum (a data de criação não muda) |
+| Editar estrelas | o histograma passa a usar o valor atual |
+| Retirar um gosto | deixa de contar (o registo é apagado) |
+| Voltar a dar gosto | conta uma vez, na data do novo gosto |
+| Editar um comentário | conta pela data de criação |
+| Eliminar um comentário | deixa de contar |
+| Eliminar a publicação | os seus gostos e visualizações são apagados e os comentários retirados (§13.1): a publicação e tudo o que recebeu saem de todas as métricas, também de períodos passados |
+
+  O dashboard descreve o estado atual, não um histórico de eventos.
+- **Visualizações:** são uma **soma**, não pessoas únicas. Cada pessoa com sessão, ou instalação sem sessão, conta no máximo uma vez por publicação e por dia UTC, e o autor nunca conta (§13.5). Quem abre em três dias diferentes conta três vezes, e a mesma pessoa conta à parte como visitante. A resposta indica-o com `viewsRule: "ONE_PER_VIEWER_PER_UTC_DAY"`.
+- **Comentários do próprio autor:** contam, para os totais baterem com o `commentsCount` de cada publicação. A app escreve "Comentários (incluindo as tuas respostas)".
+
+`GET /me/stats?period=LAST_30_DAYS`:
+
+```json
+{
+  "period": "LAST_30_DAYS",
+  "from": "2026-09-20T00:00:00Z",
+  "to": "2026-10-19T21:30:00Z",
+  "generatedAt": "2026-10-19T21:30:00Z",
+  "timezone": "UTC",
+  "received": { "likes": 14, "comments": 5, "interactions": 19, "views": 42, "viewsRule": "ONE_PER_VIEWER_PER_UTC_DAY", "commentsIncludeOwn": true },
+  "publications": 3,
+  "starsGiven": { "1": 0, "2": 1, "3": 0, "4": 2, "5": 0 }
+}
+```
+
+O objeto `received` separa o que as publicações **receberam** (gostos, comentários, visualizações) do que o autor **deu** (`starsGiven`, opiniões sobre locais/atividades).
+
+`GET /me/stats/experiences?period=…&sort=recent|interactions|views&page=&size=` devolve uma linha por publicação **ativa** do autor, de qualquer data. As métricas de cada linha usam o período; as publicações antigas aparecem com o que receberam no período (possivelmente 0).
+
+```json
+{
+  "items": [
+    {
+      "experience": { "id": "019a…", "place": { "id": "…", "name": "…", "demo": true }, "offering": { "id": "…", "name": "Boxe iniciação" }, "sport": { "id": "boxe", "name": "Boxe" }, "stars": 4, "createdAt": "…", "photo": null },
+      "likes": 3, "comments": 1, "interactions": 4, "views": 10
+    }
+  ],
+  "page": 0, "size": 20, "totalItems": 6, "totalPages": 1,
+  "period": "LAST_30_DAYS", "from": "2026-09-20T00:00:00Z", "to": "2026-10-19T21:30:00Z", "generatedAt": "2026-10-19T21:30:00Z", "timezone": "UTC"
+}
+```
+
+- **Ordenação:** `recent` (por omissão) = `createdAt DESC, id DESC`; `interactions` e `views` = `valor DESC, createdAt DESC, id DESC`.
+- **Coerência:** a soma das linhas é igual aos totais `received` do mesmo período.
+- **Falha:** se a consulta falhar (base de dados indisponível) → `503 SERVICE_UNAVAILABLE`, **nunca** uma resposta com zeros. A app mostra "Estatísticas indisponíveis" com **Tentar novamente**; os totais e a lista por publicação têm estados separados.
+- **Sem dados:** um utilizador sem publicações recebe `200` com zeros, que a app mostra como estado vazio, não como erro.
+- "Vezes guardada" (collections-service, etapas 11/13) é juntada pela app mais tarde, com o seu próprio estado "—" se falhar.
+
+### 14.5 Erros e limites
+
+| Situação | Resposta |
+|---|---|
+| `page`, `size`, `sportId`, `period` ou `sort` inválidos | `400 VALIDATION_FAILED` com `errors` |
+| `/feed`, `/me/stats*` sem token / token inválido | `401 AUTHENTICATION_REQUIRED` / `401 INVALID_ACCESS_TOKEN` |
+| users-service recusa o token no `/feed` | `401 INVALID_ACCESS_TOKEN` |
+| users-service indisponível ou chave interna recusada no `/feed` | `200` com `mode: POPULAR_FALLBACK` (§14.3) |
+| PostgreSQL em falha | `503 SERVICE_UNAVAILABLE` |
+
+**Limites e desempenho:**
+
+- páginas de 1–50;
+- contexto com até 500 seguidos (limite aplicado no ato de seguir) e 10 interesses;
+- consultas parametrizadas, uma por página e outra para o total, com as contagens de todas as linhas da página calculadas na mesma consulta (nunca um pedido por publicação);
+- índices existentes (`experience_recent_idx`, `experience_author_recent_idx`, `experience_sport_recent_idx`, chaves de `experience_like`/`experience_view`), mais os índices por data necessários numa migração nova. À escala do projeto, as contagens continuam calculadas em cada pedido (§20, limitações da E3).
+
+### 14.6 Modo de demonstração e catálogo real
+
+- **Hoje** só existe o catálogo fictício ([arquitetura.md §1.4](arquitetura.md#14-dados-de-demonstração)): todas as experiências são de locais `demo`. O experiences-service corre em **modo de demonstração**, com `portofit.feed.include-demo-places=true`, e os feeds incluem essas experiências (identificadas com `place.demo`).
+- **Quando o catálogo real entrar** (§15, decisão explícita do grupo), a propriedade passa a `false`: as publicações de locais de demonstração **ficam fora dos dois feeds**. Continuam acessíveis no perfil do autor, por referência direta (`GET /experiences/{id}`), nas listas do próprio local e no dashboard do autor. Nada é apagado nem migrado.
+- A importação de locais reais **não** faz parte da E4.
+
+### 14.7 App Android: "Descobrir" e "Estatísticas" (proposta para a etapa da app)
+
+**Pesquisar continua a ser o destino inicial.** Uma barra de navegação inferior (Material 3 `NavigationBar`) acrescenta dois destinos; cada destino guarda o seu estado e a sua pilha (`saveState`/`restoreState`):
+
+| Destino | Conteúdo | Sem sessão |
+|---|---|---|
+| **Pesquisar** (início) | O ecrã atual, com os separadores Locais e Pessoas, sem alterações | igual |
+| **Descobrir** | Ver a lista abaixo | só "Populares", com "Entra para um feed personalizado" |
+| **Estatísticas** | Ver a lista abaixo | "Entra para ver as estatísticas das tuas publicações", com **Entrar** |
+
+**Descobrir:**
+
+- separadores "Para ti" (`/feed`) e "Populares" (`/feed/popular`); sem sessão, só "Populares";
+- faixa conforme o `mode`/`fallbackReason`:
+  - `PERSONAL` → "De quem segues e dos teus interesses";
+  - `NO_PREFERENCES` → cartão "Segue pessoas ou escolhe interesses para personalizar", com atalhos para Pessoas e O meu perfil;
+  - `NO_MATCHES` → "Ainda não há publicações de quem segues nem dos teus interesses";
+  - `POPULAR_FALLBACK` → aviso com **Tentar novamente**;
+- "Populares" explica a ordem: "Mais interações nos últimos 30 dias, depois as restantes";
+- cada cartão diz porque aparece ("Segues @ana" / "Interesse: Boxe");
+- filtro opcional por modalidade;
+- mudança de modo entre páginas → a lista recomeça (§14.2).
+
+**Estatísticas:**
+
+- seletor "Sempre" / "7 dias" / "30 dias", com a nota "dias contados em UTC" e o intervalo `from`–`to` da resposta;
+- secção **"Recebido pelas tuas publicações"**: gostos, comentários (incluindo as tuas respostas) e visualizações, com a nota "aberturas contadas, no máximo uma por pessoa e por dia; não são pessoas únicas";
+- secção separada **"Estrelas que deste aos locais"**: histograma das publicações criadas no período, com a nota "são as tuas avaliações dos locais/atividades, não notas recebidas";
+- lista por publicação com ordenação e "Carregar mais".
+
+**Regras comuns:**
+
+- O menu de conta da barra superior (`@username` → O meu perfil, Terminar sessão) mantém-se em todos os destinos.
+- Abrir uma experiência, um local ou um perfil empilha o ecrã por cima do destino atual; voltar regressa com a posição e o separador intactos.
+- Ao voltar do detalhe, as contagens atualizam o item já carregado (`ExperienceChanges.counts`, como na E3).
+- Login a partir do feed ou das estatísticas regressa ao mesmo destino, sem executar ações automaticamente.
+- Falhas por secção: um feed indisponível não afeta Pesquisar; estatísticas indisponíveis mostram "—", nunca zeros.
+
+### 14.8 Decisões
+
+| # | Decisão | Alternativa afastada |
+|---|---|---|
+| 1 | Popularidade = gostos + comentários ativos, em dois blocos (últimos 30 dias UTC, depois o resto), desempate por data e `id` | pesos diferentes, decaimento contínuo (menos explicável) |
+| 2 | Feed pessoal cronológico, com seguidos **ou** interesses, sem o próprio, e `matchedBy` | ordenar por popularidade; misturar com populares |
+| 3 | Fallback decidido pelo conjunto filtrado completo; `mode` e `fallbackReason` em todas as respostas dos feeds; a app recomeça a lista se o modo mudar | decidir pela página; juntar páginas de modos diferentes |
+| 4 | Contexto pedido com o token do utilizador + chave interna, sem `userId` no caminho; `401` do users-service → `401`; chave recusada → degradação com registo `ERROR` | chave interna sozinha com `userId` no caminho |
+| 5 | Limite de produto de 500 seguidos, aplicado ao seguir (`409 FOLLOW_LIMIT_REACHED`); o contexto devolve sempre a lista completa | truncar silenciosamente o contexto |
+| 6 | Sem cache do contexto | memória de 1 min |
+| 7 | Feeds sem chamadas ao catálogo; atividades retiradas continuam visíveis; modo de demonstração explícito, com as publicações de demonstração fora dos feeds quando houver catálogo real | filtrar por estado do catálogo em cada pedido |
+| 8 | Dashboard por dias UTC, "Sempre"/7/30 dias; publicações e histograma pela data de criação, interações pela data da interação, visualizações pelo dia contado; estado atual | intervalo livre; fuso Europe/Lisbon; histórico de eventos |
+| 9 | Visualizações como soma diária deduplicada, sem "pessoas únicas" | `count(distinct viewer_hash)` |
+| 10 | Comentários do próprio autor contam, com indicação explícita na resposta e na app | contar só os de outras pessoas |
+| 11 | Pesquisar continua como início; Descobrir e Estatísticas como destinos adicionais | feed como ecrã inicial |
 
 ## 15. Relação com locais reais e substituição do catálogo de demonstração
 
@@ -856,7 +1087,7 @@ As experiências referem-se ao catálogo por ids. Para os ids das publicações 
   - URL do catálogo pela rede interna do Compose (`http://catalog-service:8081`);
   - **só o ficheiro da chave pública** (`secrets/users-jwt/public.pem`) é montado, só de leitura; a chave privada nunca é montada neste contentor;
   - porta `127.0.0.1:8083`.
-- O catálogo recebe a URL do experiences-service (`http://experiences-service:8083`) para pedir as avaliações. O experiences-service não recebe nenhuma configuração do users-service.
+- O catálogo recebe a URL do experiences-service (`http://experiences-service:8083`) para pedir as avaliações. Até à E3, o experiences-service não recebe nenhuma configuração do users-service; em E4 recebe a URL interna (`http://users-service:8082`) e a chave `USERS_INTERNAL_KEY` (§14.3), nunca credenciais da `users_db`.
 - **Sem publicações de demonstração** nesta etapa: nem nas migrações nem num perfil `demo`. Os testes criam utilizadores e experiências temporários (tokens assinados por uma chave de teste). Experiências fictícias de contas `demo_` só serão consideradas quando existirem contas de demonstração.
 
 ## 17. Testes e demonstração
@@ -913,7 +1144,7 @@ E2–E4 acrescentam os seus testes no início de cada etapa. Em E2 incluem: imag
 
 **E3 (etapa 8):** gostos mudam o contador da publicação mas não a avaliação do local; as quatro ordenações dão ordens diferentes sem sessão.
 
-**E4 (etapa 9):** o feed muda depois de seguir alguém e escolher interesses; com o users-service parado aparece "A mostrar publicações populares"; o dashboard bate com as ações feitas.
+**E4 (etapa 9):** Pesquisar continua a abrir a app; em Descobrir, sem sessão, "Populares"; com sessão e sem preferências, o cartão para seguir pessoas ou escolher interesses; depois de seguir alguém, "Para ti" mostra as publicações dessa pessoa e explica porquê; com o users-service parado, "Para ti" mostra o aviso de populares (nunca como personalizado); com o catálogo parado, os feeds continuam; o dashboard (totais, histograma das estrelas dadas e por publicação) bate com as ações feitas, e com a base de dados parada mostra "indisponível", não zeros.
 
 ## 18. Plano incremental
 
@@ -922,7 +1153,7 @@ E2–E4 acrescentam os seus testes no início de cada etapa. Em E2 incluem: imag
 | **E1** (6) | `GET /offerings/{id}` no catálogo; experiences-service com experiências, idempotência, validação no catálogo e avaliações; catálogo passa a pedir avaliações (sai o `UnavailableRatingProvider`) | Experiências no local (por atividade, ordenações `recent`/`stars`) e no perfil público ("Publicações"); publicar (com login), editar e eliminar as próprias; avaliações reais no catálogo | Testes do §17.1 e demonstração E1 |
 | **E2** (7) | `POST /media`, `GET /media/{id}`, `mediaId` em publicar/editar, limpeza periódica, volume | Galeria (Photo Picker) e câmara do sistema no ecrã de publicação e na edição | Demonstração E2, incluindo a câmara |
 | **E3** (8) | Comentários, gostos, visualizações, `sort=likes`/`interactions` | Detalhe com comentários e gosto; seletor com as quatro ordenações | Demonstração E3 |
-| **E4** (9) | Feeds e `/me/stats` | Feed na abertura da app; dashboard | Demonstração E4 |
+| **E4** (9) | Users: `GET /internal/me/feed-context`. Experiences: `GET /feed/popular`, `GET /feed`, `GET /me/stats`, `GET /me/stats/experiences` (§14) | Navegação Pesquisar (início) / Descobrir / Estatísticas (§14.7) | Demonstração E4 |
 
 Cada etapa acrescenta uma migração Flyway, mantém os endpoints anteriores compatíveis (só acrescenta campos) e termina com testes e verificação no emulador.
 
@@ -950,6 +1181,7 @@ Revisão de 2026-10-19, antes da implementação da E1.
 | 16 | E3: não é possível gostar da própria experiência; visualizações por `POST …/views`, sem escrita no `GET`, uma por pessoa ou chave em cada período fixo de 24 h, sem contar o autor (lacunas resolvidas em §13.7) | §13 |
 | 17 | Fotografias (E2) recodificadas para JPEG (remove metadados, aplica orientação), nomes gerados, acesso só por UUID | §12 |
 | 18 | Locais fictícios retirados e não apagados; experiências nunca passadas automaticamente para locais reais | §15 |
+| 19 | E4 (revisão aprovada de 2026-10-19): popularidade = gostos + comentários ativos em dois blocos (30 dias UTC, depois o resto); feed pessoal cronológico por seguidos ou interesses, com fallback decidido pelo conjunto completo; contexto pedido com o token do utilizador e chave interna; limite de 500 seguidos aplicado ao seguir; dashboard só do próprio, por dias UTC, com datas de criação/interação/visualização, sem zeros em falhas; modo de demonstração explícito | §14.8 |
 
 **Em aberto** (não bloqueiam a E1): paginação por cursor (§9); contadores partilhados quando houver mais de uma instância (§4.1).
 

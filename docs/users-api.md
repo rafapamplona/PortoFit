@@ -78,7 +78,7 @@ Usernames reservados (rejeitados no registo): começados por `demo_` (dados de d
 | GET | `/users/{userId}/followers` | público | Seguidores, paginado |
 | GET | `/users/{userId}/following` | público | Pessoas seguidas, paginado |
 | GET | `/.well-known/jwks.json` | público | Chaves públicas de verificação (fora de `/api/v1`) |
-| GET | `/internal/users/{userId}/feed-context` | chave interna | Seguidos e interesses, para o experiences-service |
+| GET | `/internal/me/feed-context` | access token do utilizador **e** chave interna | Seguidos e interesses do próprio utilizador, só para o experiences-service (E4) |
 | GET | `/actuator/health` | público | Estado do serviço |
 
 "access token" = cabeçalho `Authorization: Bearer <accessToken>`. "token opcional" = funciona sem sessão; com sessão acrescenta campos (ex.: `followedByMe`).
@@ -261,6 +261,7 @@ GET /api/v1/users?q=ana&size=2
 
 - `400` com `"code": "CANNOT_FOLLOW_SELF"` se `userId` for o do próprio.
 - `404` se o utilizador não existir.
+- **Limite de produto (E4): cada pessoa segue no máximo 500 outras.** Seguir uma pessoa nova com 500 já seguidas → `409` com `"code": "FOLLOW_LIMIT_REACHED"` e nada é gravado. Seguir alguém já seguido continua `204`, mesmo no limite, e deixar de seguir nunca é limitado. A contagem e a inserção acontecem na mesma transação, com a linha do seguidor bloqueada, por isso pedidos simultâneos não ultrapassam o limite. O limite existe para o contexto do feed (§3.11) ser sempre a lista completa, sem truncagem.
 - O `followerId` vem sempre do token, nunca do pedido.
 - Começar a seguir gera, a partir da etapa 10, um evento "novo seguidor" para o notifications-service através da outbox ([arquitetura.md §3.11](arquitetura.md#311-notificações)). Até lá, nada é enviado.
 
@@ -282,15 +283,38 @@ GET /api/v1/users?q=ana&size=2
 
 Ordem: relação mais antiga primeiro (`since` ascendente), desempate por `userId`. Ver §5 sobre estabilidade.
 
-### 3.11 `GET /internal/users/{userId}/feed-context`
+### 3.11 `GET /internal/me/feed-context`
 
-Só para o experiences-service, com o cabeçalho `X-Internal-Key` ([arquitetura.md §3.8](arquitetura.md#38-autenticação-e-autorização)). Não exposto à app.
+Contexto do feed pessoal (E4, [experiences-api.md §14.2–14.3](experiences-api.md#142-feed-pessoal-get-feed)). Revisto em 2026-10-19: substitui a proposta anterior `/internal/users/{userId}/feed-context`, que permitia a quem tivesse a chave interna ler o contexto de qualquer pessoa.
+
+**Autorização (as duas condições):**
+
+- `Authorization: Bearer <access token do utilizador>`, reencaminhado pelo experiences-service a partir do pedido da app. O contexto devolvido é sempre o do `sub` do token; **não há `userId` no caminho nem nos parâmetros**. Token em falta, inválido ou expirado → `401`.
+- `X-Internal-Key: <chave do experiences-service>` ([arquitetura.md §3.8](arquitetura.md#38-autenticação-e-autorização)), comparada em tempo constante. Em falta ou errada → `403` (mesmo com um token válido): a app, que só tem o token, não consegue usar este endpoint.
+
+**Resposta `200`** (só ids; nenhum username, email ou outro dado de perfil):
 
 ```json
-{ "userId": "6f9a2c1e-3b7d-4e8a-9c51-2d4f6a8b0e13", "following": ["0c4e8a2b-1d3f-4b6a-8e9c-7f1a2b3c4d5e"], "interests": ["boxe", "corrida"] }
+{
+  "following": ["0c4e8a2b-1d3f-4b6a-8e9c-7f1a2b3c4d5e"],
+  "interests": ["boxe", "corrida"]
+}
 ```
 
-`following` limitado aos 1000 mais recentes (proposta). Chave em falta ou errada → `403`. Se este endpoint falhar, o experiences-service devolve o feed popular ([arquitetura.md §3.10](arquitetura.md#310-feeds)).
+- `following`: **todos** os ids das pessoas seguidas (`since` descendente, desempate pelo `userId`). São no máximo 500 pelo limite aplicado ao seguir (§3.9); não há truncagem.
+- `interests`: os ids guardados (0–10), pela ordem do perfil, mesmo que uma modalidade tenha deixado de existir no catálogo (o users-service não consulta o catálogo neste pedido).
+- Leitura só da `users_db`, sem chamadas a outros serviços. Sem cache: seguir ou mudar interesses reflete-se logo.
+- `Cache-Control: no-store`. Logs sem o token nem a chave; o utilizador identificado pelo `userId`.
+- **Exposição:** o caminho fica fora dos endpoints usados pela app. Os serviços só escutam em `127.0.0.1` no computador ([infraestrutura.md](infraestrutura.md)), e o experiences-service chama-o pela rede interna do Compose.
+
+Comportamento do experiences-service ([experiences-api.md §14.3](experiences-api.md#143-chamada-ao-users-service)):
+
+- espera no máximo 0,5 s pela ligação e 1 s pela resposta, sem novas tentativas;
+- um `401` daqui chega à app como `401 INVALID_ACCESS_TOKEN`;
+- um `403` (chave errada) é registado como erro de configuração e o feed passa ao popular com `mode: POPULAR_FALLBACK`, nunca como "sem preferências";
+- indisponibilidade → `POPULAR_FALLBACK`.
+
+O feed nunca é apresentado como personalizado sem este contexto.
 
 ## 4. Erros
 
@@ -309,6 +333,7 @@ Problem Details (`application/problem+json`), como no catálogo, com uma extens�
 | 404 | `NOT_FOUND` | utilizador inexistente |
 | 405 | `METHOD_NOT_ALLOWED` | método não suportado |
 | 409 | `CONFLICT` | username ou email já usados no registo (com `errors`) |
+| 409 | `FOLLOW_LIMIT_REACHED` | já segue 500 pessoas (§3.9) |
 | 429 | `TOO_MANY_ATTEMPTS` | limite de tentativas (cabeçalho `Retry-After` em segundos) |
 | 500 | `INTERNAL_ERROR` | erro inesperado, sem detalhes internos |
 | 503 | `CATALOG_UNAVAILABLE` | não foi possível validar interesses (§7) |
@@ -521,7 +546,7 @@ Etapa 5 (backend), `backend/users-service`. Operação em [infraestrutura.md](in
 
 Na app: botão Seguir / Deixar de seguir, contagens e listas, ver [app-android.md §13](app-android.md#13-seguir-utilizadores-e-listas-de-seguidoresseguidos-etapa-5-continuação).
 
-**Ainda não implementado:** `GET /internal/users/{userId}/feed-context` (feeds) e os eventos de "novo seguidor" (notificações, etapa 10).
+**Ainda não implementado:** `GET /internal/me/feed-context` (feeds, E4, §3.11) e os eventos de "novo seguidor" (notificações, etapa 10).
 
 **Notas da implementação**
 

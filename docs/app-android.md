@@ -790,4 +790,11 @@ Não têm testes JVM: os ecrãs Compose, as `SharedPreferences` reais da chave e
 
 O comentário temporário (criado pelo assistente na experiência da `pamplona`) foi eliminado pela interface e, depois, a sua marca e o registo da chave foram removidos da base de dados. Os dados ficaram como estavam antes da verificação: a marca de comentário anterior, as publicações e as contas mantêm-se. O experiences-service ficou saudável no fim.
 
-**Pendente:** login a partir de uma interação (por exemplo, "Entrar para gostar" ou "Entrar" nos comentários) e regresso ao detalhe sem executar a ação. Exige a app sem sessão: terminar a sessão da `pamplona` revogaria a renovação e obrigaria a entrar de novo com a palavra-passe, por isso não foi feito. O comportamento está coberto pelos testes JVM ("regressar do login atualiza o estado sem gostar nem comentar automaticamente").
+**Login a partir de uma interação:** não foi feito pelo assistente, porque exigia terminar a sessão da `pamplona`. Foi verificado depois pelo utilizador (2026-10-19, no emulador):
+
+| Percurso | Resultado |
+|---|---|
+| Sair da sessão, tocar em "Entrar para gostar", entrar e regressar | volta à mesma experiência; o gosto **não** é executado automaticamente |
+| Novo toque em "Gostar" | o gosto é aceite |
+
+Com isto, não há verificações pendentes da E3.

@@ -323,13 +323,18 @@ Limitações aceites nesta fase: access tokens não revogáveis antes de expirar
 
 ### 3.10 Feeds
 
-**Feed de visitantes (`GET /feed/popular`, público):** experiências dos últimos 30 dias ordenadas por interações e, em empate, por data. Se houver poucas, completa com experiências mais antigas pela mesma ordem. Regra simples e fácil de explicar; o período evita que publicações antigas fiquem eternamente no topo.
+Contrato completo em [experiences-api.md §14](experiences-api.md#14-etapa-e4-feeds-e-dashboard) (revisto em 2026-10-19).
 
-**Feed de registados (`GET /feed`, com sessão):**
-1. O EXP pede ao USR as pessoas seguidas e os interesses do utilizador (`/internal`).
-2. Seleciona experiências de pessoas seguidas **ou** de modalidades de interesse, excluindo as do próprio, por data (mais recentes primeiro).
-3. Se a lista estiver vazia (utilizador novo), usa o feed popular.
-4. **Se o USR não responder**, devolve o feed popular com `"mode": "POPULAR_FALLBACK"`, e a app mostra "A mostrar publicações populares".
+**Feed popular (`GET /feed/popular`, público):** interações (gostos + comentários ativos) em dois blocos. Primeiro as publicadas desde o início do dia UTC de há 30 dias, depois as restantes. Em cada bloco: interações, data e `id`, decrescentes. Regra simples, explícita e determinística; o período evita que publicações antigas fiquem eternamente no topo, e o segundo bloco evita listas vazias.
+
+**Feed pessoal (`GET /feed`, com sessão):**
+1. O EXP pede ao USR o contexto **do utilizador do token** (`GET /internal/me/feed-context`, com o token reencaminhado e a chave interna; só ids de seguidos e de modalidades).
+2. Seleciona experiências de pessoas seguidas **ou** de modalidades de interesse, excluindo as do próprio, por data (mais recentes primeiro), indicando em cada uma porque aparece.
+3. Sem seguidos nem interesses → feed popular com `mode: POPULAR` (`NO_PREFERENCES`); conjunto pessoal filtrado vazio (decidido pelo total, não pela página) → idem (`NO_MATCHES`).
+4. **Se o USR não responder** (0,5 s de ligação, 1 s de resposta, sem novas tentativas) ou recusar a chave interna, devolve o feed popular com `mode: POPULAR_FALLBACK`, e a app mostra "Não foi possível personalizar agora; a mostrar publicações populares". Se o USR recusar o token, a resposta é `401`. Nunca apresenta resultados populares como personalizados; se o modo mudar entre páginas, a app recomeça a lista.
+5. Cada pessoa segue no máximo 500 outras (limite aplicado ao seguir), por isso o contexto é sempre completo.
+
+Os feeds não consultam o catálogo: usam os nomes copiados na publicação e mantêm as experiências de atividades retiradas como registo histórico. **Modo de demonstração:** enquanto só houver o catálogo fictício, os feeds incluem as publicações de locais de demonstração. Quando o catálogo real entrar, ficam fora dos feeds, acessíveis pelo perfil, pelo local e por referência direta ([experiences-api.md §14.6](experiences-api.md#146-modo-de-demonstração-e-catálogo-real)).
 
 ### 3.11 Notificações
 
@@ -370,9 +375,16 @@ O que esta solução oferece, e o que não oferece:
 
 ### 3.12 Dashboard
 
-`GET /me/stats` (EXP) devolve, para cada publicação do utilizador e no total: visualizações, gostos, comentários, interações e estrelas atribuídas. A app junta "vezes guardada" com `GET /stats/saves?experienceIds=…` (COL). Partilhas por mensagem não entram nesta fase (exigiria contagens do MSG; pode ser acrescentado da mesma forma).
+Só para o próprio utilizador (o autor é o `sub` do token). Contrato em [experiences-api.md §14.4](experiences-api.md#144-dashboard-get-mestats-e-get-mestatsexperiences).
 
-Visualizações: no máximo uma por pessoa (ou por chave de instalação, para visitantes; nunca pelo IP) em cada período fixo de 24 h, sem contar o autor ([experiences-api.md §13.5](experiences-api.md#135-visualizações)). É uma métrica aproximada e manipulável, que não mede pessoas únicas: apagar os dados da app, enviar chaves novas ou alternar entre visitante e sessão conta de novo.
+- **Endpoints:** `GET /me/stats` devolve os totais **recebidos** (gostos, comentários incluindo os do próprio autor, visualizações), as publicações ativas criadas no período e, à parte, o **histograma das estrelas que o autor deu aos locais/atividades** nas publicações ativas criadas no período. Não são notas recebidas pela publicação. `GET /me/stats/experiences` devolve as métricas por publicação, paginadas.
+- **Períodos:** "Sempre", 7 ou 30 dias, em dias UTC, com `from`, `to` e `generatedAt` na resposta. As publicações e o histograma contam pela data de criação; gostos e comentários pela data da interação (uma interação recente numa publicação antiga conta no período recente); as visualizações pelo dia UTC em que foram contadas.
+- **Estado atual:** publicações eliminadas, gostos retirados e comentários eliminados deixam de contar.
+- **Falha:** dá `503`, e a app mostra "indisponível", nunca zeros.
+
+A app junta mais tarde "vezes guardada" com `GET /stats/saves?experienceIds=…` (COL). Partilhas por mensagem não entram nesta fase (exigiria contagens do MSG; pode ser acrescentado da mesma forma).
+
+Visualizações (apresentadas como **soma**, não como pessoas únicas): no máximo uma por pessoa (ou por chave de instalação, para visitantes; nunca pelo IP) em cada período fixo de 24 h (dia UTC), sem contar o autor ([experiences-api.md §13.5](experiences-api.md#135-visualizações)). É uma métrica aproximada e manipulável, que não mede pessoas únicas: apagar os dados da app, enviar chaves novas ou alternar entre visitante e sessão conta de novo.
 
 ### 3.13 Estrutura da app
 
@@ -396,6 +408,7 @@ com.example.portofit/
 - Cada ecrã tem um `UiState` com estados por secção (a carregar, dados, vazio, indisponível), para que a falha de uma secção não esconda as outras.
 - Todos os textos visíveis em `strings.xml`, em português.
 - Os endereços dos serviços ficam num único sítio de configuração (no emulador, o computador é `10.0.2.2`).
+- **Navegação a partir da E4 (decidida):** **Pesquisar** (locais e pessoas, o ecrã atual) continua a ser o destino inicial; uma barra inferior acrescenta **Descobrir** (feed) e **Estatísticas** (dashboard; sem sessão, convite para entrar). Cada destino mantém o seu estado; os detalhes empilham-se por cima; o menu de conta continua na barra superior ([experiences-api.md §14.7](experiences-api.md#147-app-android-descobrir-e-estatísticas-proposta-para-a-etapa-da-app)).
 
 ### 3.14 Opcionais
 
@@ -494,8 +507,8 @@ Cada etapa termina com algo demonstrável. As versões de ferramentas e bibliote
 | 5 (backend ✅; app ✅ registo, login, sessão, logout, o meu perfil, pesquisa de pessoas, perfis públicos, seguir e listas de seguidores/seguidos, confirmados no emulador) | users-service ([users-api.md](users-api.md)): registo, login (JWT + refresh token), perfil, interesses, pesquisa de utilizadores; app: login e perfil | Backend: 24 testes e pedidos HTTP (ver [users-api.md §12](users-api.md#12-estado-da-implementação)); app: criar conta e editar perfil |
 | 6 (backend ✅; app ✅, testes, pedidos HTTP e percurso confirmado no emulador pelo utilizador; E2 backend em curso) | experiences-service, etapa E1 ([experiences-api.md](experiences-api.md)): `GET /offerings/{id}` no catálogo; experiências de texto e estrelas, consulta e pesquisa públicas, listas por local/atividade/modalidade/autor (`recent`, `stars`), editar e apagar pelo autor, publicação idempotente, avaliações agregadas ligadas ao catálogo | Publicar, editar estrelas e apagar, e ver a avaliação do local mudar conforme [3.7](#37-avaliação-geral-sem-distorção) (backend: 17 + 30 testes e pedidos HTTP, [experiences-api.md §20](experiences-api.md#20-estado-da-implementação)) |
 | 7 (backend ✅; app ✅, testes, pedidos HTTP e percurso confirmado no emulador pelo utilizador; orientação numa câmara física por verificar) | Etapa E2: fotografia opcional, da galeria (Photo Picker) e da câmara do sistema chamada pela app | Publicar uma fotografia tirada na app e outra da galeria |
-| 8 (backend ✅, 10 testes novos e pedidos HTTP; app ✅, 28 testes novos, pedidos HTTP da app e verificação na interface pelo utilizador e pelo assistente, incluindo falha e recuperação, [app-android.md §16](app-android.md#16-comentários-gostos-e-visualizações-etapa-8-e3); login a partir de uma interação por verificar na interface) | Etapa E3: comentários, gostos, visualizações e ordenações por gostos e interações | Sem sessão, mesma lista ordenada por data, gostos, interações e estrelas |
-| 9 | Etapa E4: feeds (EXP; seguir já existe desde a etapa 5) e dashboard (estatísticas do EXP) | Feed muda após seguir/escolher interesses; dashboard coerente com as ações feitas |
+| 8 (backend ✅, 10 testes novos e pedidos HTTP; app ✅, 28 testes novos, pedidos HTTP da app e verificação na interface pelo utilizador e pelo assistente, incluindo falha e recuperação, [app-android.md §16](app-android.md#16-comentários-gostos-e-visualizações-etapa-8-e3); incluindo o login a partir de uma interação) | Etapa E3: comentários, gostos, visualizações e ordenações por gostos e interações | Sem sessão, mesma lista ordenada por data, gostos, interações e estrelas |
+| 9 (contrato revisto em 2026-10-19) | Etapa E4: feeds (EXP, com `GET /internal/me/feed-context` no USR; seguir já existe desde a etapa 5) e dashboard (estatísticas do EXP); navegação Pesquisar (início) / Descobrir / Estatísticas | Feed muda após seguir/escolher interesses e degrada para popular com o USR parado; dashboard coerente com as ações feitas |
 | 10 | notifications-service; outbox em USR, EXP e MSG (tentativas, deduplicação, `FAILED`); notificações Android com WorkManager | Gosto gera notificação; com NOT parado o gosto é aceite e a notificação chega depois de o reiniciar |
 | 11 | collections-service e listas na app | Criar lista e guardar experiências |
 | 12 | messaging-service, mensagens e partilha, com consulta periódica | Partilhar experiência entre dois utilizadores |
