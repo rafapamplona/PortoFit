@@ -19,6 +19,8 @@ services:
       EXPERIENCES_DB_PASSWORD: ${EXPERIENCES_DB_PASSWORD:?defina EXPERIENCES_DB_PASSWORD no .env}
       COLLECTIONS_DB_USER: ${COLLECTIONS_DB_USER:?defina COLLECTIONS_DB_USER no .env}
       COLLECTIONS_DB_PASSWORD: ${COLLECTIONS_DB_PASSWORD:?defina COLLECTIONS_DB_PASSWORD no .env}
+      MESSAGING_DB_USER: ${MESSAGING_DB_USER:?defina MESSAGING_DB_USER no .env}
+      MESSAGING_DB_PASSWORD: ${MESSAGING_DB_PASSWORD:?defina MESSAGING_DB_PASSWORD no .env}
     volumes:
       # PostgreSQL 18+: o volume monta em /var/lib/postgresql (os dados ficam em 18/docker).
       - postgres-data:/var/lib/postgresql
@@ -140,6 +142,8 @@ services:
       USERS_INTERNAL_KEY: ${USERS_INTERNAL_KEY:?defina USERS_INTERNAL_KEY no .env}
       # Chave do collections-service para a consulta interna em lote (docs/experiences-api.md §4.7), só do .env.
       COLLECTIONS_INTERNAL_KEY: ${COLLECTIONS_INTERNAL_KEY:?defina COLLECTIONS_INTERNAL_KEY no .env}
+      # Chave própria do messaging-service para a mesma consulta (docs/messaging-api.md §7.4), só do .env.
+      MESSAGING_INTERNAL_KEY: ${MESSAGING_INTERNAL_KEY:?defina MESSAGING_INTERNAL_KEY no .env}
     volumes:
       # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
       - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
@@ -195,6 +199,47 @@ services:
         restart: true
     healthcheck:
       test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8084 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  messaging-service:
+    build: ./backend/messaging-service
+    image: portofit/messaging-service:0.1.0
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: messaging_db
+      DB_USER: ${MESSAGING_DB_USER:?defina MESSAGING_DB_USER no .env}
+      DB_PASSWORD: ${MESSAGING_DB_PASSWORD:?defina MESSAGING_DB_PASSWORD no .env}
+      # Só a chave PÚBLICA, para validar localmente os access tokens do users-service.
+      JWT_PUBLIC_KEY_PATH: /run/secrets/users-jwt/public.pem
+      # Perfil público para validar o destinatário de uma conversa nova (docs/messaging-api.md §8.1), sem token.
+      USERS_BASE_URL: http://users-service:8082
+      # Consulta interna em lote (docs/messaging-api.md §7.4), com a chave exclusiva deste serviço, só do .env.
+      EXPERIENCES_BASE_URL: http://experiences-service:8083
+      MESSAGING_INTERNAL_KEY: ${MESSAGING_INTERNAL_KEY:?defina MESSAGING_INTERNAL_KEY no .env}
+    volumes:
+      # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
+      - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
+    ports:
+      - "127.0.0.1:8085:8085"
+    networks:
+      - data
+      - public
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8085 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
       interval: 10s
       timeout: 5s
       retries: 5
