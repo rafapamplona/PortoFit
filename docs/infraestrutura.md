@@ -326,4 +326,5 @@ A extensão Java do VS Code (Red Hat) e a extensão Gradle (`vscjava.vscode-grad
   - `.\gradlew.bat --status` lista os daemons ativos desta versão do Gradle;
   - `.\gradlew.bat javaToolchains` lista as instalações detetadas; não deve aparecer nenhuma dentro de `.vscode`;
   - o `javaHome` de cada daemon aparece no início de `%USERPROFILE%\.gradle\daemon\<versão>\daemon-<pid>.out.log`.
+- **Confirmado pelo utilizador (2026-10-20):** depois da correção, o Run no Android Studio funciona sem o erro de `jlink`.
 - Se voltar a aparecer o erro: `.\gradlew.bat --stop` para os daemons desta versão do Gradle (não toca em dados nem volumes). Depois, repetir o build e procurar o processo que arrancou o daemon errado (normalmente uma janela do VS Code ainda não recarregada).
