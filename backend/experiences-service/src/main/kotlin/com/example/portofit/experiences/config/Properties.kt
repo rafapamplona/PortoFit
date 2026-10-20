@@ -45,6 +45,13 @@ class FeedProperties {
 	var includeDemoPlaces: Boolean = true
 }
 
+/**
+ * Chaves dos endpoints internos (docs/experiences-api.md §4.7). [collectionsKey] vem do `.env`
+ * (`COLLECTIONS_INTERNAL_KEY`); vazia = o endpoint recusa sempre.
+ */
+@ConfigurationProperties("portofit.internal")
+data class InternalProperties(val collectionsKey: String = "")
+
 /** Limites da publicação (docs/experiences-api.md §4.1, §5). */
 @ConfigurationProperties("portofit.publishing")
 data class PublishingProperties(

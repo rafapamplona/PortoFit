@@ -86,6 +86,9 @@ abstract class ApiIntegrationTest {
 		const val COMMENT_LIMIT = 4
 		const val LIKE_LIMIT = 6
 
+		/** Chave do collections-service só dos testes (consulta interna em lote). */
+		const val COLLECTIONS_KEY = "chave-colecoes-dos-testes"
+
 		val keys: TestKeys = TestKeys.create()
 		val catalog: CatalogStub = CatalogStub.start()
 		val users: UsersStub = UsersStub.start()
@@ -99,6 +102,7 @@ abstract class ApiIntegrationTest {
 			registry.add("portofit.catalog.base-url") { catalog.url }
 			registry.add("portofit.users.base-url") { users.url }
 			registry.add("portofit.users.internal-key") { UsersStub.KEY }
+			registry.add("portofit.internal.collections-key") { COLLECTIONS_KEY }
 			registry.add("portofit.publishing.max-per-author") { LIMIT }
 			registry.add("portofit.media.storage-dir") { mediaDir.toString() }
 			registry.add("portofit.media.max-pending-per-owner") { PENDING_LIMIT }

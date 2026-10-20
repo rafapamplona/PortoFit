@@ -192,6 +192,14 @@ class ExperienceRepository(private val jdbc: JdbcClient) {
 		return rows to total
 	}
 
+	/** Experiências (incluindo eliminadas) com estes ids, com as contagens; uma só consulta (§4.7). */
+	fun findAnyByIds(ids: Collection<UUID>): List<ExperienceRow> =
+		if (ids.isEmpty()) {
+			emptyList()
+		} else {
+			jdbc.sql("$SELECT_FULL WHERE e.id IN (:ids)").param("ids", ids).query { rs, _ -> rs.toRow() }.list()
+		}
+
 	/**
 	 * Feed popular (docs/experiences-api.md §14.1): bloco recente (desde [recentSince]) primeiro, depois o resto;
 	 * em cada bloco, interações (gostos + comentários ativos), data e id decrescentes.

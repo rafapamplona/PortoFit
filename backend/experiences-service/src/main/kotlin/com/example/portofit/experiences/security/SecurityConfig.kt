@@ -55,6 +55,8 @@ class SecurityConfig(private val properties: SecurityProperties) {
 				authorize(HttpMethod.GET, "/api/v1/ratings/**", permitAll)
 				// Feed popular público (E4); /feed e /me/stats exigem sessão (regra geral abaixo).
 				authorize(HttpMethod.GET, "/api/v1/feed/popular", permitAll)
+				// Consulta interna em lote (§4.7): sem token de utilizador; a chave interna é verificada no controlador.
+				authorize(HttpMethod.GET, "/api/v1/internal/experiences", permitAll)
 				// Visualizações (E3): token opcional; um token inválido continua a dar 401 (filtro do resource server).
 				authorize(HttpMethod.POST, "/api/v1/experiences/*/views", permitAll)
 				// Fotografias: consulta pública (só as associadas); envio com sessão (regra geral abaixo).
