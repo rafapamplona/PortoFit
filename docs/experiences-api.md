@@ -332,6 +332,27 @@ GET /api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01,3f1c9a2e-6b0
 - Este serviço só devolve `AVAILABLE` ou `NO_RATINGS`. **`UNAVAILABLE` é decidido pelo catálogo** quando este pedido falha ou excede o prazo.
 - A avaliação de uma única atividade (detalhe `GET /offerings/{id}` do catálogo) obtém-se com `ids=<placeId>&includeOfferings=true`; não é preciso outro endpoint.
 
+### 4.7 `GET /internal/experiences` — consulta em lote (collections-service)
+
+Endpoint **interno**, só para o collections-service ([collections-api.md §7](collections-api.md#7-consulta-das-experiências-experiences-service)), acrescentado na etapa 11.
+
+- `GET /api/v1/internal/experiences?ids=<id>,<id>,…` com `X-Internal-Key` igual a `COLLECTIONS_INTERNAL_KEY` (do `.env`, comparada em tempo constante). Chave em falta ou errada, ou não configurada → `403`. O pedido não leva token de utilizador.
+- 1 a 50 ids UUID (repetidos são ignorados); mais de 50, nenhum ou inválidos → `400 VALIDATION_FAILED`.
+- Resposta `200`, uma entrada por id distinto, pela ordem pedida:
+
+```json
+{
+  "items": [
+    { "id": "019a…", "status": "AVAILABLE", "experience": { "id": "019a…", "…": "formato Experience, sem likedByMe" } },
+    { "id": "019b…", "status": "DELETED", "experience": null },
+    { "id": "019c…", "status": "NOT_FOUND", "experience": null }
+  ]
+}
+```
+
+- `DELETED` nunca traz conteúdo (a experiência eliminada só tem ids e datas, §4.5). Uma só consulta à base de dados, com as contagens de todas as experiências pedidas.
+- Não consulta o catálogo nem o users-service.
+
 ## 5. Publicação sem duplicados (idempotência)
 
 **Problema:** a app envia `POST /experiences`, o servidor publica, mas a resposta perde-se (timeout, ligação cortada, app terminada). Sem proteção, a nova tentativa criaria uma segunda experiência igual.

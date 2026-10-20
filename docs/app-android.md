@@ -888,7 +888,12 @@ No emulador já aberto pelo utilizador, com a sessão da `pamplona`. A app foi a
 | users-service de volta → **Tentar novamente** | Para ti volta à explicação "sem preferências" |
 | Leitor de ecrã do histograma | "1 estrelas" encontrado e corrigido; depois "1 estrela de 5: 0 publicações", "4 estrelas de 5: 1 publicação" |
 
-**Pendente (na interface):**
-- o feed pessoal com resultados (exigia que a `pamplona` seguisse alguém ou escolhesse interesses; está coberto pelos testes e pela verificação HTTP do backend);
-- o login a partir de Descobrir/Estatísticas e o regresso (exigia terminar a sessão da `pamplona`);
-- a troca de conta com estatísticas visíveis.
+**Verificação na interface (2026-10-20, pelo utilizador):**
+
+| Percurso | Resultado |
+|---|---|
+| Publicação de uma segunda conta, depois de acrescentar Boxe aos interesses | aparece em "Para ti" com a indicação correta ("Interesse: Boxe") |
+| Login iniciado em Estatísticas | regressa a Estatísticas |
+| Terminar sessão e entrar noutra conta | as estatísticas privadas desaparecem; a outra conta vê só os seus dados |
+
+A segunda conta e a sua publicação foram criadas pelo utilizador para testes manuais e são mantidas. Com isto, não há verificações pendentes da E4.
