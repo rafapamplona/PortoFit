@@ -1001,4 +1001,12 @@ A primeira execução parou ao publicar a experiência de teste (catálogo em ar
 - com o experiences-service parado, as listas acessíveis e os itens "temporariamente indisponíveis" (nunca eliminados), e a recuperação com "Tentar novamente" depois de o reiniciar;
 - o login iniciado em "As minhas listas" e o regresso ao mesmo ecrã.
 
-Em 2026-10-20 o assistente não pôde fazer estas verificações: o emulador não estava aberto e havia ~0,7 GB de memória livre (o emulador precisa de ~4 GB). O comportamento está coberto pelos testes JVM e pela verificação HTTP acima (serviço parado → `UNKNOWN`/`UNAVAILABLE`; recuperação → `AVAILABLE`).
+Tentativas do assistente em 2026-10-20:
+
+1. O emulador não estava aberto e havia ~0,7 GB de memória livre (o emulador precisa de ~4 GB).
+2. Com o emulador já aberto pelo utilizador e ~0,1 GB livres no computador:
+   - "As minhas listas" abriu, mas mostrou "temporariamente indisponíveis"; o collections-service não registou nenhum pedido nesse período, por isso o pedido não chegou a sair do emulador;
+   - logo a seguir, o Android do emulador ficou sem resposta ("System UI isn't responding" e, depois, sem o serviço de input);
+   - a verificação foi interrompida sem fechar processos nem limpar dados. Nenhuma lista nem tentativa de criação foi gravada; os serviços continuaram saudáveis.
+
+Para fazer estas verificações é preciso libertar memória no computador (fechar outras aplicações) ou usar um telemóvel. O comportamento está coberto pelos testes JVM e pela verificação HTTP acima (serviço parado → `UNKNOWN`/`UNAVAILABLE`; recuperação → `AVAILABLE`).
