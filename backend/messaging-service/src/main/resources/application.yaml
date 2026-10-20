@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: messaging-service
+  datasource:
+    # Valores fornecidos por variáveis de ambiente (docker-compose.yml + .env).
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:messaging_db}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 5000
+      validation-timeout: 3000
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 30
+  flyway:
+    locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: 8085
+  shutdown: graceful
+  tomcat:
+    connection-timeout: 10s
+    threads:
+      max: 50
+
+management:
+  endpoints:
+    web:
+      discovery:
+        enabled: false
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
+portofit:
+  security:
+    # Validação local dos access tokens do users-service; só a chave PÚBLICA, montada só de leitura.
+    issuer: portofit-users
+    audience: portofit-api
+    public-key-location: ${JWT_PUBLIC_KEY_PATH:/run/secrets/users-jwt/public.pem}
+  users:
+    # GET /api/v1/users/{id} (perfil público, sem token), pela rede interna do Compose (docs/messaging-api.md §8.1).
+    base-url: ${USERS_BASE_URL:http://localhost:8082}
+    connect-timeout: 500ms
+    timeout: 1s
+  experiences:
+    # GET /api/v1/internal/experiences?ids=…, pela rede interna do Compose (docs/messaging-api.md §7.4).
+    base-url: ${EXPERIENCES_BASE_URL:http://localhost:8083}
+    connect-timeout: 500ms
+    timeout: 2s
+    # Só do .env (MESSAGING_INTERNAL_KEY, exclusiva deste serviço), nunca no Git nem na imagem.
+    internal-key: ${MESSAGING_INTERNAL_KEY:}
+  messaging:
+    # Limites (docs/messaging-api.md §10). Os contadores de frequência são em memória, por pessoa.
+    max-text-length: 1000
+    max-messages-per-window: 120
+    max-new-conversations-per-window: 20
+    rate-window: 1h
+    max-messages-per-conversation: 10000
+    max-body-bytes: 8192
