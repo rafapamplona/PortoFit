@@ -11,7 +11,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Consulta interna em lote para o collections-service (docs/experiences-api.md §4.7). */
+/** Consulta interna em lote para o collections-service e o messaging-service (docs/experiences-api.md §4.7). */
 class InternalLookupApiIntegrationTest : ApiIntegrationTest() {
 
 	@Test
@@ -28,6 +28,12 @@ class InternalLookupApiIntegrationTest : ApiIntegrationTest() {
 		mvc.get(path) { header("X-Internal-Key", "errada") }.andExpect { status { isForbidden() } }
 		// Um token de utilizador não substitui a chave.
 		mvc.get(path) { header("Authorization", "Bearer ${ana.token}") }.andExpect { status { isForbidden() } }
+		// A chave do users-service (feed-context) não serve aqui: cada serviço tem a sua.
+		mvc.get(path) { header("X-Internal-Key", UsersStub.KEY) }.andExpect { status { isForbidden() } }
+		mvc.get(path) { header("X-Internal-Key", "") }.andExpect { status { isForbidden() } }
+		// A chave do messaging-service dá a mesma resposta que a do collections-service.
+		val forMessaging = mvc.get(path) { header("X-Internal-Key", MESSAGING_KEY) }.andExpect { status { isOk() } }
+			.andReturn().response.contentAsString
 
 		val body = mvc.get(path) { header("X-Internal-Key", COLLECTIONS_KEY) }.andExpect {
 			status { isOk() }
@@ -40,6 +46,7 @@ class InternalLookupApiIntegrationTest : ApiIntegrationTest() {
 		assertTrue(items[0]["experience"].isNull && items[1]["experience"].isNull)
 		assertEquals("Disponível", items[2]["experience"]["text"].asString())
 		assertTrue(items[2]["experience"]["likedByMe"] == null)
+		assertEquals(body, mapper.readTree(forMessaging))
 
 		val tooMany = (1..51).joinToString(",") { UUID.randomUUID().toString() }
 		for (ids in listOf("", "nao-e-uuid", tooMany)) {

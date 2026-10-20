@@ -46,11 +46,12 @@ class FeedProperties {
 }
 
 /**
- * Chaves dos endpoints internos (docs/experiences-api.md §4.7). [collectionsKey] vem do `.env`
- * (`COLLECTIONS_INTERNAL_KEY`); vazia = o endpoint recusa sempre.
+ * Chaves dos endpoints internos (docs/experiences-api.md §4.7), uma por serviço cliente, só do `.env`:
+ * [collectionsKey] (`COLLECTIONS_INTERNAL_KEY`) e [messagingKey] (`MESSAGING_INTERNAL_KEY`). Uma chave vazia não
+ * autoriza ninguém.
  */
 @ConfigurationProperties("portofit.internal")
-data class InternalProperties(val collectionsKey: String = "")
+data class InternalProperties(val collectionsKey: String = "", val messagingKey: String = "")
 
 /** Limites da publicação (docs/experiences-api.md §4.1, §5). */
 @ConfigurationProperties("portofit.publishing")

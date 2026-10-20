@@ -20,8 +20,8 @@ data class ExperienceLookup(val id: UUID, val status: LookupStatus, val experien
 data class ExperienceLookupResponse(val items: List<ExperienceLookup>)
 
 /**
- * `GET /api/v1/internal/experiences?ids=…` (docs/experiences-api.md §4.7): só para o collections-service, com
- * `X-Internal-Key`. Até 50 ids por pedido, uma consulta à base de dados.
+ * `GET /api/v1/internal/experiences?ids=…` (docs/experiences-api.md §4.7): só para o collections-service e o
+ * messaging-service, cada um com a sua `X-Internal-Key`. Até 50 ids por pedido, uma consulta à base de dados.
  */
 @RestController
 class InternalExperienceController(
@@ -35,12 +35,14 @@ class InternalExperienceController(
 		@RequestHeader("X-Internal-Key", required = false) key: String?,
 		@RequestParam("ids", required = false) ids: String?,
 	): ExperienceLookupResponse {
-		if (!validKey(key)) {
+		val client = client(key)
+		if (client == null) {
 			// Nunca regista a chave recebida.
 			log.warn("Consulta interna em lote recusada: chave interna em falta ou errada")
 			throw ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Acesso negado", "Não tens permissão para este pedido.")
 		}
 		val requested = parseIds(ids)
+		log.debug("Consulta interna em lote de {} ({} ids)", client, requested.size)
 		val rows = experiences.findAnyByIds(requested).associateBy { it.id }
 		return ExperienceLookupResponse(
 			requested.map { id ->
@@ -61,10 +63,14 @@ class InternalExperienceController(
 		return ids
 	}
 
-	private fun validKey(received: String?): Boolean {
-		val expected = properties.collectionsKey
-		if (expected.isBlank() || received.isNullOrEmpty()) return false
-		return MessageDigest.isEqual(expected.toByteArray(Charsets.UTF_8), received.toByteArray(Charsets.UTF_8))
+	/** O serviço dono da chave recebida, ou null. Compara com todas as chaves, em tempo constante. */
+	private fun client(received: String?): String? {
+		if (received.isNullOrEmpty()) return null
+		val bytes = received.toByteArray(Charsets.UTF_8)
+		val matches = listOf("collections" to properties.collectionsKey, "messaging" to properties.messagingKey)
+			.filter { (_, expected) -> expected.isNotBlank() && MessageDigest.isEqual(expected.toByteArray(Charsets.UTF_8), bytes) }
+		// Duas chaves iguais seriam um erro de configuração: não se sabe qual dos serviços está a pedir.
+		return matches.singleOrNull()?.first
 	}
 
 	private companion object {

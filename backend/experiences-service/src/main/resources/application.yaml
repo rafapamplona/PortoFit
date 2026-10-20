@@ -67,8 +67,9 @@ portofit:
     # Só do .env (USERS_INTERNAL_KEY), nunca no Git nem na imagem.
     internal-key: ${USERS_INTERNAL_KEY:}
   internal:
-    # Chave do collections-service para a consulta em lote (docs/experiences-api.md §4.7), só do .env; vazia = recusa.
+    # Uma chave por serviço cliente da consulta em lote (docs/experiences-api.md §4.7), só do .env; vazia = recusa.
     collections-key: ${COLLECTIONS_INTERNAL_KEY:}
+    messaging-key: ${MESSAGING_INTERNAL_KEY:}
   feed:
     # Bloco recente do feed popular (docs/experiences-api.md §14.1).
     recent-days: 30
