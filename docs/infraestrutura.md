@@ -7,11 +7,12 @@
 
 | Componente | Função | Acesso |
 |---|---|---|
-| `postgres` | PostgreSQL com as bases `catalog_db`, `users_db`, `experiences_db` e `collections_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
+| `postgres` | PostgreSQL com as bases `catalog_db`, `users_db`, `experiences_db`, `collections_db` e `messaging_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
 | `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
 | `users-service` | Contas, sessões (JWT + refresh tokens), perfis e seguir ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
 | `experiences-service` | Experiências, fotografias e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db` e o volume `experiences-media`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
 | `collections-service` | Listas pessoais e experiências guardadas ([collections-api.md](collections-api.md)) sobre `collections_db`; consulta as experiências no experiences-service em lote; valida os JWT só com a chave pública | `http://localhost:8084` |
+| `messaging-service` | Conversas entre duas pessoas, mensagens e partilha de experiências ([messaging-api.md](messaging-api.md)) sobre `messaging_db`; valida o destinatário no users-service e as partilhas no experiences-service (em lote, com chave própria); valida os JWT só com a chave pública | `http://localhost:8085` |
 
 ```
 PortoFit/
@@ -25,10 +26,12 @@ PortoFit/
 │   │   ├── 01-catalog-db.sh      cria catalog_db e o seu utilizador (1.ª inicialização)
 │   │   ├── 02-users-db.sh        cria users_db e o seu utilizador (idempotente; ver §3.1)
 │   │   ├── 03-experiences-db.sh  cria experiences_db e o seu utilizador (idempotente; ver §3.1)
-│   │   └── 04-collections-db.sh  cria collections_db e o seu utilizador (idempotente; ver §3.1)
+│   │   ├── 04-collections-db.sh  cria collections_db e o seu utilizador (idempotente; ver §3.1)
+│   │   └── 05-messaging-db.sh    cria messaging_db e o seu utilizador (idempotente; ver §3.1)
 │   ├── users-service/            projeto Gradle independente: auth/, user/, security/, catalog/, api/
 │   ├── experiences-service/      projeto Gradle independente: experience/, rating/, catalog/, security/, api/
 │   ├── collections-service/      projeto Gradle independente: collection/, experiences/, security/, api/
+│   ├── messaging-service/        projeto Gradle independente: conversation/, users/, experiences/, security/, api/
 │   └── catalog-service/          projeto Gradle independente da app Android
 │       ├── Dockerfile            build em duas etapas (JDK → JRE)
 │       ├── build.gradle.kts, settings.gradle.kts, gradlew, gradle/wrapper/
@@ -96,7 +99,7 @@ Os scripts de `backend/postgres/init/` só correm quando o volume de dados está
 
 ### 3.1 Acrescentar a base de um serviço novo a um volume existente
 
-Num volume que já tem dados (ex.: criado antes do users-service, do experiences-service ou do collections-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh`, o `03-experiences-db.sh` e o `04-collections-db.sh` são **idempotentes** e podem ser corridos à mão sem apagar nada. Exemplo para o users-service (para o experiences-service, o mesmo com `EXPERIENCES_DB_*`, `03-experiences-db.sh` e `experiences-service`):
+Num volume que já tem dados (ex.: criado antes do users-service, do experiences-service, do collections-service ou do messaging-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh`, o `03-experiences-db.sh`, o `04-collections-db.sh` e o `05-messaging-db.sh` são **idempotentes** e podem ser corridos à mão sem apagar nada. Exemplo para o users-service (para o experiences-service, o mesmo com `EXPERIENCES_DB_*`, `03-experiences-db.sh` e `experiences-service`):
 
 1. Acrescentar `USERS_DB_USER` e `USERS_DB_PASSWORD` ao `.env` (ver `.env.example`).
 2. Aplicar a configuração ao PostgreSQL (o contentor é recriado com as novas variáveis; **o volume e os dados mantêm-se**; os outros serviços perdem a ligação alguns segundos e recuperam sozinhos):
@@ -115,7 +118,7 @@ Num volume que já tem dados (ex.: criado antes do users-service, do experiences
 | Ação | Comando |
 |---|---|
 | Arrancar (sem reconstruir) | `docker compose up -d --wait` |
-| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`, `experiences-service`, `collections-service`); um de cada vez, para poupar memória |
+| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`, `experiences-service`, `collections-service`, `messaging-service`); um de cada vez, para poupar memória |
 | Estado e saúde | `docker compose ps` |
 | Logs (seguir em direto) | `docker compose logs -f catalog-service` (ou `users-service`) |
 | Logs da base de dados | `docker compose logs postgres` |
@@ -133,6 +136,7 @@ curl.exe http://localhost:8081/actuator/health   # catalog-service
 curl.exe http://localhost:8082/actuator/health   # users-service
 curl.exe http://localhost:8083/actuator/health   # experiences-service
 curl.exe http://localhost:8084/actuator/health   # collections-service
+curl.exe http://localhost:8085/actuator/health   # messaging-service
 ```
 
 Resposta esperada (HTTP 200):
@@ -231,7 +235,7 @@ curl.exe "http://localhost:8083/api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7
 - Limite de publicações por autor e retenção das chaves de idempotência: `portofit.publishing.*` em `application.yaml` (o limite é em memória e reinicia com o serviço).
 - Fotografias (E2): `POST /api/v1/media` (multipart, campo `file`, até 10 MiB, JPEG ou PNG) devolve um `mediaId` pendente; associa-se com `"mediaId"` ao publicar ou editar. Limites e limpeza em `portofit.media.*` (`application.yaml`). A imagem guarda a pasta `/data/media` com dono `app` (o volume novo herda-o).
 - Feeds e dashboard (E4): o feed pessoal pede o contexto ao users-service (`http://users-service:8082`, com `USERS_INTERNAL_KEY`); se ele falhar, responde com o popular (`POPULAR_FALLBACK`). Modo de demonstração em `portofit.feed.include-demo-places`.
-- Consulta interna em lote para o collections-service: `GET /api/v1/internal/experiences?ids=…` com `X-Internal-Key` = `COLLECTIONS_INTERNAL_KEY` do `.env` (sem a chave → `403`).
+- Consulta interna em lote para o collections-service e o messaging-service: `GET /api/v1/internal/experiences?ids=…` com `X-Internal-Key` = `COLLECTIONS_INTERNAL_KEY` ou `MESSAGING_INTERNAL_KEY` do `.env`, uma chave por serviço (sem chave ou com outra → `403`).
 - Testes: `cd backend\experiences-service; .\gradlew.bat test` (48 testes: 17 da E1, 13 das fotografias, 10 dos comentários, gostos e visualizações, 7 dos feeds e dashboard e 1 da consulta interna; PostgreSQL real via Testcontainers; catálogo e users-service falsos, chaves, relógio e pasta de fotografias dos próprios testes).
 
 ### collections-service
@@ -257,11 +261,36 @@ curl.exe http://localhost:8084/api/v1/collections/<collectionId>/items -H "Autho
 - **Limites:** `portofit.collections.*` em `application.yaml` (50 listas por pessoa, 500 itens por lista).
 - **Testes:** `cd backend\collections-service; .\gradlew.bat test` (9 testes; PostgreSQL real via Testcontainers; experiences-service falso e chaves dos próprios testes).
 
+### messaging-service
+
+Contrato completo em [messaging-api.md](messaging-api.md). Todas as operações exigem o access token de uma conta.
+
+```powershell
+# Abrir (criar ou devolver) a conversa com outra pessoa
+curl.exe -X POST http://localhost:8085/api/v1/conversations -H "Authorization: Bearer <access>" `
+  -H "Content-Type: application/json" -d '{\"participantId\":\"<userId>\"}'
+# Enviar (uma chave de idempotência por tentativa) e consultar as novas depois do seq 0
+curl.exe -X POST http://localhost:8085/api/v1/conversations/<conversationId>/messages -H "Authorization: Bearer <access>" `
+  -H "Idempotency-Key: <uuid>" -H "Content-Type: application/json" -d '{\"text\":\"Olá!\"}'
+curl.exe "http://localhost:8085/api/v1/conversations/<conversationId>/messages?after=0" -H "Authorization: Bearer <access>"
+```
+
+- **Primeira vez num volume existente** (feito em 2026-10-20, volume preservado):
+  1. acrescentar `MESSAGING_DB_USER`, `MESSAGING_DB_PASSWORD` e `MESSAGING_INTERNAL_KEY` ao `.env` (ver `.env.example`; a chave tem de ser diferente da `COLLECTIONS_INTERNAL_KEY`);
+  2. `docker compose up -d --wait postgres`;
+  3. `docker compose exec -T postgres bash /docker-entrypoint-initdb.d/05-messaging-db.sh` (repetir não faz mal);
+  4. reconstruir o experiences-service (passa a aceitar a chave nova) e arrancar o messaging-service, um de cada vez.
+- **Chaves:** valida os JWT só com `secrets/users-jwt/public.pem` (montado só de leitura).
+- **users-service:** só ao criar uma conversa nova, pelo perfil público (`http://users-service:8082`, sem token nem chave). Com ele parado, as conversas existentes continuam.
+- **Experiências:** consulta em lote no experiences-service com `MESSAGING_INTERNAL_KEY`. Com ele parado, as mensagens de texto continuam e as partilhas aparecem como `UNKNOWN`.
+- **Limites:** `portofit.messaging.*` em `application.yaml` (texto 1000 caracteres, 120 mensagens e 20 conversas novas por hora e por pessoa, em memória; 10 000 mensagens por conversa).
+- **Testes:** `cd backend\messaging-service; .\gradlew.bat test` (15 testes; PostgreSQL real via Testcontainers; users-service e experiences-service falsos e chaves dos próprios testes).
+
 ## 7. Configuração relevante
 
 | Aspeto | Valor | Onde |
 |---|---|---|
-| Portas publicadas | `127.0.0.1:8081` (catálogo), `127.0.0.1:8082` (users), `127.0.0.1:8083` (experiences), `127.0.0.1:8084` (collections), só no próprio computador | `docker-compose.yml` |
+| Portas publicadas | `127.0.0.1:8081` (catálogo), `127.0.0.1:8082` (users), `127.0.0.1:8083` (experiences), `127.0.0.1:8084` (collections), `127.0.0.1:8085` (messaging), só no próprio computador | `docker-compose.yml` |
 | PostgreSQL | sem porta publicada; rede `data` marcada como interna | `docker-compose.yml` |
 | Utilizador da base de dados | `catalog_user`: sem superutilizador, sem criar bases/papéis; dono apenas de `catalog_db`; sem acesso à base `postgres` | `01-catalog-db.sh` |
 | Pool de ligações | máx. 5; espera por ligação 5 s; validação 3 s | `application.yaml` |
@@ -273,7 +302,7 @@ curl.exe http://localhost:8084/api/v1/collections/<collectionId>/items -H "Autho
 | Healthcheck dos serviços | pedido a `/actuator/health` a cada 10 s (via `bash`, porque a imagem JRE não tem `curl`) | `docker-compose.yml` |
 | Imagem do serviço | só o JRE e o `app.jar`; corre com o utilizador `app` (não root); `.env` e ficheiros locais excluídos por `.dockerignore` | `Dockerfile` |
 
-Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Na etapa 6 (2026-10-19), com quatro contentores: catalog-service ≈ 206 MiB, users-service ≈ 222 MiB, experiences-service ≈ 232 MiB, PostgreSQL ≈ 61 MiB (≈ 0,7 GiB no total). Com seis serviços esse total poderá ser apertado; reavaliar os limites quando houver mais serviços.
+Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Na etapa 6 (2026-10-19), com quatro contentores: catalog-service ≈ 206 MiB, users-service ≈ 222 MiB, experiences-service ≈ 232 MiB, PostgreSQL ≈ 61 MiB (≈ 0,7 GiB no total). Na etapa 12 (2026-10-20), com seis contentores e sem carga: messaging-service ≈ 244 MiB, users-service ≈ 248 MiB, catalog-service ≈ 231 MiB, experiences-service ≈ 228 MiB, collections-service ≈ 223 MiB, PostgreSQL ≈ 80 MiB (≈ 1,25 GiB no total). Com o emulador e o Android Studio abertos, o computador ficou com cerca de 0,4 GiB livres; o messaging-service pode ser parado quando não é preciso (`docker compose stop messaging-service`).
 
 ## 8. Limitações conhecidas
 

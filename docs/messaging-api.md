@@ -1,7 +1,7 @@
 # messaging-service — Contrato da API
 
 > Conversas privadas entre duas pessoas, mensagens de texto e partilha de experiências (requisito R9, etapa 12). Contexto geral em [arquitetura.md](arquitetura.md) (§3.2 responsabilidades, §3.3 "a partilha é uma mensagem", §3.5 cópias, §3.8 autenticação, §4 falhas).
-> Estado: **contrato aprovado** (2026-10-20, com os ajustes da revisão, [§17](#17-decisões)).
+> Estado: **contrato aprovado** (2026-10-20, com os ajustes da revisão, [§17](#17-decisões)); **backend implementado** ([§19](#19-estado-da-implementação)). A app ainda não usa este serviço.
 > Mesmas convenções do [catalog-api.md](catalog-api.md), do [users-api.md](users-api.md), do [experiences-api.md](experiences-api.md) e do [collections-api.md](collections-api.md): JSON UTF-8, campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`.
 
 ## Índice
@@ -343,7 +343,7 @@ Reutiliza-se o endpoint interno existente `GET /api/v1/internal/experiences?ids=
 - `COLLECTIONS_INTERNAL_KEY` (collections-service, já existe);
 - `MESSAGING_INTERNAL_KEY` (novo, só no `.env` do messaging-service e do experiences-service).
 
-O experiences-service regista nos logs o nome do cliente (`collections` ou `messaging`), nunca a chave. Uma chave em falta ou desconhecida → `403`, como hoje. Cada serviço pode ser cortado sem afetar o outro, trocando só a sua chave. Não se cria um segundo endpoint igual.
+O experiences-service identifica o cliente pelo nome (`collections` ou `messaging`) nos registos de diagnóstico (nível `DEBUG`), nunca pela chave. Uma chave em falta ou desconhecida → `403`, como hoje. Se duas chaves fossem iguais (erro de configuração), nenhuma seria aceite. Cada serviço pode ser cortado sem afetar o outro, trocando só a sua chave. Não se cria um segundo endpoint igual.
 
 Cliente no messaging-service: ligação 0,5 s, resposta 2 s, sem novas tentativas e **sem cache**. Uma cache mostraria como disponível uma experiência já eliminada. Uma resposta incompleta, com estados desconhecidos ou sem um dos ids pedidos é tratada como indisponível. Um `403` é registado como erro de configuração.
 
@@ -592,4 +592,119 @@ Mesma estrutura das listas ([app-android.md §18](app-android.md#18-listas-pesso
 
 ## 19. Estado da implementação
 
-Ainda não implementado.
+Etapa 12 (backend), `backend/messaging-service`, mais a chave própria na consulta em lote do experiences-service (§7.4). **A app ainda não usa este serviço** (sem alterações Android, sem outbox nem notificações).
+
+**Implementado:**
+
+- todos os endpoints do §4, com as regras do §5 ao §8 e os erros do §9;
+- migração `V1__messaging_schema.sql` (`conversation`, `conversation_member`, `message`), sem chaves estrangeiras para outros serviços nem eliminação em cascata;
+- base `messaging_db` e utilizador próprio, pelo script idempotente `05-messaging-db.sh`, corrido à mão no volume existente (preservado);
+- contentor em `127.0.0.1:8085`, só com a chave pública;
+- `MESSAGING_INTERNAL_KEY` no `.env`, partilhada só com o experiences-service; a chave das listas e a sua autorização mantêm-se.
+
+**Notas da implementação:**
+
+- **Projeto:** as mesmas versões e dependências do collections-service (Spring Boot 4.1.1, Kotlin 2.3.21, JDK 25, Flyway, Spring JDBC), sem dependências novas.
+- **Abrir conversa:**
+  - `INSERT … ON CONFLICT (user_low, user_high) DO NOTHING RETURNING id`, com o par ordenado no próprio PostgreSQL (`LEAST`/`GREATEST` sobre `uuid`, não `UUID.compareTo` do Java, que ordena de outra forma);
+  - as duas linhas de `conversation_member` são criadas na mesma transação.
+- **Envio:**
+  - a conversa é bloqueada (`SELECT … FOR UPDATE`) e a chave é procurada de novo depois do bloqueio; `seq = last_seq + 1`;
+  - `created_at = clock_timestamp()`, por isso as datas acompanham os `seq` na mesma conversa;
+  - o limite por conversa usa `message_count`, lido com a conversa bloqueada;
+  - um `DuplicateKeyException` do índice (`sender_id`, `idempotency_key`) quer dizer "a mesma chave noutra conversa" e dá `409`.
+- **Leituras de mensagens:** numa transação só de leitura `REPEATABLE READ`, para `items`, `lastSeq`, `hasMoreBefore` e `hasMoreAfter` virem do mesmo instantâneo.
+- **Limites de frequência:** contadores em memória com reserva atómica (`ConcurrentHashMap.compute`). Uma reserva que não chega a criar nada (repetição, recusa, falha de outro serviço) é devolvida, por isso pedidos simultâneos não ultrapassam o limite e as falhas não o gastam.
+- **Clientes:** `RestClient` sobre o cliente HTTP do JDK, sem novas tentativas nem cache. O users-service tem ligação 0,5 s e resposta 1 s; o experiences-service tem ligação 0,5 s e resposta 2 s. Os registos têm só os tipos de erro, nunca chaves, tokens, texto ou usernames.
+- **Cabeçalhos:** o `Cache-Control: no-store` (com `no-cache` e `must-revalidate`) vem dos cabeçalhos por omissão do Spring Security.
+
+**Testes automáticos:**
+
+- **messaging-service: 15 testes, 0 falhas.** Correm com PostgreSQL 18.6 real (Testcontainers), um users-service e um experiences-service falsos (com modos de erro, lentidão, chave recusada e resposta inválida), chaves RSA só dos testes e pedidos HTTP reais. Limites reduzidos nos testes: 40 mensagens e 6 conversas por janela, 25 por conversa.
+  - **`ConversationsApiIntegrationTest` (8):**
+    - **autenticação:** os 7 endpoints recusam sem token, com outra chave, com outro `aud` e com o token expirado; token sem `username` → `401`;
+    - **abrir conversa:**
+      - consigo próprio → `400`; inexistente → `404 USER_NOT_FOUND`; corpo inválido ou com `senderId` → `400`;
+      - `201` com `Location` e o username; depois `200` dos dois lados, sem novos pedidos ao users-service; o perfil é pedido sem token;
+      - 8 pedidos simultâneos nos dois sentidos → 1 conversa, 2 participantes;
+    - **users-service** com erro, lento (> 1 s) ou com resposta inválida → `503`, nada criado. Com ele em baixo, as conversas existentes abrem, enviam, aparecem na caixa e marcam como lidas, sem lhe pedir nada. As falhas não gastam o limite;
+    - **privacidade:** conversa alheia ≡ inexistente (`404` com o mesmo corpo) em 6 operações, sem texto nem nomes; a intrusa não envia nem marca nada; conversa sem mensagens fora da caixa dos dois;
+    - **caixa:** mais recente primeiro; cursor com `nextCursor` null no fim; pré-visualização de 100 caracteres; partilha com `kind: SHARE` e sem conteúdo da experiência; uma mensagem nova sobe a conversa sem repetir na página seguinte; cursor e `limit` inválidos → `400`;
+    - **leitura:**
+      - enviar não marca as recebidas;
+      - o cursor não recua e fica no fim com valores maiores;
+      - não é devolvido à outra pessoa; os corpos inválidos dão `400`;
+      - 8 pedidos simultâneos com valores diferentes ficam com o maior;
+    - **limite de conversas novas** → `429` com `Retry-After`; abrir uma existente não conta.
+  - **`MessagesApiIntegrationTest` (7):**
+    - **conteúdo:**
+      - 11 corpos inválidos → `400`, sem repetir o texto na resposta (vazio, só espaços, 1001 caracteres, controlo, `\r` solto, não texto, `senderId`, id inválido, não objeto, não JSON);
+      - sem chave → `400`; não JSON → `415`; > 8 KiB → `413`;
+      - 1000 emojis aceites; `\r\n` e pontas normalizados;
+    - **idempotência:**
+      - `201`, depois `200` com `Idempotent-Replayed` e o mesmo `id`/`seq`;
+      - outro texto → `409 DIFFERENT_CONTENT` com os ids; a mesma chave noutra conversa → `409`;
+      - `clientKey` só para o remetente;
+      - 8 envios simultâneos com a mesma chave → 1 mensagem; a mesma chave em duas conversas ao mesmo tempo → `201` + `409`;
+    - **cursores:**
+      - últimas, `before` e `after` por `seq` crescente;
+      - avançar de 3 em 3 pelo último item vê 1–7;
+      - `after` no fim → vazio com `hasMoreBefore`; parâmetros inválidos → `400`;
+    - **concorrência:** 20 envios simultâneos de duas pessoas → `seq` únicos e crescentes pela ordem de gravação. Uma consulta incremental a correr ao mesmo tempo (`after`, 4 de cada vez) recebe exatamente as 20, sem saltos nem repetidas;
+    - **partilhas:**
+      - disponível → `201` com o conteúdo; eliminada ou inexistente → `404`;
+      - erro, lentidão, chave recusada ou resposta inválida → `503` sem consumir a chave (a mesma chave envia depois de o serviço voltar);
+      - texto com o serviço em baixo → `201` sem lhe pedir nada;
+      - receber com o serviço em baixo → todas as mensagens, texto visível, partilhas `UNKNOWN`, `UNAVAILABLE`;
+      - repetição de uma partilha com o serviço em baixo → `200`;
+      - um pedido em lote por página com os ids distintos; eliminada depois → `DELETED` sem conteúdo e com o texto;
+      - `GET …/shares`: só as partilhas desta conversa, por `seq`; atualiza; `UNAVAILABLE` com o serviço em baixo; `seqs` inválidos → `400`;
+    - **limites:**
+      - `CONVERSATION_FULL`, que não conta para a janela;
+      - limite por janela → `429` com `Retry-After`; repetições não contam;
+      - 10 envios simultâneos no limite por conversa → exatamente os que cabem (5);
+      - 20 envios simultâneos no limite por janela → exatamente os que cabem (15) e `429` nos outros;
+    - **registos:** nos registos capturados não aparecem o texto da mensagem, os tokens, a chave interna nem os usernames, também em falhas e recusas.
+- **experiences-service: 48 testes, 0 falhas.** O teste da consulta em lote cobre a chave das mensagens (mesma resposta que a das listas) e a recusa da chave do users-service e da chave vazia.
+
+Executados depois da última alteração ao código.
+
+**Verificação por HTTP (2026-10-20)**, nos contentores:
+
+- **Preparação:**
+  - PostgreSQL recriado com as variáveis novas, com o volume mantido;
+  - `messaging_db` criada pelo script, corrido duas vezes sem efeito na segunda;
+  - experiences-service reconstruído e messaging-service arrancado.
+- **Dados:** três contas temporárias, apagadas no fim com as suas conversas, mensagens e experiências.
+- **Preservado:**
+  - a `pamplona`, a segunda conta do utilizador e as suas publicações, listas e volumes;
+  - antes e depois: 2 contas, 3 experiências ativas, 1 lista com 1 item.
+
+23 verificações, 0 falhas:
+
+| Verificação | Resultado |
+|---|---|
+| Sem token | `401` |
+| Abrir A→B; B→A; consigo próprio; inexistente | `201` com `Location` e username; `200` a mesma; `400 CANNOT_MESSAGE_SELF`; `404 USER_NOT_FOUND` |
+| Enviar; repetir a chave; outro conteúdo | `201`; `200` + `Idempotent-Replayed`; `409 DIFFERENT_CONTENT` |
+| Por ler e marcar como lidas | 1 por ler; `999` → fica no fim (1), 0 por ler; `0` não recua |
+| Terceira pessoa | `404` igual ao de uma conversa inexistente, sem o texto |
+| Partilhar disponível; inexistente | `201` `AVAILABLE` com o conteúdo; `404 EXPERIENCE_NOT_FOUND` |
+| Consulta incremental de 2 em 2; últimas 3 | 1–7 sem saltos; 5, 6, 7 |
+| experiences-service parado | mensagens `200` com todas, partilha `UNKNOWN` e texto visível; texto `201`; partilha `503` |
+| Serviço de volta | `GET …/shares` → `AVAILABLE`; a chave que falhou envia (`201`) |
+| A autora elimina a experiência | `DELETED` sem conteúdo; o texto mantém-se |
+| users-service parado; de volta | conversa nova `503 USERS_UNAVAILABLE`; existente `200`, enviar `201`, caixa `200`; depois conversa nova `201` |
+| Consulta em lote a partir do computador | chave das mensagens `200`, das listas `200`; a do users-service e nenhuma → `403` |
+| `feed-context` do users-service com as chaves das mensagens e das listas | `403` |
+| Chaves internas no `.env` | as três são diferentes |
+| `messaging_user` | aceite em `messaging_db`, recusado em `experiences_db` e `collections_db`; `experiences_user` e `collections_user` recusados em `messaging_db` |
+| Logs do messaging-service | sem o texto enviado, tokens, usernames nem a chave |
+
+**Consumo medido (2026-10-20, uma medição, não um ensaio de carga):**
+
+- **60 consultas `after` sem novidades**, seguidas, a partir do computador: mediana 11,7 ms, p95 28 ms, corpo de 100 bytes.
+- **Memória:** messaging-service ≈ 244 MiB parado depois da verificação; seis contentores ≈ 1,25 GiB.
+- **Não medido:** consumo de bateria e de dados no telemóvel, e o efeito de várias conversas abertas ao mesmo tempo (fica para a etapa da app).
+
+**Ainda não implementado:** a app Android (§15), as notificações (etapa própria) e a contagem de partilhas no dashboard.

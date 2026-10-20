@@ -334,9 +334,9 @@ GET /api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01,3f1c9a2e-6b0
 
 ### 4.7 `GET /internal/experiences` — consulta em lote (collections-service)
 
-Endpoint **interno**, só para o collections-service ([collections-api.md §7](collections-api.md#7-consulta-das-experiências-experiences-service)), acrescentado na etapa 11.
+Endpoint **interno**, só para o collections-service ([collections-api.md §7](collections-api.md#7-consulta-das-experiências-experiences-service)), acrescentado na etapa 11. Desde a etapa 12 também serve o messaging-service ([messaging-api.md §7.4](messaging-api.md#74-consulta-em-lote-no-experiences-service-adaptação)), com uma chave própria.
 
-- `GET /api/v1/internal/experiences?ids=<id>,<id>,…` com `X-Internal-Key` igual a `COLLECTIONS_INTERNAL_KEY` (do `.env`, comparada em tempo constante). Chave em falta ou errada, ou não configurada → `403`. O pedido não leva token de utilizador.
+- `GET /api/v1/internal/experiences?ids=<id>,<id>,…` com `X-Internal-Key` igual à chave de um dos clientes, do `.env`: `COLLECTIONS_INTERNAL_KEY` (collections-service) ou `MESSAGING_INTERNAL_KEY` (messaging-service). Cada chave é comparada em tempo constante. Chave em falta, desconhecida (incluindo a `USERS_INTERNAL_KEY`) ou não configurada → `403`. Se duas chaves fossem iguais (erro de configuração), nenhuma seria aceite. O pedido não leva token de utilizador.
 - 1 a 50 ids UUID (repetidos são ignorados); mais de 50, nenhum ou inválidos → `400 VALIDATION_FAILED`.
 - Resposta `200`, uma entrada por id distinto, pela ordem pedida:
 
@@ -1250,6 +1250,8 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 - sem migração nova: as consultas usam os índices existentes.
 
 **Consulta interna em lote (etapa 11):** `GET /api/v1/internal/experiences` para o collections-service (§4.7), com `COLLECTIONS_INTERNAL_KEY`; +1 teste (48 no total). Detalhes e verificação em [collections-api.md §13](collections-api.md#13-estado-da-implementação).
+
+**Chave do messaging-service (etapa 12):** a consulta em lote aceita também `MESSAGING_INTERNAL_KEY` (`portofit.internal.messaging-key`), mantendo a das listas. O teste da consulta passou a cobrir as duas chaves, a recusa da chave do users-service e a chave vazia (48 testes, 0 falhas).
 
 **E4 na app (etapa 9):** barra inferior Pesquisar (inicial) / Descobrir / Estatísticas, feeds com `mode`/`fallbackReason` e dashboard ([app-android.md §17](app-android.md#17-descobrir-e-estatísticas-etapa-9-e4)).
 
