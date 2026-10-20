@@ -1249,6 +1249,8 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 - configuração `portofit.users.*` e `portofit.feed.*` (modo de demonstração); chave `USERS_INTERNAL_KEY` só no `.env`;
 - sem migração nova: as consultas usam os índices existentes.
 
+**Consulta interna em lote (etapa 11):** `GET /api/v1/internal/experiences` para o collections-service (§4.7), com `COLLECTIONS_INTERNAL_KEY`; +1 teste (48 no total). Detalhes e verificação em [collections-api.md §13](collections-api.md#13-estado-da-implementação).
+
 **E4 na app (etapa 9):** barra inferior Pesquisar (inicial) / Descobrir / Estatísticas, feeds com `mode`/`fallbackReason` e dashboard ([app-android.md §17](app-android.md#17-descobrir-e-estatísticas-etapa-9-e4)).
 
 **Notas da implementação**

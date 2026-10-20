@@ -7,10 +7,11 @@
 
 | Componente | Função | Acesso |
 |---|---|---|
-| `postgres` | PostgreSQL com as bases `catalog_db`, `users_db` e `experiences_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
+| `postgres` | PostgreSQL com as bases `catalog_db`, `users_db`, `experiences_db` e `collections_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
 | `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
 | `users-service` | Contas, sessões (JWT + refresh tokens), perfis e seguir ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
 | `experiences-service` | Experiências, fotografias e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db` e o volume `experiences-media`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
+| `collections-service` | Listas pessoais e experiências guardadas ([collections-api.md](collections-api.md)) sobre `collections_db`; consulta as experiências no experiences-service em lote; valida os JWT só com a chave pública | `http://localhost:8084` |
 
 ```
 PortoFit/
@@ -23,9 +24,11 @@ PortoFit/
 │   ├── postgres/init/
 │   │   ├── 01-catalog-db.sh      cria catalog_db e o seu utilizador (1.ª inicialização)
 │   │   ├── 02-users-db.sh        cria users_db e o seu utilizador (idempotente; ver §3.1)
-│   │   └── 03-experiences-db.sh  cria experiences_db e o seu utilizador (idempotente; ver §3.1)
+│   │   ├── 03-experiences-db.sh  cria experiences_db e o seu utilizador (idempotente; ver §3.1)
+│   │   └── 04-collections-db.sh  cria collections_db e o seu utilizador (idempotente; ver §3.1)
 │   ├── users-service/            projeto Gradle independente: auth/, user/, security/, catalog/, api/
 │   ├── experiences-service/      projeto Gradle independente: experience/, rating/, catalog/, security/, api/
+│   ├── collections-service/      projeto Gradle independente: collection/, experiences/, security/, api/
 │   └── catalog-service/          projeto Gradle independente da app Android
 │       ├── Dockerfile            build em duas etapas (JDK → JRE)
 │       ├── build.gradle.kts, settings.gradle.kts, gradlew, gradle/wrapper/
@@ -93,7 +96,7 @@ Os scripts de `backend/postgres/init/` só correm quando o volume de dados está
 
 ### 3.1 Acrescentar a base de um serviço novo a um volume existente
 
-Num volume que já tem dados (ex.: criado antes do users-service ou do experiences-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh` e o `03-experiences-db.sh` são **idempotentes** e podem ser corridos à mão sem apagar nada. Exemplo para o users-service (para o experiences-service, o mesmo com `EXPERIENCES_DB_*`, `03-experiences-db.sh` e `experiences-service`):
+Num volume que já tem dados (ex.: criado antes do users-service, do experiences-service ou do collections-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh`, o `03-experiences-db.sh` e o `04-collections-db.sh` são **idempotentes** e podem ser corridos à mão sem apagar nada. Exemplo para o users-service (para o experiences-service, o mesmo com `EXPERIENCES_DB_*`, `03-experiences-db.sh` e `experiences-service`):
 
 1. Acrescentar `USERS_DB_USER` e `USERS_DB_PASSWORD` ao `.env` (ver `.env.example`).
 2. Aplicar a configuração ao PostgreSQL (o contentor é recriado com as novas variáveis; **o volume e os dados mantêm-se**; os outros serviços perdem a ligação alguns segundos e recuperam sozinhos):
@@ -112,7 +115,7 @@ Num volume que já tem dados (ex.: criado antes do users-service ou do experienc
 | Ação | Comando |
 |---|---|
 | Arrancar (sem reconstruir) | `docker compose up -d --wait` |
-| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`, `experiences-service`); um de cada vez, para poupar memória |
+| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`, `experiences-service`, `collections-service`); um de cada vez, para poupar memória |
 | Estado e saúde | `docker compose ps` |
 | Logs (seguir em direto) | `docker compose logs -f catalog-service` (ou `users-service`) |
 | Logs da base de dados | `docker compose logs postgres` |
@@ -129,6 +132,7 @@ Num volume que já tem dados (ex.: criado antes do users-service ou do experienc
 curl.exe http://localhost:8081/actuator/health   # catalog-service
 curl.exe http://localhost:8082/actuator/health   # users-service
 curl.exe http://localhost:8083/actuator/health   # experiences-service
+curl.exe http://localhost:8084/actuator/health   # collections-service
 ```
 
 Resposta esperada (HTTP 200):
@@ -227,13 +231,37 @@ curl.exe "http://localhost:8083/api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7
 - Limite de publicações por autor e retenção das chaves de idempotência: `portofit.publishing.*` em `application.yaml` (o limite é em memória e reinicia com o serviço).
 - Fotografias (E2): `POST /api/v1/media` (multipart, campo `file`, até 10 MiB, JPEG ou PNG) devolve um `mediaId` pendente; associa-se com `"mediaId"` ao publicar ou editar. Limites e limpeza em `portofit.media.*` (`application.yaml`). A imagem guarda a pasta `/data/media` com dono `app` (o volume novo herda-o).
 - Feeds e dashboard (E4): o feed pessoal pede o contexto ao users-service (`http://users-service:8082`, com `USERS_INTERNAL_KEY`); se ele falhar, responde com o popular (`POPULAR_FALLBACK`). Modo de demonstração em `portofit.feed.include-demo-places`.
-- Testes: `cd backend\experiences-service; .\gradlew.bat test` (47 testes: 17 da E1, 13 das fotografias, 10 dos comentários, gostos e visualizações e 7 dos feeds e dashboard; PostgreSQL real via Testcontainers; catálogo e users-service falsos, chaves, relógio e pasta de fotografias dos próprios testes).
+- Consulta interna em lote para o collections-service: `GET /api/v1/internal/experiences?ids=…` com `X-Internal-Key` = `COLLECTIONS_INTERNAL_KEY` do `.env` (sem a chave → `403`).
+- Testes: `cd backend\experiences-service; .\gradlew.bat test` (48 testes: 17 da E1, 13 das fotografias, 10 dos comentários, gostos e visualizações, 7 dos feeds e dashboard e 1 da consulta interna; PostgreSQL real via Testcontainers; catálogo e users-service falsos, chaves, relógio e pasta de fotografias dos próprios testes).
+
+### collections-service
+
+Contrato completo em [collections-api.md](collections-api.md). Todas as operações exigem o access token de uma conta (do registo ou login do users-service).
+
+```powershell
+# Criar uma lista (a chave de idempotência é um UUID novo por tentativa)
+curl.exe -X POST http://localhost:8084/api/v1/collections -H "Authorization: Bearer <access>" `
+  -H "Idempotency-Key: <uuid>" -H "Content-Type: application/json" -d '{\"name\":\"Para experimentar\"}'
+# Guardar uma experiência e ver os itens
+curl.exe -X PUT http://localhost:8084/api/v1/collections/<collectionId>/items/<experienceId> -H "Authorization: Bearer <access>"
+curl.exe http://localhost:8084/api/v1/collections/<collectionId>/items -H "Authorization: Bearer <access>"
+```
+
+- **Primeira vez num volume existente:**
+  1. acrescentar `COLLECTIONS_DB_USER`, `COLLECTIONS_DB_PASSWORD` e `COLLECTIONS_INTERNAL_KEY` ao `.env` (ver `.env.example`);
+  2. `docker compose up -d --wait postgres`;
+  3. `docker compose exec -T postgres bash /docker-entrypoint-initdb.d/04-collections-db.sh`;
+  4. reconstruir o experiences-service e arrancar o collections-service (um de cada vez).
+- **Chaves:** valida os JWT só com `secrets/users-jwt/public.pem` (montado só de leitura); nunca recebe a chave privada nem chama o users-service.
+- **Experiências:** consulta o experiences-service pela rede interna (`http://experiences-service:8083`, consulta em lote com `COLLECTIONS_INTERNAL_KEY`). Com ele parado, as listas continuam e os itens aparecem como `UNKNOWN` (nunca como eliminados).
+- **Limites:** `portofit.collections.*` em `application.yaml` (50 listas por pessoa, 500 itens por lista).
+- **Testes:** `cd backend\collections-service; .\gradlew.bat test` (9 testes; PostgreSQL real via Testcontainers; experiences-service falso e chaves dos próprios testes).
 
 ## 7. Configuração relevante
 
 | Aspeto | Valor | Onde |
 |---|---|---|
-| Portas publicadas | `127.0.0.1:8081` (catálogo), `127.0.0.1:8082` (users), `127.0.0.1:8083` (experiences), só no próprio computador | `docker-compose.yml` |
+| Portas publicadas | `127.0.0.1:8081` (catálogo), `127.0.0.1:8082` (users), `127.0.0.1:8083` (experiences), `127.0.0.1:8084` (collections), só no próprio computador | `docker-compose.yml` |
 | PostgreSQL | sem porta publicada; rede `data` marcada como interna | `docker-compose.yml` |
 | Utilizador da base de dados | `catalog_user`: sem superutilizador, sem criar bases/papéis; dono apenas de `catalog_db`; sem acesso à base `postgres` | `01-catalog-db.sh` |
 | Pool de ligações | máx. 5; espera por ligação 5 s; validação 3 s | `application.yaml` |

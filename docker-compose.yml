@@ -17,6 +17,8 @@ services:
       USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:?defina USERS_DB_PASSWORD no .env}
       EXPERIENCES_DB_USER: ${EXPERIENCES_DB_USER:?defina EXPERIENCES_DB_USER no .env}
       EXPERIENCES_DB_PASSWORD: ${EXPERIENCES_DB_PASSWORD:?defina EXPERIENCES_DB_PASSWORD no .env}
+      COLLECTIONS_DB_USER: ${COLLECTIONS_DB_USER:?defina COLLECTIONS_DB_USER no .env}
+      COLLECTIONS_DB_PASSWORD: ${COLLECTIONS_DB_PASSWORD:?defina COLLECTIONS_DB_PASSWORD no .env}
     volumes:
       # PostgreSQL 18+: o volume monta em /var/lib/postgresql (os dados ficam em 18/docker).
       - postgres-data:/var/lib/postgresql
@@ -136,6 +138,8 @@ services:
       # Contexto do feed pessoal (docs/experiences-api.md §14.3), pela rede interna; a chave só vem do .env.
       USERS_BASE_URL: http://users-service:8082
       USERS_INTERNAL_KEY: ${USERS_INTERNAL_KEY:?defina USERS_INTERNAL_KEY no .env}
+      # Chave do collections-service para a consulta interna em lote (docs/experiences-api.md §4.7), só do .env.
+      COLLECTIONS_INTERNAL_KEY: ${COLLECTIONS_INTERNAL_KEY:?defina COLLECTIONS_INTERNAL_KEY no .env}
     volumes:
       # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
       - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
@@ -152,6 +156,45 @@ services:
         restart: true
     healthcheck:
       test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8083 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  collections-service:
+    build: ./backend/collections-service
+    image: portofit/collections-service:0.1.0
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: collections_db
+      DB_USER: ${COLLECTIONS_DB_USER:?defina COLLECTIONS_DB_USER no .env}
+      DB_PASSWORD: ${COLLECTIONS_DB_PASSWORD:?defina COLLECTIONS_DB_PASSWORD no .env}
+      # Só a chave PÚBLICA, para validar localmente os access tokens do users-service.
+      JWT_PUBLIC_KEY_PATH: /run/secrets/users-jwt/public.pem
+      # Consulta interna em lote (docs/collections-api.md §7), pela rede interna; a chave só vem do .env.
+      EXPERIENCES_BASE_URL: http://experiences-service:8083
+      COLLECTIONS_INTERNAL_KEY: ${COLLECTIONS_INTERNAL_KEY:?defina COLLECTIONS_INTERNAL_KEY no .env}
+    volumes:
+      # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
+      - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
+    ports:
+      - "127.0.0.1:8084:8084"
+    networks:
+      - data
+      - public
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8084 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
       interval: 10s
       timeout: 5s
       retries: 5

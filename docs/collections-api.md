@@ -1,7 +1,7 @@
 # collections-service — Contrato da API
 
 > Listas pessoais com nomes personalizados e experiências guardadas (requisito R8, etapa 11). Contexto geral em [arquitetura.md](arquitetura.md) (§3.2 responsabilidades, §3.5 cópias, §3.8 autenticação, §4 falhas).
-> Estado: contrato revisto em 2026-10-20; implementação do backend em [§13](#13-estado-da-implementação). A app ainda não usa este serviço.
+> Estado: contrato revisto em 2026-10-20; **backend implementado** (etapa 11, [§13](#13-estado-da-implementação)). A app ainda não usa este serviço.
 > Mesmas convenções do [catalog-api.md](catalog-api.md), do [users-api.md](users-api.md) e do [experiences-api.md](experiences-api.md): JSON UTF-8, campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`, envelope de paginação comum.
 
 ## Índice
@@ -235,4 +235,74 @@ O serviço arranca sem o experiences-service e sem o users-service; só depende 
 
 ## 13. Estado da implementação
 
-Ainda não implementado.
+Etapa 11 (backend), `backend/collections-service`, mais a consulta interna em lote no experiences-service ([experiences-api.md §4.7](experiences-api.md#47-get-internalexperiences--consulta-em-lote-collections-service)). A app ainda não usa este serviço.
+
+**Implementado:**
+
+- todos os endpoints do §4, com as regras do §5 e do §6;
+- migração `V1__collections_schema.sql` (`collection`, `collection_item`, `collection_request`);
+- base `collections_db` e utilizador próprio (`04-collections-db.sh`, idempotente, corrido à mão no volume existente);
+- contentor em `127.0.0.1:8084`, só com a chave pública;
+- `COLLECTIONS_INTERNAL_KEY` no `.env`, partilhada só com o experiences-service;
+- limpeza horária das tentativas de criação com mais de 7 dias.
+
+**Notas da implementação:**
+
+- **Projeto:** as mesmas versões e dependências do experiences-service (Spring Boot 4.1.1, Kotlin 2.3.21, JDK 25, Flyway, Spring JDBC), sem dependências novas.
+- **Criação idempotente:** tentativa inserida com `ON CONFLICT DO NOTHING` antes da lista, na mesma transação. O nome repetido (`DuplicateKeyException` do índice único) desfaz tudo e dá `409 NAME_TAKEN`, sem gastar a chave.
+  - O limite de listas usa `pg_advisory_xact_lock(hashtextextended(dono))`, e a tentativa é procurada outra vez depois do bloqueio, para uma repetição simultânea no limite responder como repetição.
+- **Itens:** a lista é bloqueada (`FOR UPDATE`) para contar os itens; a inserção usa `ON CONFLICT DO NOTHING`. Guardar e remover atualizam `updatedAt` só quando algo muda.
+- **Cliente do experiences-service:**
+  - `RestClient` sobre o cliente HTTP do JDK (ligação 0,5 s, resposta 2 s), sem novas tentativas nem cache;
+  - uma resposta incompleta, com estados desconhecidos ou sem um dos ids pedidos é tratada como indisponível;
+  - um `403` é registado como erro de configuração; registos sem a chave nem nomes de listas.
+
+**Testes automáticos:**
+
+- **collections-service** (`CollectionsApiIntegrationTest`, **9 testes, 0 falhas**), com PostgreSQL 18.6 real (Testcontainers), um experiences-service falso (confirma a chave e simula erro, lentidão, chave recusada e resposta inválida) e chaves RSA só dos testes:
+  - **autenticação:** sem token, outra chave, outro `aud` → `401`;
+  - **privacidade:** lista de outra pessoa ≡ inexistente (`404` igual) em todas as operações, sem o nome nem o dono;
+  - **validação do nome:** vazio, só espaços, 61 caracteres, controlo, mudança de linha, não texto, campos extra, corpo não objeto, chave em falta; 60 emojis aceites;
+  - **idempotência da criação:** `201` → `200` + `Idempotent-Replayed`, também depois de renomear; outro nome → `DIFFERENT_CONTENT` com `collectionId`; eliminada → `COLLECTION_DELETED`;
+  - **unicidade do nome:** sem distinguir maiúsculas; outro dono pode repetir; `NAME_TAKEN` não gasta a chave; renomear só maiúsculas permitido; nome de outra lista → `409`;
+  - **concorrência:** 8 criações com a mesma chave → 1 lista; 8 com o mesmo nome → 1 + 7 `409`; 6 criações com limite 3 → 3;
+  - **listas:** paginação mais recentes primeiro; eliminar → `204`, depois `404`, sem pedidos ao experiences-service e com os itens removidos;
+  - **itens:**
+    - guardar e remover idempotentes, também a remoção de itens inexistentes;
+    - já guardada → `204` sem consultar o experiences-service (também com ele parado);
+    - ordem e paginação, com **um pedido em lote por página** com os ids dessa página;
+    - 8 guardados simultâneos → 1 item; limite de itens com pedidos simultâneos;
+  - **experiência eliminada vs. serviço indisponível:**
+    - guardar eliminada ou inexistente → `404 EXPERIENCE_NOT_FOUND`;
+    - eliminada depois → `DELETED` sem conteúdo;
+    - erro, lentidão (> 2 s), chave recusada e resposta inválida → itens `UNKNOWN`, `experiencesStatus: UNAVAILABLE` e guardar → `503` sem gravar;
+    - remover continua a funcionar.
+- **experiences-service** (`InternalLookupApiIntegrationTest`, +1; **48 testes, 0 falhas**):
+  - sem chave, chave errada ou só com token → `403`;
+  - ordem pedida, repetidos ignorados, `AVAILABLE`/`DELETED`/`NOT_FOUND`, sem conteúdo da eliminada nem `likedByMe`;
+  - 0, inválido ou 51 ids → `400`; 50 → `200`.
+
+Executados depois da última alteração ao código.
+
+**Verificação por HTTP (2026-10-20)**, nos contentores. O PostgreSQL foi recriado com as variáveis novas (o volume manteve-se), `collections_db` criada pelo script e o experiences-service reconstruído. Usaram-se duas contas temporárias, apagadas no fim com as suas experiências e listas; `pamplona`, a segunda conta do utilizador, as suas publicações e os volumes foram preservados. 19 verificações, 0 falhas:
+
+| Verificação | Resultado |
+|---|---|
+| Sem token | `401` |
+| Criar "  Para experimentar  "; repetir a chave | `201`, nome sem as pontas, sem `ownerId`; `200` + `Idempotent-Replayed`, mesma lista |
+| "PARA EXPERIMENTAR"; só espaços; renomear | `409 NAME_TAKEN`; `400`; `200` |
+| Outra conta: a lista da primeira, uma inexistente, guardar nela | `404` iguais, sem o nome; a sua lista vazia |
+| Guardar duas experiências e repetir uma | `204` ×3 |
+| Itens | dois `AVAILABLE`, o mais recente primeiro, com a experiência |
+| Guardar uma experiência inexistente | `404 EXPERIENCE_NOT_FOUND` |
+| A autora elimina uma experiência guardada | item `DELETED` sem conteúdo; a outra `AVAILABLE` |
+| experiences-service parado | itens `UNKNOWN`, `experiencesStatus: UNAVAILABLE` (`200`); guardar nova `503 EXPERIENCES_UNAVAILABLE`; já guardada `204`; remover `204`; listas `200` |
+| Serviço de volta | item `AVAILABLE` |
+| Consulta interna em lote a partir do computador | sem chave `403`; com token de utilizador `403` |
+| Eliminar a lista; repetir; a experiência; repetir a chave de criação | `204`; `404`; `200`; `409 COLLECTION_DELETED` |
+| `collections_user` | recusado em `experiences_db`, aceite em `collections_db` |
+| Logs do collections-service | sem tokens nem nomes de listas |
+
+**Ainda não implementado:**
+- listas na app Android;
+- "vezes guardada" no dashboard (etapa 13), que exigirá uma contagem agregada (proposta em [arquitetura.md §3.12](arquitetura.md#312-dashboard)).
