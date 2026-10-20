@@ -988,4 +988,17 @@ Contrato: [collections-api.md](collections-api.md). Sem "vezes guardada" no dash
 
 A primeira execução parou ao publicar a experiência de teste (catálogo em arranque a frio, `HttpTimeoutException`, já documentado); as contas criadas foram apagadas e a verificação repetida com várias tentativas de publicação.
 
-**Pendente (na interface, no emulador ou num telemóvel):** criar e mudar o nome de uma lista, guardar a partir do detalhe, abrir um item e voltar, remover, eliminar a lista, o login a partir das listas e do seletor, e a falha/recuperação do experiences-service vistas no ecrã.
+**Verificação na interface (2026-10-20, pelo utilizador):**
+
+| Percurso | Resultado |
+|---|---|
+| Criar e mudar o nome de uma lista | feito |
+| Guardar uma experiência, abrir o item e voltar | feito |
+| Remover o item e eliminar a lista | feito; a experiência continua a existir |
+| Login a partir de "Guardar numa lista" | regressa ao seletor sem guardar; guarda só depois de um novo toque |
+
+**Pendente (na interface):**
+- com o experiences-service parado, as listas acessíveis e os itens "temporariamente indisponíveis" (nunca eliminados), e a recuperação com "Tentar novamente" depois de o reiniciar;
+- o login iniciado em "As minhas listas" e o regresso ao mesmo ecrã.
+
+Em 2026-10-20 o assistente não pôde fazer estas verificações: o emulador não estava aberto e havia ~0,7 GB de memória livre (o emulador precisa de ~4 GB). O comportamento está coberto pelos testes JVM e pela verificação HTTP acima (serviço parado → `UNKNOWN`/`UNAVAILABLE`; recuperação → `AVAILABLE`).
