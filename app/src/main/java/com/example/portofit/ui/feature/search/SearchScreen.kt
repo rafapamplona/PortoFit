@@ -62,6 +62,7 @@ fun SearchScreen(
     onLoginClick: () -> Unit,
     onProfileClick: () -> Unit,
     onPersonClick: (userId: String) -> Unit,
+    onCollectionsClick: () -> Unit = {},
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory),
     peopleViewModel: PeopleSearchViewModel = viewModel(factory = PeopleSearchViewModel.Factory),
     accountViewModel: AccountViewModel = viewModel(factory = AccountViewModel.Factory),
@@ -79,7 +80,7 @@ fun SearchScreen(
         onRetrySearch = viewModel::retrySearch,
         onLoadMore = viewModel::loadMore,
         onPlaceClick = onPlaceClick,
-        accountActions = { AccountAction(session, onLoginClick, onProfileClick, accountViewModel::logout) },
+        accountActions = { AccountAction(session, onLoginClick, onProfileClick, accountViewModel::logout, onCollectionsClick) },
         sessionBanner = { SessionBanner(session, onLoginClick, accountViewModel::retry, accountViewModel::dismissNotice) },
         onModeChange = viewModel::onModeChange,
         peopleItems = {

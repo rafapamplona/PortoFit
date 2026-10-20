@@ -20,6 +20,7 @@ class PortoFitApplication : Application(), SingletonImageLoader.Factory {
             catalogBaseUrl = BuildConfig.CATALOG_BASE_URL,
             usersBaseUrl = BuildConfig.USERS_BASE_URL,
             experiencesBaseUrl = BuildConfig.EXPERIENCES_BASE_URL,
+            collectionsBaseUrl = BuildConfig.COLLECTIONS_BASE_URL,
         )
     }
 

@@ -11,6 +11,8 @@ val catalogBaseUrlOverride: String? = providers.gradleProperty("portofit.catalog
 val usersBaseUrlOverride: String? = providers.gradleProperty("portofit.usersBaseUrl").orNull
 // URL do experiences-service (mesma regra).
 val experiencesBaseUrlOverride: String? = providers.gradleProperty("portofit.experiencesBaseUrl").orNull
+// URL do collections-service (mesma regra).
+val collectionsBaseUrlOverride: String? = providers.gradleProperty("portofit.collectionsBaseUrl").orNull
 
 android {
     namespace = "com.example.portofit"
@@ -33,6 +35,7 @@ android {
             buildConfigField("String", "CATALOG_BASE_URL", "\"${catalogBaseUrlOverride ?: "http://10.0.2.2:8081/"}\"")
             buildConfigField("String", "USERS_BASE_URL", "\"${usersBaseUrlOverride ?: "http://10.0.2.2:8082/"}\"")
             buildConfigField("String", "EXPERIENCES_BASE_URL", "\"${experiencesBaseUrlOverride ?: "http://10.0.2.2:8083/"}\"")
+            buildConfigField("String", "COLLECTIONS_BASE_URL", "\"${collectionsBaseUrlOverride ?: "http://10.0.2.2:8084/"}\"")
         }
         release {
             optimization {
@@ -42,6 +45,7 @@ android {
             buildConfigField("String", "CATALOG_BASE_URL", "\"${catalogBaseUrlOverride ?: ""}\"")
             buildConfigField("String", "USERS_BASE_URL", "\"${usersBaseUrlOverride ?: ""}\"")
             buildConfigField("String", "EXPERIENCES_BASE_URL", "\"${experiencesBaseUrlOverride ?: ""}\"")
+            buildConfigField("String", "COLLECTIONS_BASE_URL", "\"${collectionsBaseUrlOverride ?: ""}\"")
         }
     }
     compileOptions {

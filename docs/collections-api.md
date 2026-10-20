@@ -1,7 +1,7 @@
 # collections-service — Contrato da API
 
 > Listas pessoais com nomes personalizados e experiências guardadas (requisito R8, etapa 11). Contexto geral em [arquitetura.md](arquitetura.md) (§3.2 responsabilidades, §3.5 cópias, §3.8 autenticação, §4 falhas).
-> Estado: contrato revisto em 2026-10-20; **backend implementado** (etapa 11, [§13](#13-estado-da-implementação)). A app ainda não usa este serviço.
+> Estado: contrato revisto em 2026-10-20; **backend e app implementados** (etapa 11, [§13](#13-estado-da-implementação); app em [app-android.md §18](app-android.md#18-listas-pessoais-etapa-11)).
 > Mesmas convenções do [catalog-api.md](catalog-api.md), do [users-api.md](users-api.md) e do [experiences-api.md](experiences-api.md): JSON UTF-8, campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`, envelope de paginação comum.
 
 ## Índice
@@ -303,6 +303,7 @@ Executados depois da última alteração ao código.
 | `collections_user` | recusado em `experiences_db`, aceite em `collections_db` |
 | Logs do collections-service | sem tokens nem nomes de listas |
 
+**App Android (etapa 11):** "As minhas listas" no menu da conta, criar/mudar o nome/eliminar, "Guardar numa lista" no detalhe da experiência e itens com os três estados ([app-android.md §18](app-android.md#18-listas-pessoais-etapa-11)).
+
 **Ainda não implementado:**
-- listas na app Android;
 - "vezes guardada" no dashboard (etapa 13), que exigirá uma contagem agregada (proposta em [arquitetura.md §3.12](arquitetura.md#312-dashboard)).

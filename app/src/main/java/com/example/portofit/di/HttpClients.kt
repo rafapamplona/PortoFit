@@ -42,6 +42,15 @@ object HttpClients {
         .connectionPool(ConnectionPool(2, USERS_IDLE_SECONDS, TimeUnit.SECONDS))
         .build()
 
+    /**
+     * collections-service: pool própria de ligações curtas. As novas tentativas de ligação do OkHttp são seguras: as
+     * leituras, o PATCH, o DELETE e o PUT dos itens são idempotentes, e a criação de listas leva sempre uma
+     * Idempotency-Key (docs/collections-api.md §5.2). A app nunca repete pedidos por iniciativa própria.
+     */
+    fun collections(base: OkHttpClient): OkHttpClient = base.newBuilder()
+        .connectionPool(ConnectionPool(2, USERS_IDLE_SECONDS, TimeUnit.SECONDS))
+        .build()
+
     /** Chamadas de sessão: o cliente do users-service (mesma pool), sem novas tentativas automáticas. */
     fun session(users: OkHttpClient): OkHttpClient = users.newBuilder()
         .retryOnConnectionFailure(false)

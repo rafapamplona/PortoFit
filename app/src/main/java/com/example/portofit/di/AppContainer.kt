@@ -15,7 +15,12 @@ import com.example.portofit.data.remote.PeopleApi
 import com.example.portofit.data.remote.ProfileApi
 import com.example.portofit.data.remote.UsersApi
 import com.example.portofit.data.repository.CatalogRepository
+import com.example.portofit.data.remote.CollectionsApi
+import com.example.portofit.data.repository.CollectionChanges
+import com.example.portofit.data.repository.CollectionsRepository
 import com.example.portofit.data.repository.DiscoverRepository
+import com.example.portofit.data.repository.NetworkCollectionsRepository
+import com.example.portofit.data.repository.UnconfiguredCollectionsRepository
 import com.example.portofit.data.repository.ExperienceChanges
 import com.example.portofit.data.repository.NetworkDiscoverRepository
 import com.example.portofit.data.repository.UnconfiguredDiscoverRepository
@@ -46,7 +51,13 @@ import java.io.File
  * Injeção de dependências manual: cria uma única vez os objetos partilhados pela app.
  * Criado em PortoFitApplication; os ViewModels obtêm daqui os repositórios e a sessão.
  */
-class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: String, val experiencesBaseUrl: String) {
+class AppContainer(
+    context: Context,
+    catalogBaseUrl: String,
+    usersBaseUrl: String,
+    val experiencesBaseUrl: String,
+    collectionsBaseUrl: String = "",
+) {
 
     private val json = Json {
         // Campos novos acrescentados pelo backend não partem a app.
@@ -58,6 +69,7 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
     private val usersHttpClient = HttpClients.users(httpClient)
     private val sessionHttpClient = HttpClients.session(usersHttpClient)
     private val experiencesHttpClient = HttpClients.experiences(httpClient)
+    private val collectionsHttpClient = HttpClients.collections(httpClient)
 
     /** Sessão da app: corre num âmbito próprio, independente de ecrãs e ViewModels. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -112,6 +124,15 @@ class AppContainer(context: Context, catalogBaseUrl: String, usersBaseUrl: Strin
         experiencesBaseUrl.takeIf { it.isNotBlank() }
             ?.let { NetworkDiscoverRepository(retrofit(it, experiencesHttpClient).create(ExperiencesApi::class.java), sessionManager) }
             ?: UnconfiguredDiscoverRepository()
+
+    /** Listas pessoais (docs/collections-api.md): privadas, sempre com sessão. */
+    val collectionsRepository: CollectionsRepository =
+        collectionsBaseUrl.takeIf { it.isNotBlank() }
+            ?.let { NetworkCollectionsRepository(retrofit(it, collectionsHttpClient).create(CollectionsApi::class.java), sessionManager, json) }
+            ?: UnconfiguredCollectionsRepository()
+
+    /** Avisos de alterações nas listas (contagens e nomes noutros ecrãs). */
+    val collectionChanges = CollectionChanges()
 
     /** Avisos de publicação/edição/eliminação, para atualizar listas e avaliações noutros ecrãs. */
     val experienceChanges = ExperienceChanges()

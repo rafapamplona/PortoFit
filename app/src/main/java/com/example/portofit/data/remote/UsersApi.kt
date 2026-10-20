@@ -66,6 +66,8 @@ data class ProblemDto(
     val reason: String? = null,
     val experienceId: String? = null,
     val commentId: String? = null,
+    /** collections-service, 409 IDEMPOTENCY_CONFLICT com DIFFERENT_CONTENT. */
+    val collectionId: String? = null,
 )
 
 @Serializable

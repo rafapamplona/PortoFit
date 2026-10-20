@@ -28,6 +28,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.portofit.R
+import com.example.portofit.ui.feature.collections.CollectionDetailScreen
+import com.example.portofit.ui.feature.collections.CollectionDetailViewModel
+import com.example.portofit.ui.feature.collections.CollectionsScreen
+import com.example.portofit.ui.feature.collections.SaveToCollectionScreen
+import com.example.portofit.ui.feature.collections.SaveToCollectionViewModel
 import com.example.portofit.ui.feature.discover.DiscoverActions
 import com.example.portofit.ui.feature.discover.DiscoverScreen
 import com.example.portofit.ui.feature.stats.StatsActions
@@ -69,6 +74,12 @@ private object Routes {
         "place/${Uri.encode(placeId)}/publish/${Uri.encode(offeringId)}" +
             "?${PublishExperienceViewModel.PLACE_NAME_ARG}=${Uri.encode(placeName)}&${PublishExperienceViewModel.OFFERING_NAME_ARG}=${Uri.encode(offeringName)}"
     const val EXPERIENCE = "experience/{${ExperienceDetailViewModel.EXPERIENCE_ID_ARG}}"
+    const val COLLECTIONS = "collections"
+    const val COLLECTION = "collection/{${CollectionDetailViewModel.COLLECTION_ID_ARG}}?${CollectionDetailViewModel.COLLECTION_NAME_ARG}={${CollectionDetailViewModel.COLLECTION_NAME_ARG}}"
+    fun collection(id: String, name: String) =
+        "collection/${Uri.encode(id)}?${CollectionDetailViewModel.COLLECTION_NAME_ARG}=${Uri.encode(name)}"
+    const val SAVE = "experience/{${SaveToCollectionViewModel.EXPERIENCE_ID_ARG}}/save"
+    fun save(experienceId: String) = "experience/${Uri.encode(experienceId)}/save"
     fun experience(experienceId: String) = "experience/${Uri.encode(experienceId)}"
 }
 
@@ -138,6 +149,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                     onProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                     onEditInterests = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                     onFindPeople = { if (entry.isResumed()) navController.navigateToTopLevel(Routes.SEARCH) },
+                    onCollections = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
                 ),
             )
         }
@@ -148,7 +160,41 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                     // Depois de entrar, o login regressa a Estatísticas.
                     onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                     onProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
+                    onCollections = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
                 ),
+            )
+        }
+        composable(Routes.COLLECTIONS) { entry ->
+            CollectionsScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onOpenCollection = { c -> if (entry.isResumed()) navController.navigate(Routes.collection(c.id, c.name)) },
+                // Sem sessão: entrar e regressar a esta página.
+                onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+            )
+        }
+        composable(
+            route = Routes.COLLECTION,
+            arguments = listOf(
+                navArgument(CollectionDetailViewModel.COLLECTION_ID_ARG) { type = NavType.StringType },
+                navArgument(CollectionDetailViewModel.COLLECTION_NAME_ARG) { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { entry ->
+            CollectionDetailScreen(
+                initialName = entry.arguments?.getString(CollectionDetailViewModel.COLLECTION_NAME_ARG).orEmpty(),
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
+                onOpenAuthor = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
+                onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+            )
+        }
+        composable(
+            route = Routes.SAVE,
+            arguments = listOf(navArgument(SaveToCollectionViewModel.EXPERIENCE_ID_ARG) { type = NavType.StringType }),
+        ) { entry ->
+            SaveToCollectionScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                // O login regressa ao seletor; guardar exige um novo toque.
+                onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
             )
         }
         composable(Routes.SEARCH) { entry ->
@@ -160,6 +206,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                 onLoginClick = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                 onProfileClick = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                 onPersonClick = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
+                onCollectionsClick = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
             )
         }
         composable(Routes.LOGIN) { entry ->
@@ -259,6 +306,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                 onOpenAuthor = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
                 onOpenPlace = { placeId -> if (entry.isResumed()) navController.navigate(Routes.place(placeId)) },
                 onLoginRequired = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+                onSaveToList = { id -> if (entry.isResumed()) navController.navigate(Routes.save(id)) },
             )
         }
     }

@@ -408,6 +408,62 @@
     <string name="stats_session_ended">A tua sessão terminou. Entra novamente para veres as tuas estatísticas.</string>
     <string name="stats_session_unverified">Não foi possível confirmar a tua sessão agora. Tenta novamente daqui a pouco.</string>
 
+    <!-- Listas pessoais (collections-service) -->
+    <string name="account_collections">As minhas listas</string>
+    <string name="collections_title">As minhas listas</string>
+    <string name="collections_login_hint">As listas são privadas. Entra na tua conta para veres e gerires as tuas listas.</string>
+    <string name="collections_empty">Ainda não tens listas. Cria uma para guardares experiências.</string>
+    <string name="collections_unavailable">As listas estão temporariamente indisponíveis.</string>
+    <string name="collections_not_configured">As listas não estão disponíveis nesta versão da app.</string>
+    <string name="collections_session_ended">A tua sessão terminou. Entra novamente para veres as tuas listas.</string>
+    <string name="collections_session_unverified">Não foi possível confirmar a tua sessão agora. Tenta novamente daqui a pouco.</string>
+    <string name="collection_new">Nova lista</string>
+    <string name="collection_new_title">Nova lista</string>
+    <string name="collection_name_label">Nome da lista</string>
+    <string name="collection_name_counter">%1$d/%2$d caracteres</string>
+    <string name="collection_name_invalid">O nome deve ter entre 1 e 60 caracteres, numa só linha.</string>
+    <string name="collection_create">Criar</string>
+    <string name="collection_creating">A criar…</string>
+    <string name="collection_cancel">Cancelar</string>
+    <string name="collection_create_unconfirmed">Não foi possível confirmar se a lista foi criada. Toca em «Tentar novamente»: se já tiver sido criada, não fica duplicada. Até lá, o nome não pode ser alterado.</string>
+    <string name="collection_create_discard">Descartar tentativa</string>
+    <string name="collection_create_already">Esta tentativa já tinha criado uma lista com outro nome. As listas foram atualizadas.</string>
+    <string name="collection_create_deleted">Esta lista tinha sido criada e foi entretanto eliminada. Podes criar de novo.</string>
+    <string name="collection_create_too_old">Esta tentativa tem mais de 6 dias e já não pode ser repetida com segurança. Confirma se a lista existe e descarta a tentativa.</string>
+    <string name="collection_rename">Mudar o nome</string>
+    <string name="collection_rename_title">Mudar o nome da lista</string>
+    <string name="collection_save_name">Guardar</string>
+    <string name="collection_delete">Eliminar</string>
+    <string name="collection_delete_title">Eliminar a lista «%1$s»?</string>
+    <string name="collection_delete_message">As experiências guardadas não são eliminadas: só deixam de estar nesta lista.</string>
+    <string name="collection_delete_confirm">Eliminar</string>
+    <string name="collection_delete_keep">Manter</string>
+    <string name="collection_gone">Esta lista já não existe.</string>
+
+    <string name="collection_error_unconfirmed">Não foi possível confirmar a operação. Tenta novamente: repetir é seguro.</string>
+    <string name="collection_error_name_taken">Já tens uma lista com este nome.</string>
+    <string name="collection_error_validation">O servidor não aceitou o pedido. Revê o nome e tenta novamente.</string>
+    <string name="collection_error_limit">Já tens o número máximo de listas.</string>
+    <string name="collection_error_item_limit">Esta lista já tem o número máximo de experiências.</string>
+    <string name="collection_error_experience_gone">Esta experiência já não existe e não pode ser guardada.</string>
+    <string name="collection_error_experiences_unavailable">Não foi possível confirmar a experiência agora. Nada foi guardado; tenta novamente daqui a pouco.</string>
+    <string name="collection_error_session_ended">A tua sessão terminou. Entra novamente.</string>
+
+    <string name="saved_deleted">Esta experiência foi eliminada.</string>
+    <string name="saved_unknown">Experiência temporariamente indisponível.</string>
+    <string name="saved_remove">Remover da lista</string>
+    <string name="saved_removing">A remover…</string>
+    <string name="saved_experiences_unavailable">Não foi possível obter as experiências agora. Os itens continuam guardados; tenta novamente daqui a pouco.</string>
+    <string name="saved_empty">Ainda não guardaste experiências nesta lista.</string>
+
+    <string name="experience_save_to_list">Guardar numa lista</string>
+    <string name="save_title">Guardar numa lista</string>
+    <string name="save_login_hint">Entra na tua conta para guardares esta experiência numa das tuas listas. Depois de entrar, escolhe a lista.</string>
+    <string name="save_action">Guardar</string>
+    <string name="save_saving">A guardar…</string>
+    <string name="save_saved">Guardada</string>
+    <string name="save_saved_description">Guardada em %1$s</string>
+
     <!-- Erros -->
     <string name="retry">Tentar novamente</string>
     <string name="error_network">Sem ligação ao servidor. Verifica a ligação e tenta novamente.</string>

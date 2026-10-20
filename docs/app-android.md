@@ -1,6 +1,6 @@
 # PortoFit — App Android
 
-> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–9 — experiências (E1, §14), fotografias (E2, §15), comentários, gostos e visualizações (E3, §16), Descobrir e Estatísticas (E4, §17). Sem mapas nem GPS.
+> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–9 — experiências (E1, §14), fotografias (E2, §15), comentários, gostos e visualizações (E3, §16), Descobrir e Estatísticas (E4, §17); etapa 11 — listas pessoais (§18). Sem mapas nem GPS.
 > Backend: [infraestrutura.md](infraestrutura.md) · Contratos: [catalog-api.md](catalog-api.md), [users-api.md](users-api.md) · Desenho: [arquitetura.md](arquitetura.md)
 
 ## 1. Percurso disponível
@@ -897,3 +897,95 @@ No emulador já aberto pelo utilizador, com a sessão da `pamplona`. A app foi a
 | Terminar sessão e entrar noutra conta | as estatísticas privadas desaparecem; a outra conta vê só os seus dados |
 
 A segunda conta e a sua publicação foram criadas pelo utilizador para testes manuais e são mantidas. Com isto, não há verificações pendentes da E4.
+
+## 18. Listas pessoais (etapa 11)
+
+Contrato: [collections-api.md](collections-api.md). Sem "vezes guardada" no dashboard, mensagens nem notificações.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `COLLECTIONS_BASE_URL` | `app/build.gradle.kts` | Só em debug: `http://10.0.2.2:8084/` (`-Pportofit.collectionsBaseUrl=…` para mudar); em release vazio → "não disponível nesta versão". A configuração de rede de debug já permitia `10.0.2.2` |
+| `CollectionsApi`, `CollectionsRepository` | `data/remote/`, `data/repository/` | Todos os pedidos com o access token, com renovação única depois de um `401` (na criação, com a mesma chave). `CreateCollectionOutcome` (criada, por confirmar, recusada, já criada com outro nome, criada e eliminada); `CollectionError` com `UNCONFIRMED` para resultados desconhecidos e `EXPERIENCES_UNAVAILABLE` (nada guardado) à parte |
+| `HttpClients.collections` | `di/HttpClients.kt` | Pool própria de ligações curtas; novas tentativas de ligação seguras (escritas idempotentes ou com chave) |
+| `CollectionChanges` | `data/repository/CollectionsRepository.kt` | Aviso de lista alterada: os outros ecrãs pedem só essa lista (`GET /collections/{id}`) e atualizam o nome e a contagem sem recarregar as páginas |
+| `CollectionListLoader`, `CollectionCreator` | `ui/feature/collections/CollectionsShared.kt` | Listas paginadas com gerações; criação com chave por tentativa no `SavedStateHandle` |
+| `CollectionsViewModel`, `CollectionDetailViewModel`, `SaveToCollectionViewModel` | `ui/feature/collections/CollectionsViewModels.kt` | As minhas listas; itens de uma lista; seletor "Guardar numa lista" |
+| Ecrãs | `ui/feature/collections/CollectionsScreens.kt` | Listas, detalhe e seletor, com diálogos de criar, mudar o nome e eliminar |
+
+### Regras
+
+- **Acesso:**
+  - "As minhas listas" no menu da conta (Pesquisar, Descobrir, Estatísticas);
+  - "Guardar numa lista" no detalhe de cada experiência;
+  - sem sessão, os dois ecrãs mostram um convite para entrar, e o login regressa ao mesmo ecrã.
+- **Listas:** paginadas (20, mais recentes primeiro), com "Carregar mais".
+  - **Criar:** nome de 1 a 60 caracteres, numa só linha, validado como no servidor, com contador.
+  - **Mudar o nome:** o nome escrito mantém-se numa falha ("Já tens uma lista com este nome", "não foi possível confirmar… repetir é seguro").
+  - **Eliminar:** pede confirmação ("As experiências guardadas não são eliminadas"). Uma falha temporária mantém a lista; uma lista que já não existe sai da página.
+- **Criar com idempotência:**
+  - a chave é gerada no primeiro envio e guardada com o nome no `SavedStateHandle` antes do pedido (sobrevive à rotação e à recriação);
+  - resultado desconhecido → nome e chave bloqueados, "Tentar novamente" com a mesma chave, e "Descartar tentativa";
+  - recusa definitiva → chave descartada e nome mantido;
+  - nunca há repetição automática nem a mesma chave com outro nome; chaves com mais de 6 dias não são reutilizadas.
+- **Guardar numa lista:**
+  - o seletor mostra as listas paginadas e permite criar uma nova, que aparece no topo; guardar exige sempre um toque, também depois de entrar ou de criar;
+  - cada lista tem o seu estado: "Guardar" → "A guardar…" (sem envios duplicados) → "✓ Guardada";
+  - falhas: "não foi possível confirmar… repetir é seguro" (resultado desconhecido, com "Tentar novamente"); "nada foi guardado" (serviço das experiências indisponível); "a experiência já não existe" (desativa o seletor).
+- **Detalhe de uma lista:**
+  - **disponíveis:** os cartões existentes, que abrem a experiência e o autor;
+  - **eliminadas:** "Esta experiência foi eliminada.", sem conteúdo antigo;
+  - **desconhecidas:** "Experiência temporariamente indisponível.", com **Tentar novamente**;
+  - todas têm "Remover da lista", sem envios duplicados; um resultado desconhecido mantém o item, com a mensagem;
+  - com o serviço das experiências em falha aparece um aviso geral, e nenhum item é marcado como eliminado nem a lista é apagada;
+  - abrir um item e voltar mantém a página, a posição e o estado; as contagens das listas são atualizadas depois de guardar, remover, mudar o nome ou eliminar.
+- **Privacidade entre contas:** ao terminar sessão ou trocar de conta, os três ecrãs apagam logo as listas, os itens, os estados de guardar e a tentativa de criação da conta anterior. Respostas tardias são ignoradas (geração e conta do pedido).
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest`: **234 testes, 0 falhas** (eram 216), executados depois da última alteração ao código. `assembleDebug` e `lintDebug` concluídos (0 erros; aviso novo só no contador de caracteres do nome, como os já existentes).
+
+- **`CollectionsViewModelsTest` (14, novo):**
+  - **As minhas listas:**
+    - visitante sem pedidos; paginação e erro com nova tentativa;
+    - validação do nome; recusa com o nome mantido e chave nova na tentativa seguinte;
+    - criação ambígua preservada e bloqueada, também depois da recriação, sem repetição automática; repetição com a mesma chave;
+    - descartar a tentativa; tentativa com mais de 6 dias;
+    - mudar o nome: sucesso, nome repetido, resultado desconhecido;
+    - eliminar com confirmação e falha temporária que mantém a lista;
+    - troca de conta e terminar sessão, com resposta tardia ignorada;
+    - contagens atualizadas por aviso sem recarregar.
+  - **Detalhe:**
+    - itens disponíveis, eliminados e desconhecidos (com o aviso), todos removíveis;
+    - remover sem duplicados e resultado desconhecido que mantém o item;
+    - paginação, sessão terminada com resposta tardia, lista inexistente.
+  - **Seletor:**
+    - nada guardado depois de entrar;
+    - guardar sem duplicados e confirmado;
+    - falhas distintas; lista nova sem guardar sozinha; experiência eliminada; troca de conta.
+- **`NetworkCollectionsRepositoryTest` (4, novo):**
+  - sem sessão nada é pedido;
+  - criar com token e chave, `401` renovado com a mesma chave, repetição `200` e classificação dos resultados (rede e `5xx` → por confirmar, `NAME_TAKEN`, limite, `DIFFERENT_CONTENT` com id, `COLLECTION_DELETED`, validação);
+  - escritas: `UNCONFIRMED` vs. `EXPERIENCES_UNAVAILABLE` vs. `EXPERIENCE_GONE` vs. `COLLECTION_GONE`, limite;
+  - itens: disponível com o formato `Experience`, eliminado sem conteúdo; desconhecido, conteúdo ilegível ou estado novo → `UNKNOWN`, nunca eliminado; `experiencesStatus`.
+
+### Verificação (2026-10-20, pelo assistente)
+
+**Emulador não usado:** não estava aberto e havia ~0,4 GB de memória livre. Verificaram-se por HTTP **os pedidos que a app faz** (mesmos caminhos, cabeçalhos, chave e tamanhos de página), com duas contas temporárias, apagadas no fim com as suas experiências e listas. A `pamplona`, a segunda conta do utilizador, as suas publicações e os volumes foram preservados. 10 verificações, 0 falhas:
+
+| Verificação | Resultado |
+|---|---|
+| Lista inicial (`page=0&size=20`) | `200`, vazia |
+| Criar e repetir a mesma tentativa | `201`, depois `200` com a mesma lista e `Idempotent-Replayed` |
+| Mudar o nome | `200` |
+| Guardar duas e repetir uma; `GET` da lista (aviso de alteração) | `204` ×3; contagem 2 |
+| Itens depois de a autora eliminar uma | eliminada `DELETED` sem conteúdo; a outra `AVAILABLE` no formato `Experience` |
+| experiences-service parado | listas `200`; itens `UNKNOWN` e `experiencesStatus: UNAVAILABLE`; remover a eliminada `204` |
+| Serviço de volta | item `AVAILABLE`; o removido já não está |
+| Outra conta | `404` |
+| Eliminar a lista | `204`; a experiência continua (`200`) |
+
+A primeira execução parou ao publicar a experiência de teste (catálogo em arranque a frio, `HttpTimeoutException`, já documentado); as contas criadas foram apagadas e a verificação repetida com várias tentativas de publicação.
+
+**Pendente (na interface, no emulador ou num telemóvel):** criar e mudar o nome de uma lista, guardar a partir do detalhe, abrir um item e voltar, remover, eliminar a lista, o login a partir das listas e do seletor, e a falha/recuperação do experiences-service vistas no ecrã.
