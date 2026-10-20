@@ -156,7 +156,7 @@ Emulador Pixel 9 (`sdk_gphone16k_x86_64`, Android 17 / API 37), backend em Docke
 
 - **"Sem ligação ao servidor" no emulador, com o backend `UP` no PC:** falta a autorização de rede local (ver §3). Confirmar com o comando `run-as … nc` dessa secção.
 
-- **Build falha com `JdkImageTransform` / `jlink.exe does not exist`:** o Gradle reutilizou um daemon arrancado pela extensão Java do VS Code no seu JRE embutido (sem `jlink`). Correr `.\gradlew.bat --stop` e repetir o build no terminal (que usa o Temurin 25). Como o VS Code volta a importar o projeto ao abrir, isto pode repetir-se.
+- **Build falha com `JdkImageTransform` / `jlink.exe does not exist`:** o Gradle reutilizou um daemon arrancado pela extensão Java do VS Code no seu JRE embutido (sem `jlink`). Corrigido com definições locais do VS Code que desativam a importação Gradle neste projeto (ver [infraestrutura.md §9](infraestrutura.md#9-jdk-do-gradle)). Se voltar a acontecer, correr `.\gradlew.bat --stop` e repetir o build.
 - **Memória:** o computador tem cerca de 8 GB de RAM. Docker (3,7 GB atribuídos), emulador, Android Studio, VS Code (com a extensão Java) e daemons Gradle em simultâneo esgotam a memória; já causou o encerramento da extensão Java do VS Code (`hs_err_pid*.log`). Fechar o que não estiver a ser usado antes de arrancar o emulador.
 
 ## 10. Conta e sessão (etapa 5)
@@ -702,7 +702,7 @@ Contrato: [experiences-api.md §13](experiences-api.md#13-etapa-e3-comentários-
 
 Avisos novos do lint: "autor" assinalado como erro ortográfico (o dicionário é inglês) e o contador de caracteres do comentário sugerido como plural, como os já existentes.
 
-Neste computador, o Gradle passou a escolher para o daemon um JRE 25 sem `jlink`, instalado pela extensão Java do VS Code. Por isso, os comandos desta etapa indicaram o JDK em cada execução, sem alterar configurações:
+Neste computador, o Gradle passou a escolher para o daemon um JRE 25 sem `jlink`, instalado pela extensão Java do VS Code. Por isso, os comandos desta etapa indicaram o JDK em cada execução, sem alterar configurações. Este contorno foi depois substituído por uma correção persistente ([infraestrutura.md §9](infraestrutura.md#9-jdk-do-gradle)):
 
 ```powershell
 .\gradlew.bat "-Porg.gradle.java.installations.auto-detect=false" "-Porg.gradle.java.installations.paths=C:/Program Files/Eclipse Adoptium/jdk-25.0.3.9-hotspot" :app:testDebugUnitTest

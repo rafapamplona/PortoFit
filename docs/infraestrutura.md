@@ -280,9 +280,50 @@ Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB,
 - **Uma única instância PostgreSQL** para todos os serviços (quando existirem): é um ponto comum de falha (ver [arquitetura.md §3.4](arquitetura.md#34-isolamento-dos-dados)).
 - As credenciais de administrador do PostgreSQL e a palavra-passe do `catalog_user` ficam nas variáveis de ambiente do contentor `postgres` (visíveis com `docker inspect`). Aceitável apenas em desenvolvimento local.
 - Sem HTTPS: tráfego em claro, limitado ao próprio computador.
-- O build do serviço foi verificado apenas dentro do Docker. Um build local (`.\gradlew.bat bootJar` em `backend/catalog-service`) precisa de um JDK 25 completo; o JRE embutido da extensão Java do VS Code não serve (ver o problema encontrado na etapa 0).
+- O build do serviço foi verificado apenas dentro do Docker. Um build local (`.\gradlew.bat bootJar` em `backend/catalog-service`) precisa de um JDK 25 completo; o JRE embutido da extensão Java do VS Code não serve (ver §9).
 - Nos testes, o Testcontainers usa o utilizador administrador do contentor; os privilégios reduzidos do `catalog_user` e do `users_user` só são verificados no ambiente Docker Compose.
 - `secrets/users-jwt/private.pem` fica no disco sem cifra; no Windows as permissões de ficheiro do script (`umask 077`) não se aplicam. Aceitável só em desenvolvimento local.
 - Com o PC quase sem memória livre, o BCrypt (custo 12) leva cerca de 2 s por login (ver [users-api.md §12](users-api.md#12-estado-da-implementação)).
 - A pesquisa por texto usa `LIKE '%…%'` sobre nomes normalizados, sem índice de texto: adequado para dezenas ou centenas de locais, não para catálogos grandes.
 - A normalização de acentos cobre os caracteres do português e de línguas próximas; não trata sinónimos (ex.: "yoga" não encontra "Ioga").
+
+## 9. JDK do Gradle
+
+O Android Gradle Plugin precisa de um **JDK 25 completo, com `jlink`** (transformação `JdkImageTransform`). Um JRE não serve.
+
+### Como o Gradle escolhe a JVM do daemon
+
+1. **Critérios do daemon**, em `gradle/gradle-daemon-jvm.properties` (`toolchainVersion=25`, qualquer fornecedor). Têm prioridade sobre `org.gradle.java.home`, `JAVA_HOME` e o "Gradle JDK" do Android Studio.
+2. O Gradle procura uma instalação compatível entre as que deteta: registo do Windows, `JAVA_HOME` e a JVM que lançou o Gradle ("Current JVM").
+3. **Um daemon já em execução e compatível é reutilizado por qualquer cliente** (Android Studio, terminal, VS Code). Se um daemon arrancar num JRE sem `jlink`, todos os builds seguintes falham até ele parar.
+
+### Causa do erro `jlink.exe does not exist`
+
+A extensão Java do VS Code (Red Hat) e a extensão Gradle (`vscjava.vscode-gradle`) importavam o projeto ao abrir a pasta e arrancavam um daemon Gradle com o JRE 25 embutido na extensão (`.vscode/extensions/redhat.java-…/jre/…`). Esse JRE cumpre `toolchainVersion=25`, por isso o Android Studio e o terminal reutilizavam esse daemon.
+
+### Correção (só para este projeto)
+
+- **`.vscode/settings.json` local** (fora do Git; `.vscode/` está no `.gitignore`), com:
+
+  ```json
+  {
+      "java.configuration.updateBuildConfiguration": "disabled",
+      "java.import.gradle.enabled": false,
+      "java.gradle.buildServer.enabled": "off",
+      "gradle.autoDetect": "off"
+  }
+  ```
+
+  Assim, o VS Code continua a editar ficheiros, mas não importa o projeto Gradle nem arranca daemons. É preciso **recarregar a janela do VS Code** (*Developer: Reload Window*) depois de criar o ficheiro; até lá, os processos antigos da extensão continuam ativos.
+- Nada mudou nos ficheiros partilhados do Gradle, nas versões nem nas configurações globais. Os critérios continuam a ser satisfeitos pelo JDK 25 completo instalado no sistema (detetado no registo do Windows).
+- O contorno anterior (`-Porg.gradle.java.installations.…` em cada comando, [app-android.md §16](app-android.md)) já não é necessário.
+
+### Manter o Android Studio e o terminal consistentes
+
+- No Android Studio, em *Settings › Build, Execution, Deployment › Build Tools › Gradle*, manter o **Gradle JDK** na opção dos critérios do daemon (o projeto não define `gradleJvm` em `.idea/gradle.xml`).
+- Se a lista de JDKs do Android Studio tiver uma entrada que aponte para `.vscode\extensions\redhat.java-…`, convém removê-la em *Project Structure › SDKs*. É uma definição global do Android Studio; fica à escolha do utilizador.
+- Para confirmar a JVM em uso:
+  - `.\gradlew.bat --status` lista os daemons ativos desta versão do Gradle;
+  - `.\gradlew.bat javaToolchains` lista as instalações detetadas; não deve aparecer nenhuma dentro de `.vscode`;
+  - o `javaHome` de cada daemon aparece no início de `%USERPROFILE%\.gradle\daemon\<versão>\daemon-<pid>.out.log`.
+- Se voltar a aparecer o erro: `.\gradlew.bat --stop` para os daemons desta versão do Gradle (não toca em dados nem volumes). Depois, repetir o build e procurar o processo que arrancou o daemon errado (normalmente uma janela do VS Code ainda não recarregada).

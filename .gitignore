@@ -30,3 +30,6 @@ keystore.properties
 .env.*
 !.env.example
 google-services.json
+
+# Definições locais do VS Code (específicas de cada computador; ver docs/infraestrutura.md)
+.vscode/
