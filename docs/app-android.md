@@ -156,7 +156,7 @@ Emulador Pixel 9 (`sdk_gphone16k_x86_64`, Android 17 / API 37), backend em Docke
 
 - **"Sem ligação ao servidor" no emulador, com o backend `UP` no PC:** falta a autorização de rede local (ver §3). Confirmar com o comando `run-as … nc` dessa secção.
 
-- **Build falha com `JdkImageTransform` / `jlink.exe does not exist`:** o Gradle reutilizou um daemon arrancado pela extensão Java do VS Code no seu JRE embutido (sem `jlink`). Corrigido com definições locais do VS Code que desativam a importação Gradle neste projeto (ver [infraestrutura.md §9](infraestrutura.md#9-jdk-do-gradle)). Se voltar a acontecer, correr `.\gradlew.bat --stop` e repetir o build.
+- **Build falha com `JdkImageTransform` / `jlink.exe does not exist`:** o Gradle reutilizou um daemon arrancado pela extensão Java do VS Code no seu JRE embutido (sem `jlink`). O VS Code não pode ser cliente Gradle deste projeto: servidor Java da Red Hat em modo `LightWeight` e extensão "Gradle for Java" desativada no espaço de trabalho (ver [infraestrutura.md §9](infraestrutura.md#9-jdk-do-gradle)). Se voltar a acontecer, ver nessa secção como identificar quem arrancou o daemon e correr `.\gradlew.bat --stop`.
 - **Memória:** o computador tem cerca de 8 GB de RAM. Docker (3,7 GB atribuídos), emulador, Android Studio, VS Code (com a extensão Java) e daemons Gradle em simultâneo esgotam a memória; já causou o encerramento da extensão Java do VS Code (`hs_err_pid*.log`). Fechar o que não estiver a ser usado antes de arrancar o emulador.
 
 ## 10. Conta e sessão (etapa 5)

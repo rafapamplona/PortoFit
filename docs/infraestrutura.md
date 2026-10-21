@@ -318,42 +318,66 @@ Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB,
 
 ## 9. JDK do Gradle
 
-O Android Gradle Plugin precisa de um **JDK 25 completo, com `jlink`** (transformação `JdkImageTransform`). Um JRE não serve.
+O Android Gradle Plugin precisa de um **JDK 25 completo, com `jlink`** (transformação `JdkImageTransform`). O JRE 25 embutido na extensão Java da Red Hat para o VS Code (`.vscode/extensions/redhat.java-…/jre/…`) não serve: tem `javac`, mas não tem `jlink`.
 
 ### Como o Gradle escolhe a JVM do daemon
 
+Segundo a documentação oficial do Gradle 9.6 ([Gradle Daemon › Daemon JVM criteria](https://docs.gradle.org/9.6.0/userguide/gradle_daemon.html) e [Toolchains](https://docs.gradle.org/9.6.0/userguide/toolchains.html)):
+
 1. **Critérios do daemon**, em `gradle/gradle-daemon-jvm.properties` (`toolchainVersion=25`, qualquer fornecedor). Têm prioridade sobre `org.gradle.java.home`, `JAVA_HOME` e o "Gradle JDK" do Android Studio.
-2. O Gradle procura uma instalação compatível entre as que deteta: registo do Windows, `JAVA_HOME` e a JVM que lançou o Gradle ("Current JVM").
-3. **Um daemon já em execução e compatível é reutilizado por qualquer cliente** (Android Studio, terminal, VS Code). Se um daemon arrancar num JRE sem `jlink`, todos os builds seguintes falham até ele parar.
+2. O Gradle procura instalações compatíveis com a mesma lógica das toolchains. Entre as compatíveis, **"a instalação que está a correr o Gradle é preferida a qualquer outra"**. É a JVM do cliente: o Android Studio, o terminal ou a extensão do VS Code.
+3. **Um daemon já em execução e compatível é reutilizado por qualquer cliente.** Se um daemon arrancar num JRE sem `jlink`, todos os builds seguintes falham até ele parar.
 
 ### Causa do erro `jlink.exe does not exist`
 
-A extensão Java do VS Code (Red Hat) e a extensão Gradle (`vscjava.vscode-gradle`) importavam o projeto ao abrir a pasta e arrancavam um daemon Gradle com o JRE 25 embutido na extensão (`.vscode/extensions/redhat.java-…/jre/…`). Esse JRE cumpre `toolchainVersion=25`, por isso o Android Studio e o terminal reutilizavam esse daemon.
+Os registos dos daemons (`%USERPROFILE%\.gradle\daemon\9.6.0\daemon-<pid>.out.log`) mostram:
 
-### Correção (só para este projeto)
+- todos os daemons no JRE da Red Hat foram arrancados por **processos do VS Code**:
+  - o servidor Java da Red Hat (jdt.ls), que é o processo pai do daemon;
+  - o servidor da extensão "Gradle for Java", cujo diretório de trabalho é `vscjava.vscode-gradle-…\lib` e que tem a variável `GRADLE_SERVER_OPTS`;
+- os daemons arrancados pelo Android Studio usam sempre o JBR do próprio Android Studio;
+- o erro aparece quando o Android Studio **reutiliza** um daemon arrancado pelo VS Code (2026-10-21: o daemon 23304, arrancado às 09:39 pelo jdt.ls, recebeu às 09:47 os builds do Android Studio).
 
-- **`.vscode/settings.json` local** (fora do Git; `.vscode/` está no `.gitignore`), com:
+Os clientes do VS Code correm no JRE da Red Hat, que é versão 25 e reporta o fornecedor `Eclipse Adoptium`, tal como o Temurin. Por isso cumpre os critérios e é escolhido por ser a JVM do cliente. **Nenhum critério do daemon o distingue do Temurin**: nem a versão, nem o fornecedor (`--jvm-vendor=adoptium` não ajudaria). A correção tem de impedir que o VS Code seja cliente Gradle deste projeto.
 
-  ```json
-  {
-      "java.configuration.updateBuildConfiguration": "disabled",
-      "java.import.gradle.enabled": false,
-      "java.gradle.buildServer.enabled": "off",
-      "gradle.autoDetect": "off"
-  }
-  ```
+A primeira correção (2026-10-20) não chegou, por duas razões:
 
-  Assim, o VS Code continua a editar ficheiros, mas não importa o projeto Gradle nem arranca daemons. É preciso **recarregar a janela do VS Code** (*Developer: Reload Window*) depois de criar o ficheiro; até lá, os processos antigos da extensão continuam ativos.
-- Nada mudou nos ficheiros partilhados do Gradle, nas versões nem nas configurações globais. Os critérios continuam a ser satisfeitos pelo JDK 25 completo instalado no sistema (detetado no registo do Windows).
-- O contorno anterior (`-Porg.gradle.java.installations.…` em cada comando, [app-android.md §16](app-android.md)) já não é necessário.
+- `java.import.gradle.enabled: false` não impede o jdt.ls de **sincronizar projetos Gradle que já tinha importado antes**. `PortoFit` e `app` continuam registados no espaço de trabalho dele.
+- `gradle.autoDetect: off` só desliga a lista de tarefas. A extensão "Gradle for Java" 3.18.1 carrega o projeto sempre que arranca o seu servidor de linguagem, e esse servidor corre sempre no JRE embutido da Red Hat. Nenhuma definição muda isto.
 
-### Manter o Android Studio e o terminal consistentes
+### Correção (só para este projeto, fora do Git)
 
-- No Android Studio, em *Settings › Build, Execution, Deployment › Build Tools › Gradle*, manter o **Gradle JDK** na opção dos critérios do daemon (o projeto não define `gradleJvm` em `.idea/gradle.xml`).
-- Se a lista de JDKs do Android Studio tiver uma entrada que aponte para `.vscode\extensions\redhat.java-…`, convém removê-la em *Project Structure › SDKs*. É uma definição global do Android Studio; fica à escolha do utilizador.
-- Para confirmar a JVM em uso:
-  - `.\gradlew.bat --status` lista os daemons ativos desta versão do Gradle;
-  - `.\gradlew.bat javaToolchains` lista as instalações detetadas; não deve aparecer nenhuma dentro de `.vscode`;
-  - o `javaHome` de cada daemon aparece no início de `%USERPROFILE%\.gradle\daemon\<versão>\daemon-<pid>.out.log`.
-- **Confirmado pelo utilizador (2026-10-20):** depois da correção, o Run no Android Studio funciona sem o erro de `jlink`.
-- Se voltar a aparecer o erro: `.\gradlew.bat --stop` para os daemons desta versão do Gradle (não toca em dados nem volumes). Depois, repetir o build e procurar o processo que arrancou o daemon errado (normalmente uma janela do VS Code ainda não recarregada).
+1. **`.vscode/settings.json` local** (`.vscode/` está no `.gitignore`):
+
+   ```json
+   {
+       "java.server.launchMode": "LightWeight",
+       "java.configuration.updateBuildConfiguration": "disabled",
+       "java.import.gradle.enabled": false,
+       "java.gradle.buildServer.enabled": "off",
+       "gradle.autoDetect": "off"
+   }
+   ```
+
+   No modo `LightWeight`, a extensão da Red Hat só arranca o servidor de sintaxe, sem suporte Maven/Gradle. O servidor completo, que sincronizava os projetos antigos, deixa de arrancar. O projeto é Kotlin, por isso o servidor Java completo não traz nada aqui.
+2. **Desativar a extensão "Gradle for Java" só neste espaço de trabalho:** no VS Code, *Extensions* › "Gradle for Java" › ⚙ › **Disable (Workspace)**. Se o VS Code pedir, desativar também, só no espaço de trabalho, as extensões que dependem dela (por exemplo, o "Extension Pack for Java"). Fica guardado no estado deste espaço de trabalho do VS Code: não é global e não entra no Git.
+3. **Recarregar a janela do VS Code** (*Developer: Reload Window*). Até lá, os processos antigos continuam a correr e podem arrancar outro daemon.
+4. Parar o daemon errado, se existir: `.\gradlew.bat --stop` (para os daemons desta versão do Gradle; não toca em dados, caches nem volumes).
+
+Nada mudou nos ficheiros partilhados do Gradle, nas versões, nas dependências nem nas configurações globais. O contorno antigo, com `-Porg.gradle.java.installations.…` em cada comando ([app-android.md §16](app-android.md)), continua desnecessário.
+
+**Se um dia for preciso o servidor Java completo no VS Code** (*Switch to Standard Mode*): correr antes *Java: Clean Java Language Server Workspace*, para ele não voltar a sincronizar os projetos Gradle antigos.
+
+### Verificar
+
+- `.\gradlew.bat --status`: daemons ativos desta versão do Gradle.
+- `.\gradlew.bat javaToolchains`: instalações detetadas. Não deve aparecer nenhuma dentro de `.vscode`.
+- O `javaHome` de cada daemon está no início do seu `daemon-<pid>.out.log`. A linha "Configuring env variables" mostra quem o pediu: com `VSCODE_PID` e o diretório `c:\…` em minúsculas, ou com `GRADLE_SERVER_OPTS`, foi o VS Code.
+- No Android Studio, manter o **Gradle JDK** na opção dos critérios do daemon (o projeto não define `gradleJvm` em `.idea/gradle.xml`). A entrada da lista de JDKs do Android Studio que aponta para `.vscode\extensions\redhat.java-…` pode ser removida em *Project Structure › SDKs*. Não é a causa, mas evita confusões; é uma definição global do Android Studio e fica à escolha do utilizador.
+
+### Histórico
+
+- **2026-10-20:** primeira correção (definições locais do VS Code). O Run no Android Studio foi confirmado pelo utilizador nesse dia.
+- **2026-10-21:** o erro voltou. Os daemons tinham sido arrancados pelo jdt.ls e pela "Gradle for Java" (ver causa acima). Acrescentou-se o modo `LightWeight` e a desativação da "Gradle for Java" no espaço de trabalho.
+  - **Verificado no terminal:** daemon errado parado; `assembleDebug` sem parâmetros de JDK concluído; daemon novo no Temurin 25.0.3, com `jlink`; `javaToolchains` só com os Temurin 17 e 25.
+  - **Por confirmar pelo utilizador:** o Run no Android Studio, depois de desativar a extensão e recarregar o VS Code.
