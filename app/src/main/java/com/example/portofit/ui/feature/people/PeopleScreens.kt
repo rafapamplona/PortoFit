@@ -165,6 +165,8 @@ fun PublicProfileScreen(
     onLoginRequired: () -> Unit,
     onOpenList: (userId: String, kind: FollowListKind) -> Unit,
     onOpenExperience: (experienceId: String) -> Unit,
+    /** "Enviar mensagem" com sessão; sem sessão, [onLoginRequired] (ao regressar, é preciso um novo toque). */
+    onMessage: (userId: String, username: String) -> Unit = { _, _ -> },
     viewModel: PublicProfileViewModel = viewModel(factory = PublicProfileViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -181,6 +183,7 @@ fun PublicProfileScreen(
         onFollowClick = { if (state.followButton == FollowButton.LOGIN_REQUIRED) onLoginRequired() else viewModel.toggleFollow() },
         onRefreshRelation = viewModel::refreshRelation,
         onOpenList = { kind -> state.profile?.let { onOpenList(it.userId, kind) } },
+        onMessageClick = { state.profile?.let { if (state.signedIn) onMessage(it.userId, it.username) else onLoginRequired() } },
         publications = PublicationsSection(
             state = publications,
             onOpen = { onOpenExperience(it.id) },
@@ -203,6 +206,7 @@ fun PublicProfileContent(
     onRefreshRelation: () -> Unit,
     onOpenList: (FollowListKind) -> Unit,
     publications: PublicationsSection,
+    onMessageClick: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -245,6 +249,9 @@ fun PublicProfileContent(
                     OutlinedButton(onClick = onEditOwnProfile) { Text(stringResource(R.string.public_profile_edit_own)) }
                 }
                 FollowSection(state, onFollowClick, onRefreshRelation)
+                if (!state.isSelf) {
+                    OutlinedButton(onClick = onMessageClick) { Text(stringResource(R.string.public_profile_message)) }
+                }
                 Text(
                     load.profile.description ?: stringResource(R.string.public_profile_no_description),
                     style = MaterialTheme.typography.bodyLarge,

@@ -208,6 +208,8 @@ data class PublicProfileUiState(
     /** "Editar o meu perfil" só aparece com sessão ativa do próprio utilizador. */
     val isOwnProfile: Boolean = false,
     val signedIn: Boolean = false,
+    /** O perfil é da conta em sessão (em qualquer estado da sessão): sem "Enviar mensagem". */
+    val isSelf: Boolean = false,
     val followAction: FollowAction = FollowAction.Idle,
 ) {
     val profile: PublicProfile? get() = (load as? PublicProfileLoad.Loaded)?.profile
@@ -262,7 +264,8 @@ class PublicProfileViewModel(
     val uiState: StateFlow<PublicProfileUiState> = combine(content, session) { state, current ->
         val signedIn = current is SessionState.SignedIn
         val own = current is SessionState.SignedIn && current.userId == userId && current.status == SessionStatus.ACTIVE
-        state.copy(isOwnProfile = own && state.load is PublicProfileLoad.Loaded, signedIn = signedIn)
+        val self = current is SessionState.SignedIn && current.userId == userId
+        state.copy(isOwnProfile = own && state.load is PublicProfileLoad.Loaded, signedIn = signedIn, isSelf = self)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, PublicProfileUiState())
 
     private var loadGeneration = 0

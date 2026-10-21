@@ -27,8 +27,8 @@ import com.example.portofit.data.auth.SessionState
 import com.example.portofit.data.auth.SessionStatus
 
 /**
- * Ação na barra superior: "Entrar" sem sessão; com sessão, o username com "O meu perfil", "As minhas listas" e
- * "Terminar sessão".
+ * Ação na barra superior: "Entrar" sem sessão; com sessão, o username com "O meu perfil", "As minhas listas",
+ * "Mensagens" e "Terminar sessão".
  */
 @Composable
 fun AccountAction(
@@ -37,6 +37,7 @@ fun AccountAction(
     onProfileClick: () -> Unit,
     onLogout: () -> Unit,
     onCollectionsClick: () -> Unit = {},
+    onMessagesClick: () -> Unit = {},
 ) {
     when (session) {
         SessionState.Loading -> Unit
@@ -65,6 +66,13 @@ fun AccountAction(
                         onClick = {
                             menuOpen = false
                             onCollectionsClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.account_messages)) },
+                        onClick = {
+                            menuOpen = false
+                            onMessagesClick()
                         },
                     )
                     DropdownMenuItem(

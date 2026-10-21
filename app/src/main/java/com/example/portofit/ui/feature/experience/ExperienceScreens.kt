@@ -260,6 +260,8 @@ fun ExperienceDetailScreen(
     onLoginRequired: () -> Unit,
     /** "Guardar numa lista": abre o seletor (sem sessão, o seletor convida a entrar). */
     onSaveToList: (experienceId: String) -> Unit = {},
+    /** "Partilhar": escolher a conversa ou a pessoa (sem sessão, o ecrã convida a entrar). */
+    onShare: (experienceId: String) -> Unit = {},
     viewModel: ExperienceDetailViewModel = viewModel(factory = ExperienceDetailViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -352,7 +354,10 @@ fun ExperienceDetailScreen(
                     // Gostos e comentários (E3): estados próprios; uma falha aqui não esconde o texto nem a fotografia.
                     HorizontalDivider()
                     LikeSection(state, onToggle = viewModel::toggleLike, onRefresh = viewModel::refreshLike, onLogin = onLoginRequired)
-                    OutlinedButton(onClick = { onSaveToList(experience.id) }) { Text(stringResource(R.string.experience_save_to_list)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { onSaveToList(experience.id) }) { Text(stringResource(R.string.experience_save_to_list)) }
+                        OutlinedButton(onClick = { onShare(experience.id) }) { Text(stringResource(R.string.experience_share)) }
+                    }
                     HorizontalDivider()
                     CommentsSection(comments, state.signedIn, viewModel.comments, onLogin = onLoginRequired)
                 }

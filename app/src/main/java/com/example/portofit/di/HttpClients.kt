@@ -51,6 +51,15 @@ object HttpClients {
         .connectionPool(ConnectionPool(2, USERS_IDLE_SECONDS, TimeUnit.SECONDS))
         .build()
 
+    /**
+     * messaging-service: pool própria de ligações curtas. As novas tentativas de ligação do OkHttp são seguras: as
+     * leituras e o PUT da leitura são idempotentes, abrir uma conversa devolve sempre a mesma, e o envio leva sempre uma
+     * Idempotency-Key (docs/messaging-api.md §6.2). A app nunca repete envios por iniciativa própria.
+     */
+    fun messaging(base: OkHttpClient): OkHttpClient = base.newBuilder()
+        .connectionPool(ConnectionPool(2, USERS_IDLE_SECONDS, TimeUnit.SECONDS))
+        .build()
+
     /** Chamadas de sessão: o cliente do users-service (mesma pool), sem novas tentativas automáticas. */
     fun session(users: OkHttpClient): OkHttpClient = users.newBuilder()
         .retryOnConnectionFailure(false)

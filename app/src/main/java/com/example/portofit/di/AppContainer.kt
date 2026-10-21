@@ -16,6 +16,10 @@ import com.example.portofit.data.remote.ProfileApi
 import com.example.portofit.data.remote.UsersApi
 import com.example.portofit.data.repository.CatalogRepository
 import com.example.portofit.data.remote.CollectionsApi
+import com.example.portofit.data.remote.MessagingApi
+import com.example.portofit.data.repository.MessagingRepository
+import com.example.portofit.data.repository.NetworkMessagingRepository
+import com.example.portofit.data.repository.UnconfiguredMessagingRepository
 import com.example.portofit.data.repository.CollectionChanges
 import com.example.portofit.data.repository.CollectionsRepository
 import com.example.portofit.data.repository.DiscoverRepository
@@ -57,6 +61,7 @@ class AppContainer(
     usersBaseUrl: String,
     val experiencesBaseUrl: String,
     collectionsBaseUrl: String = "",
+    messagingBaseUrl: String = "",
 ) {
 
     private val json = Json {
@@ -70,6 +75,7 @@ class AppContainer(
     private val sessionHttpClient = HttpClients.session(usersHttpClient)
     private val experiencesHttpClient = HttpClients.experiences(httpClient)
     private val collectionsHttpClient = HttpClients.collections(httpClient)
+    private val messagingHttpClient = HttpClients.messaging(httpClient)
 
     /** Sessão da app: corre num âmbito próprio, independente de ecrãs e ViewModels. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -130,6 +136,12 @@ class AppContainer(
         collectionsBaseUrl.takeIf { it.isNotBlank() }
             ?.let { NetworkCollectionsRepository(retrofit(it, collectionsHttpClient).create(CollectionsApi::class.java), sessionManager, json) }
             ?: UnconfiguredCollectionsRepository()
+
+    /** Mensagens e partilha (docs/messaging-api.md): conversas privadas, sempre com sessão. */
+    val messagingRepository: MessagingRepository =
+        messagingBaseUrl.takeIf { it.isNotBlank() }
+            ?.let { NetworkMessagingRepository(retrofit(it, messagingHttpClient).create(MessagingApi::class.java), sessionManager, json) }
+            ?: UnconfiguredMessagingRepository()
 
     /** Avisos de alterações nas listas (contagens e nomes noutros ecrãs). */
     val collectionChanges = CollectionChanges()

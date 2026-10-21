@@ -34,6 +34,11 @@ import com.example.portofit.ui.feature.collections.CollectionsScreen
 import com.example.portofit.ui.feature.collections.SaveToCollectionScreen
 import com.example.portofit.ui.feature.collections.SaveToCollectionViewModel
 import com.example.portofit.ui.feature.discover.DiscoverActions
+import com.example.portofit.ui.feature.messaging.ConversationScreen
+import com.example.portofit.ui.feature.messaging.ConversationViewModel
+import com.example.portofit.ui.feature.messaging.InboxScreen
+import com.example.portofit.ui.feature.messaging.ShareExperienceScreen
+import com.example.portofit.ui.feature.messaging.ShareExperienceViewModel
 import com.example.portofit.ui.feature.discover.DiscoverScreen
 import com.example.portofit.ui.feature.stats.StatsActions
 import com.example.portofit.ui.feature.stats.StatsScreen
@@ -81,6 +86,17 @@ private object Routes {
     const val SAVE = "experience/{${SaveToCollectionViewModel.EXPERIENCE_ID_ARG}}/save"
     fun save(experienceId: String) = "experience/${Uri.encode(experienceId)}/save"
     fun experience(experienceId: String) = "experience/${Uri.encode(experienceId)}"
+    const val INBOX = "messages"
+    /** Uma conversa pelo id (caixa, partilha) ou com uma pessoa (perfil: a conversa é aberta neste ecrã). */
+    const val CONVERSATION = "conversation?${ConversationViewModel.CONVERSATION_ID_ARG}={${ConversationViewModel.CONVERSATION_ID_ARG}}" +
+        "&${ConversationViewModel.PARTICIPANT_ID_ARG}={${ConversationViewModel.PARTICIPANT_ID_ARG}}" +
+        "&${ConversationViewModel.PARTICIPANT_NAME_ARG}={${ConversationViewModel.PARTICIPANT_NAME_ARG}}"
+    fun conversation(conversationId: String, username: String) =
+        "conversation?${ConversationViewModel.CONVERSATION_ID_ARG}=${Uri.encode(conversationId)}&${ConversationViewModel.PARTICIPANT_NAME_ARG}=${Uri.encode(username)}"
+    fun conversationWith(userId: String, username: String) =
+        "conversation?${ConversationViewModel.PARTICIPANT_ID_ARG}=${Uri.encode(userId)}&${ConversationViewModel.PARTICIPANT_NAME_ARG}=${Uri.encode(username)}"
+    const val SHARE = "experience/{${ShareExperienceViewModel.EXPERIENCE_ID_ARG}}/share"
+    fun share(experienceId: String) = "experience/${Uri.encode(experienceId)}/share"
 }
 
 /** Destinos de topo da barra inferior (Pesquisar é o inicial). */
@@ -150,6 +166,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                     onEditInterests = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                     onFindPeople = { if (entry.isResumed()) navController.navigateToTopLevel(Routes.SEARCH) },
                     onCollections = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
+                    onMessages = { if (entry.isResumed()) navController.navigate(Routes.INBOX) },
                 ),
             )
         }
@@ -161,7 +178,45 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                     onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                     onProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                     onCollections = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
+                    onMessages = { if (entry.isResumed()) navController.navigate(Routes.INBOX) },
                 ),
+            )
+        }
+        composable(Routes.INBOX) { entry ->
+            InboxScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onOpenConversation = { id, username -> if (entry.isResumed()) navController.navigate(Routes.conversation(id, username)) },
+                // Sem sessão: entrar e regressar à caixa.
+                onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+            )
+        }
+        composable(
+            route = Routes.CONVERSATION,
+            arguments = listOf(
+                navArgument(ConversationViewModel.CONVERSATION_ID_ARG) { type = NavType.StringType; defaultValue = "" },
+                navArgument(ConversationViewModel.PARTICIPANT_ID_ARG) { type = NavType.StringType; defaultValue = "" },
+                navArgument(ConversationViewModel.PARTICIPANT_NAME_ARG) { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { entry ->
+            ConversationScreen(
+                initialName = entry.arguments?.getString(ConversationViewModel.PARTICIPANT_NAME_ARG).orEmpty(),
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
+                // O login regressa a esta conversa; nada é criado nem enviado sozinho.
+                onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+            )
+        }
+        composable(
+            route = Routes.SHARE,
+            arguments = listOf(navArgument(ShareExperienceViewModel.EXPERIENCE_ID_ARG) { type = NavType.StringType }),
+        ) { entry ->
+            ShareExperienceScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                // O login regressa ao seletor; enviar exige um novo toque.
+                onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
+                onOpenConversation = { id, username ->
+                    if (entry.isResumed()) navController.navigate(Routes.conversation(id, username)) { popUpTo(Routes.SHARE) { inclusive = true } }
+                },
             )
         }
         composable(Routes.COLLECTIONS) { entry ->
@@ -207,6 +262,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                 onProfileClick = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                 onPersonClick = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
                 onCollectionsClick = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
+                onMessagesClick = { if (entry.isResumed()) navController.navigate(Routes.INBOX) },
             )
         }
         composable(Routes.LOGIN) { entry ->
@@ -231,6 +287,8 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                 onLoginRequired = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                 onOpenList = { userId, kind -> if (entry.isResumed()) navController.navigate(Routes.followList(userId, kind)) },
                 onOpenExperience = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
+                // Com sessão: abre a conversa (criada ou devolvida pelo servidor). Sem sessão, o perfil envia para o login.
+                onMessage = { userId, username -> if (entry.isResumed()) navController.navigate(Routes.conversationWith(userId, username)) },
             )
         }
         composable(
@@ -307,6 +365,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                 onOpenPlace = { placeId -> if (entry.isResumed()) navController.navigate(Routes.place(placeId)) },
                 onLoginRequired = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                 onSaveToList = { id -> if (entry.isResumed()) navController.navigate(Routes.save(id)) },
+                onShare = { id -> if (entry.isResumed()) navController.navigate(Routes.share(id)) },
             )
         }
     }
