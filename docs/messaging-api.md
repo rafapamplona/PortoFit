@@ -1,7 +1,7 @@
 # messaging-service — Contrato da API
 
 > Conversas privadas entre duas pessoas, mensagens de texto e partilha de experiências (requisito R9, etapa 12). Contexto geral em [arquitetura.md](arquitetura.md) (§3.2 responsabilidades, §3.3 "a partilha é uma mensagem", §3.5 cópias, §3.8 autenticação, §4 falhas).
-> Estado: **contrato aprovado** (2026-10-20, com os ajustes da revisão, [§17](#17-decisões)); **backend implementado** ([§19](#19-estado-da-implementação)). A app ainda não usa este serviço.
+> Estado: **contrato aprovado** (2026-10-20, com os ajustes da revisão, [§17](#17-decisões)); **backend e app implementados** ([§19](#19-estado-da-implementação); app em [app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)).
 > Mesmas convenções do [catalog-api.md](catalog-api.md), do [users-api.md](users-api.md), do [experiences-api.md](experiences-api.md) e do [collections-api.md](collections-api.md): JSON UTF-8, campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`.
 
 ## Índice
@@ -592,7 +592,7 @@ Mesma estrutura das listas ([app-android.md §18](app-android.md#18-listas-pesso
 
 ## 19. Estado da implementação
 
-Etapa 12 (backend), `backend/messaging-service`, mais a chave própria na consulta em lote do experiences-service (§7.4). **A app ainda não usa este serviço** (sem alterações Android, sem outbox nem notificações).
+Etapa 12 (backend), `backend/messaging-service`, mais a chave própria na consulta em lote do experiences-service (§7.4). Sem outbox nem notificações. A app foi integrada depois ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)).
 
 **Implementado:**
 
@@ -707,4 +707,6 @@ Executados depois da última alteração ao código.
 - **Memória:** messaging-service ≈ 244 MiB parado depois da verificação; seis contentores ≈ 1,25 GiB.
 - **Não medido:** consumo de bateria e de dados no telemóvel, e o efeito de várias conversas abertas ao mesmo tempo (fica para a etapa da app).
 
-**Ainda não implementado:** a app Android (§15), as notificações (etapa própria) e a contagem de partilhas no dashboard.
+**App Android (etapa 12):** caixa no menu da conta, "Enviar mensagem" no perfil, conversa com histórico, consulta periódica só com o ecrã ativo, leitura das mensagens mostradas e "Partilhar" no detalhe da experiência ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)). Verificação na interface por fazer.
+
+**Ainda não implementado:** as notificações (etapa própria) e a contagem de partilhas no dashboard.

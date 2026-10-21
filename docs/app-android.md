@@ -1,6 +1,6 @@
 # PortoFit — App Android
 
-> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–9 — experiências (E1, §14), fotografias (E2, §15), comentários, gostos e visualizações (E3, §16), Descobrir e Estatísticas (E4, §17); etapa 11 — listas pessoais (§18). Sem mapas nem GPS.
+> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–9 — experiências (E1, §14), fotografias (E2, §15), comentários, gostos e visualizações (E3, §16), Descobrir e Estatísticas (E4, §17); etapa 11 — listas pessoais (§18); etapa 12 — mensagens e partilha (§19). Sem mapas nem GPS.
 > Backend: [infraestrutura.md](infraestrutura.md) · Contratos: [catalog-api.md](catalog-api.md), [users-api.md](users-api.md) · Desenho: [arquitetura.md](arquitetura.md)
 
 ## 1. Percurso disponível
@@ -1003,3 +1003,149 @@ A primeira execução parou ao publicar a experiência de teste (catálogo em ar
 Antes disso, o assistente tentou duas vezes fazer estas últimas verificações (2026-10-20), sem sucesso por falta de memória no computador: o emulador ficou sem resposta ("System UI isn't responding"). Nada foi gravado e os serviços continuaram saudáveis.
 
 Com isto, não há verificações pendentes da etapa 11.
+
+## 19. Mensagens e partilha (etapa 12)
+
+Contrato: [messaging-api.md](messaging-api.md). Sem notificações, grupos, anexos, edição nem eliminação de mensagens.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `MESSAGING_BASE_URL` | `app/build.gradle.kts` | Só em debug: `http://10.0.2.2:8085/` (`-Pportofit.messagingBaseUrl=…` para mudar). Em release fica vazio, e a app mostra "não disponível nesta versão". A configuração de rede de debug já permitia `10.0.2.2` |
+| `MessagingApi`, `MessagingRepository` | `data/remote/`, `data/repository/` | Todos os pedidos levam o access token, com renovação única depois de um `401` (no envio, com a mesma chave). Resultados do envio: `Sent`, `Unconfirmed` (rede, `5xx`, `2xx` ilegível), `Rejected` (com `Retry-After` no `429`; `503 EXPERIENCES_UNAVAILABLE` é definitivo), `AlreadySent` (`DIFFERENT_CONTENT`). Abrir distingue `USERS_UNAVAILABLE`, `USER_NOT_FOUND` e `CANNOT_MESSAGE_SELF` |
+| `HttpClients.messaging` | `di/HttpClients.kt` | Pool própria de ligações curtas; as novas tentativas de ligação são seguras (leituras e `PUT` idempotentes, abrir devolve sempre a mesma conversa, envio com chave) |
+| `Poller` | `ui/feature/messaging/Poller.kt` | Um único ciclo por ecrã: consulta logo ao voltar ao ecrã e depois de N em N s, com recuo até 60 s nos erros. Nunca há duas consultas em simultâneo: um pedido feito durante uma consulta fica para logo a seguir, uma vez |
+| `InboxViewModel`, `ConversationViewModel`, `ShareExperienceViewModel` | `ui/feature/messaging/` | Caixa, conversa e seletor de partilha |
+| Ecrãs | `ui/feature/messaging/MessagingScreens.kt` | Caixa, conversa (bolhas, composição, partilhas) e "Partilhar experiência" |
+
+### Percursos
+
+- **Caixa:** "Mensagens" no menu da conta (Pesquisar, Descobrir, Estatísticas).
+  - Mostra o participante, o início da última mensagem ("Tu: …", "Partilhou uma experiência"), a hora e as mensagens por ler (até "99+").
+  - Paginada pelo cursor do servidor, com "Carregar mais"; sem emails nem ids no ecrã.
+- **Iniciar conversa:** "Enviar mensagem" no perfil de outra pessoa (nunca no próprio).
+  - Com sessão, abre a conversa: o servidor cria-a ou devolve a existente.
+  - Sem sessão, vai para o login e regressa ao perfil; é preciso um novo toque.
+  - Se a conversa for aberta sem sessão e se entrar depois, o ecrã pede "Iniciar conversa": nada é criado sozinho.
+- **Conversa:**
+  - **histórico:** as últimas 30 mensagens e "Carregar mensagens anteriores";
+  - **bolhas:** as enviadas à direita e as recebidas à esquerda, com cores diferentes, o remetente ("Tu" ou o username), a hora e o texto. A descrição para leitores de ecrã junta remetente, hora e texto;
+  - **composição:** contador de 1000 caracteres.
+- **Partilhar:** "Partilhar" no detalhe da experiência, ao lado de "Guardar numa lista".
+  - Abre as conversas recentes e "Procurar pessoa" (pesquisa existente do users-service, a partir de 2 caracteres, sem o próprio).
+  - Depois de escolher o destinatário, mostra a pré-visualização, um texto opcional e o botão **Enviar**. Só esse toque envia.
+  - Depois de enviada, oferece "Abrir conversa".
+- **Login com regresso:** caixa, conversa e partilha mostram o convite para entrar.
+  - O login regressa ao mesmo ecrã, sem criar conversas nem enviar nada.
+  - O rascunho e o destinatário escolhido mantêm-se.
+
+### Regras
+
+- **Consulta periódica:** só com o ecrã **RESUMED** (`LifecycleResumeEffect`): 10 s na conversa e 30 s na caixa, até 60 s com erros. Ao sair do ecrã, ir para segundo plano ou desligar o ecrã, o ciclo para; ao voltar, consulta logo. Não há WorkManager nem serviços em segundo plano. O atraso das mensagens não tem prazo garantido (contrato §12).
+- **Cursores:**
+  - a consulta pede `after=<cursor>&limit=50` e avança o cursor **só até à última mensagem recebida**, nunca até `lastSeq`;
+  - repete enquanto `hasMoreAfter` (até 10 páginas por ciclo; o resto segue no ciclo seguinte, do mesmo cursor);
+  - as mensagens juntam-se por `seq`, sem repetidos e por ordem;
+  - uma mensagem enviada entra na lista, mas não mexe no cursor: uma mensagem da outra pessoa com `seq` menor, gravada pouco antes, chega na consulta seguinte.
+- **Leitura:**
+  - a lista reporta o `seq` da última mensagem mostrada (pelo menos metade dentro do ecrã);
+  - com a conversa ativa, o ViewModel marca como lida a recebida mais recente **até essa mensagem**;
+  - quem está a ler o histórico antigo não marca as novas, e as próprias mensagens nunca contam;
+  - um só pedido de cada vez; o valor do servidor nunca faz recuar o cursor de leitura.
+- **Mensagens novas sem deslocar a leitura:**
+  - quem está no fim da conversa (ou acabou de enviar) segue para a nova mensagem;
+  - quem está a ler mais acima fica onde está, e aparece um botão "N mensagens novas" que leva ao fim;
+  - o histórico mais antigo entra por cima sem mudar a posição (chaves estáveis por `seq`).
+- **Envio idempotente:**
+  - uma `Idempotency-Key` por tentativa lógica, guardada com o texto no `SavedStateHandle` antes do pedido;
+  - resultado desconhecido → texto bloqueado, "Tentar novamente" (mesma chave e mesmo texto) e "Descartar" (com aviso de que pode já ter sido enviada). **Nunca há repetição automática do `POST`**;
+  - a tentativa fica confirmada sozinha quando uma consulta devolve uma mensagem minha com o mesmo `clientKey`;
+  - recusa definitiva → chave descartada, texto mantido; o `429` mostra os minutos de espera.
+- **Partilhas:**
+  - disponíveis → cartão que abre a experiência;
+  - eliminadas → "Esta experiência foi eliminada.", sem conteúdo antigo;
+  - temporariamente indisponíveis → "Atualizar", que pede só `GET …/shares` sem mexer nas mensagens nem no cursor. Também se atualizam sozinhas, no máximo de 60 em 60 s, com a conversa visível;
+  - uma falha do serviço das experiências nunca impede receber mensagens de texto.
+- **users-service em falha:** abrir uma conversa nova mostra "Não é possível iniciar a conversa agora", com "Tentar novamente". Na partilha para uma pessoa sem conversa, o texto e o destinatário mantêm-se. As conversas existentes continuam a funcionar.
+- **Privacidade entre contas:**
+  - ao terminar sessão ou trocar de conta, os três ecrãs param a consulta e apagam logo as mensagens, a caixa e os destinatários;
+  - o rascunho e a tentativa da conta anterior são removidos do `SavedStateHandle`;
+  - as respostas tardias são ignoradas (geração e conta do pedido).
+- **Rascunhos e dados privados:**
+  - os rascunhos ficam só no `SavedStateHandle`, com chaves por conta e por conversa ou partilha. É o mínimo necessário para a recriação, sem ficheiros, preferências nem cópias de segurança;
+  - a app não regista mensagens, tokens nem emails.
+
+### Testes automáticos (JVM)
+
+`.\gradlew.bat :app:testDebugUnitTest`: **264 testes, 0 falhas** (eram 234), executados depois da última alteração. `assembleDebug` e `lintDebug` concluídos: 0 erros e nenhum aviso novo além do dicionário inglês ("momento").
+
+- **`ConversationViewModelTest` (13).** Usa um messaging-service simulado que responde a `before`/`after` como o real, com tempo virtual:
+  - **sessão:** visitante sem pedidos;
+  - **histórico:** últimas 30 e anteriores, por `seq` crescente e sem repetidos;
+  - **consulta incremental:**
+    - 117 mensagens novas drenadas com `after` 3 → 53 → 103;
+    - o envio não avança o cursor: a mensagem 121 chega depois da minha 122;
+    - mais de 10 páginas continuam no ciclo seguinte;
+  - **consulta periódica:** só com o ecrã ativo; sem pedidos sobrepostos com uma consulta lenta e um envio pelo meio; parada em pausa; recuo 10 → 20 → 40 → 60 → 60 s e regresso aos 10 s;
+  - **leitura:** só as recebidas mostradas e só com a conversa ativa; nunca recua;
+  - **envio:**
+    - chave guardada antes do pedido; sem repetição automática; tentativa mantida na recriação;
+    - "Tentar novamente" com a mesma chave; confirmação pelo `clientKey` sem novo envio;
+    - recusa com o texto mantido e chave nova; validação sem pedidos; descartar a tentativa;
+  - **contas:** terminar sessão apaga tudo, para a consulta e ignora a resposta tardia; a conta seguinte não herda o rascunho;
+  - **abrir a partir do perfil:** com o toque explícito; users-service em falha e nova tentativa; depois de entrar, é preciso um novo toque;
+  - **conversa inexistente** → `Gone`;
+  - **partilhas:** indisponíveis não bloqueiam mensagens nem o cursor; "Atualizar" só com `GET …/shares`; atualização automática de 60 em 60 s; eliminada sem conteúdo.
+- **`InboxViewModelTest` (4):**
+  - visitante sem pedidos;
+  - cursor sem repetir uma conversa que subiu;
+  - consulta de 30 s só com o ecrã ativo, junta pelo id e reordena, com recuo de 60 s e parada em pausa;
+  - terminar sessão apaga tudo e ignora a resposta tardia.
+- **`ShareExperienceViewModelTest` (6):**
+  - visitante sem pedidos;
+  - texto opcional e envio só com "Enviar", sem repetir depois de enviada;
+  - pesquisa a partir de 2 caracteres e sem o próprio;
+  - users-service em falha mantém o destinatário e o texto;
+  - resultado desconhecido com a mesma chave, também depois da recriação; recusa temporária com o texto mantido e chave nova;
+  - experiência eliminada não é partilhada;
+  - trocar de conta apaga o estado guardado.
+- **`NetworkMessagingRepositoryTest` (4):**
+  - sem sessão, nada é pedido;
+  - envio com token e chave, e `401` renovado com a mesma chave;
+  - classificação dos 11 resultados do envio e dos erros de abrir;
+  - um texto vazio não vai no corpo;
+  - partilhas `AVAILABLE`/`DELETED`/`UNKNOWN`: conteúdo ilegível ou estado novo → `UNKNOWN`, nunca eliminada; `experiencesStatus`; `404`, rede e leitura.
+- **`MessagingFormatTest` (3):** hora de hoje e data de outros dias, no fuso do aparelho; "99+"; regras do texto iguais às do servidor.
+
+**Prova dos testes de cursor:** com o defeito introduzido de propósito (avançar o cursor até `lastSeq`), os dois testes de drenagem falham. O código foi reposto antes dos testes finais.
+
+### Verificação (2026-10-21, pelo assistente)
+
+**Emulador não usado:** o computador tinha cerca de 0,05 GB de memória livre, com o emulador, o Android Studio e o VS Code abertos. Da última vez, com cerca de 0,1 GB, o emulador deixou de responder.
+
+Verificaram-se por HTTP **os pedidos que a app faz** (mesmos caminhos, tamanhos de página, chaves e cursores), com duas contas temporárias, apagadas no fim com a conversa, as mensagens e a experiência. A `pamplona`, a segunda conta, as suas publicações, a lista e os volumes foram preservados: antes e depois, 2 contas, 3 experiências ativas, 1 lista com 1 item e 0 conversas. 11 verificações, 0 falhas:
+
+| Verificação | Resultado |
+|---|---|
+| Abrir a partir do perfil | `201` com o username |
+| Conversa vazia (`limit=30`) | `items: []`, `lastSeq: 0` |
+| Enviar e repetir a mesma tentativa | `201`, depois `200` com a mesma mensagem, o `clientKey` e `Idempotent-Replayed` |
+| Caixa do destinatário (`limit=20`) | participante, pré-visualização, 1 por ler; nenhum email na resposta |
+| Consulta incremental (`after=0&limit=50`) | a mensagem, sem o `clientKey` de quem a enviou |
+| Marcar como lida | 0 por ler na caixa |
+| Partilhar sem texto | `201` `AVAILABLE` no formato `Experience` |
+| Drenar mensagens novas de 2 em 2 | `seq` 2–7 sem saltos |
+| A autora elimina a experiência (`GET …/shares`) | `DELETED` sem conteúdo |
+| Histórico (`before=4`) | 1, 2, 3 por ordem |
+
+Na primeira execução, abrir a conversa deu `503 USERS_UNAVAILABLE`: com o computador quase sem memória, o users-service passou do prazo de 1 s. Nada foi criado, como o contrato prevê. As contas foram apagadas e a verificação repetida, com abertura à primeira (`201`).
+
+**Pendente (na interface, no emulador ou num telemóvel, com memória livre):**
+- enviar e receber entre duas contas;
+- histórico e "Carregar mensagens anteriores";
+- o botão de mensagens novas sem deslocar a leitura;
+- marcar como lidas na caixa;
+- partilhar a partir do detalhe;
+- o login a partir da caixa, da conversa e da partilha;
+- as falhas do users-service e do experiences-service vistas no ecrã.
