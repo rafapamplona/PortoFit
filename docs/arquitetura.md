@@ -131,7 +131,7 @@ Legenda dos serviços: **USR** users · **CAT** catalog · **EXP** experiences �
 | R7 | Feed de visitantes por popularidade; feed de registados por interesses e seguidos | `GET /feed/popular` e `GET /feed` | EXP (consulta USR) | Visitante vê feed popular; após seguir alguém e escolher interesses, o feed muda |
 | R8 | Listas com nomes personalizados e conteúdos guardados | Criar/renomear/apagar listas; adicionar/remover experiências | COL (consulta EXP) | Criar a lista "Para experimentar", guardar duas experiências, reabrir a app: continuam lá |
 | R9 | Seguir, partilhar publicações e mensagens simples | Seguir/deixar de seguir; conversas 1-para-1 atualizadas por consulta periódica; mensagem com referência a experiência | USR, MSG | Utilizador A segue B e partilha uma experiência; B vê a mensagem com a pré-visualização da experiência (por consulta periódica, com atraso variável, não em tempo real) |
-| R10 | Notificações | Lista de notificações; notificação Android do sistema | NOT (eventos de USR, EXP, MSG) | Gosto de A numa experiência de B gera notificação para B, visível na app; na barra do Android aparece na consulta periódica seguinte, com atraso (sem push) |
+| R10 | Notificações | Lista de notificações; notificação Android do sistema | NOT (eventos de USR, EXP, MSG) | Comentário de A numa experiência de B gera notificação para B, visível na app; na barra do Android aparece na consulta periódica seguinte, com atraso (sem push) |
 | R11 | Dashboard das próprias publicações | Estatísticas por publicação e totais | EXP (+ COL para "guardada") | Dashboard mostra visualizações, gostos, comentários e vezes guardada; números batem com as ações feitas |
 | R12 | GPS e pesquisa por proximidade | Pedir permissão, obter posição, pesquisar por raio | App, CAT | Com localização simulada no emulador, os locais aparecem ordenados por distância com distância em km |
 | R13 | Microserviços com dados e APIs próprios, Docker e Docker Compose | 6 serviços Spring Boot, cada um com base de dados própria | Todos | `docker compose up` arranca tudo; cada serviço responde em `/actuator/health`; nenhum acede às tabelas de outro |
@@ -172,7 +172,7 @@ Sem API gateway nesta fase: a app conhece o endereço de cada serviço (configur
 | **experiences-service** | Experiências, fotografias, estrelas, comentários, gostos, visualizações, avaliações agregadas, feeds, estatísticas | experiências, ficheiros de fotografia, comentários, gostos, visualizações | ler, pesquisar, feed popular, avaliações agregadas | publicar, apagar a própria, comentar, gostar, feed pessoal, dashboard |
 | **collections-service** ([collections-api.md](collections-api.md)) | Listas personalizadas e referências a conteúdos guardados | listas, itens (id da experiência) | contagem de vezes guardada (agregada) | tudo o resto (listas são privadas) |
 | **messaging-service** ([messaging-api.md](messaging-api.md)) | Conversas 1-para-1, mensagens, partilha de experiências; a app obtém mensagens novas por consulta periódica (sem tempo real na primeira versão) | conversas, mensagens (texto e/ou id de experiência) | — | tudo |
-| **notifications-service** | Registo, consulta e marcação de notificações | notificações, ids de eventos já processados | — | consultar e marcar como lidas |
+| **notifications-service** ([notifications-api.md](notifications-api.md)) | Registo, consulta e marcação de notificações | notificações, ids de eventos já processados | — | consultar e marcar como lidas |
 
 **Pesquisa textual (todos os serviços com pesquisa: CAT, EXP, USR).** Comportamento pretendido: correspondência parcial que **ignora maiúsculas/minúsculas e acentos** — `boxe`, `BOXE` e `Boxe` dão o mesmo resultado, e `natacao` encontra "Natação". A forma de implementar (função de base de dados, coluna normalizada guardada pelo serviço, ou outra) é escolhida na implementação de cada serviço, desde que cumpra este comportamento.
 
@@ -187,7 +187,7 @@ A divisão proposta mantém-se, com estes ajustes e esclarecimentos:
 5. **O dashboard é composto na app**: métricas próprias vêm do EXP; "vezes guardada" vem do COL. Se o COL falhar, essa coluna aparece como indisponível.
 6. **Os interesses guardam ids de modalidade do catálogo** (`"boxe"`, `"corrida"`), por isso os ids de modalidade são *slugs* estáveis.
 7. **Utilizadores referenciados por `userId`.** Todas as referências a utilizadores entre serviços (autor, seguidor, destinatário, dono de lista) usam o `userId` (UUID gerado pelo users-service e nunca alterado). O username é apenas um dado de apresentação; as cópias que outros serviços guardam (ver [3.5](#35-cópias-de-dados-desnormalização)) nunca são usadas para identificar, autorizar ou relacionar dados.
-8. **O notifications-service não decide destinatários.** Quem produz o evento (EXP, USR, MSG) já sabe quem deve ser notificado e envia-o no evento.
+8. **O notifications-service não decide destinatários.** Quem produz o evento (EXP, USR, MSG) já sabe quem deve ser notificado e envia-o no evento. Exceção: numa nova experiência, os destinatários são os seguidores do autor, que o experiences-service não conhece; o notifications-service resolve-os por páginas no users-service ([notifications-api.md §8](notifications-api.md#8-destinatários-das-novas-experiências)).
 
 ### 3.4 Isolamento dos dados
 
@@ -209,7 +209,7 @@ Para que os serviços continuem a responder quando outros falham, alguns dados s
 | EXP | `authorId`, `offeringId`, `placeId`, `sportId` | username do autor; nome do local, da atividade e da modalidade; indicação de local fictício | token do autor; CAT ao publicar ([experiences-api.md §2](experiences-api.md#2-entidades-e-responsabilidade-pelos-dados)) |
 | MSG | participantes e `senderId` (`userId`), `experienceId` | usernames dos dois participantes; **nada da experiência** (consultada em lote ao mostrar, [messaging-api.md §7](messaging-api.md#7-partilha-de-experiências)) | token e USR ao criar a conversa |
 | COL | `ownerId`, `experienceId` | — | — |
-| NOT | `recipientId`, `actorId`, id do objeto | texto da notificação | evento |
+| NOT | `recipientId`, `actorId`, ids dos objetos | username do ator; **sem texto** de mensagens, comentários ou experiências (o texto da notificação é construído na app) | evento |
 
 `placeId` e `sportId` no EXP são referências copiadas do catálogo ao publicar, para permitir filtrar por modalidade e por local sem chamar o CAT.
 
@@ -340,13 +340,13 @@ Os feeds não consultam o catálogo: usam os nomes copiados na publicação e ma
 
 **Objetivo:** o utilizador vê as notificações dentro da app **e** como notificações Android do sistema.
 
-**Tipos:** novo seguidor, gosto, comentário, experiência partilhada consigo, nova mensagem.
+**Tipos (primeira versão, [notifications-api.md](notifications-api.md)):** nova mensagem (incluindo partilha de uma experiência), novo comentário numa experiência minha, novo seguidor, nova experiência de alguém que sigo. Os gostos ficam de fora, para limitar o ruído.
 
 **Passagem de eventos entre serviços — solução planeada: *transactional outbox***
 
 Esta solução só é implementada na etapa das notificações ([etapa 10](#5-etapas-de-implementação)). Até lá, os serviços não produzem eventos e não há notificações. O objetivo é evitar o "dispara e esquece" (enviar um pedido e ignorar o resultado), em que uma falha do notifications-service fazia perder o evento sem ninguém saber.
 
-1. **Registo na mesma transação.** Quando acontece algo notificável (ex.: um gosto), o serviço produtor grava, **na mesma transação da base de dados**, o gosto e uma linha na sua tabela `outbox`: id único do evento (UUID), tipo, `recipientId`, `actorId`, dados, data de criação, estado (`PENDING`), número de tentativas e data da próxima tentativa. Ou ficam gravados os dois, ou nenhum.
+1. **Registo na mesma transação.** Quando acontece algo notificável (ex.: um comentário), o serviço produtor grava, **na mesma transação da base de dados**, o comentário e uma linha na sua tabela `outbox`: id único do evento (UUID), tipo, `recipientId`, `actorId`, dados, data de criação, estado (`PENDING`), número de tentativas e data da próxima tentativa. Ou ficam gravados os dois, ou nenhum.
 2. **Envio por tarefa agendada.** Uma tarefa no produtor (ex.: a cada 5 segundos) envia, por ordem de criação, os eventos `PENDING` cuja data da próxima tentativa já passou (`POST /internal/events`), e marca-os `SENT` quando recebe resposta de sucesso.
 3. **Tentativas com intervalo crescente.** Em caso de erro ou timeout, incrementa as tentativas e adia a próxima com intervalo crescente (ex.: 5 s, 10 s, 20 s, 40 s… até um máximo de 10 minutos entre tentativas).
 4. **Falha persistente.** Ao fim de um número máximo de tentativas (ex.: 20, que cobre várias horas), o evento passa a `FAILED`, é registado em log e **fica guardado** na tabela; não é apagado. Pode ser reenviado manualmente (repondo-o em `PENDING`) depois de corrigida a causa. Erros que nunca vão resultar (ex.: resposta 400, evento mal formado) passam logo a `FAILED` sem gastar tentativas.
@@ -359,10 +359,10 @@ O que esta solução oferece, e o que não oferece:
 - **A ordem não é garantida** entre produtores diferentes (ex.: a notificação de um comentário pode chegar antes da de um gosto feito antes).
 - Atraso esperado em funcionamento normal: alguns segundos; durante uma falha, até ao fim da falha mais o intervalo da tentativa seguinte.
 - Custo: a tabela `outbox` e a tarefa de envio repetem-se em USR, EXP e MSG. É pouco código e é o mesmo nos três.
-- *Retirar um gosto* não apaga a notificação já criada (simplificação aceite).
+- *Deixar de seguir* ou eliminar o conteúdo não apaga a notificação já criada (simplificação aceite; ao abrir, a app mostra o estado real).
 
 **Entrega ao Android (primeira versão, sem *push*)**
-- **Com a app aberta:** consulta o número de notificações não lidas periodicamente (ex.: a cada 30 segundos) e ao voltar ao primeiro plano.
+- **Com a app aberta:** a contagem por ler é pedida quando os ecrãs principais voltam a ficar visíveis, e a caixa é consultada de 30 em 30 s só enquanto está aberta ([notifications-api.md §15](notifications-api.md#15-app-android-proposta)).
 - **Com a app fechada:** uma tarefa periódica do WorkManager consulta notificações novas e mostra-as como notificações do sistema. O WorkManager **não dá notificações imediatas**:
   - o intervalo mínimo de uma tarefa periódica é de 15 minutos;
   - o Android pode adiar a execução bastante mais (modo Doze, *App Standby Buckets*, poupança de bateria, restrições do fabricante);
@@ -462,7 +462,7 @@ Existe uma dependência nos dois sentidos entre CAT e EXP, mas para operações 
 
 ### 4.4 Guião de demonstração de falhas
 
-1. `docker compose stop notifications-service` → publicar e gostar continuam a funcionar → `docker compose start notifications-service` → as notificações em falta aparecem.
+1. `docker compose stop notifications-service` → publicar e comentar continuam a funcionar → `docker compose start notifications-service` → as notificações em falta aparecem.
 2. `docker compose stop experiences-service` → abrir um local: atividades visíveis, avaliação "indisponível" (não "0 estrelas").
 3. `docker compose stop users-service` → com sessão iniciada há pouco (token válido), publicar uma experiência continua a funcionar; o feed passa a "populares"; terminar sessão e tentar entrar de novo falha com mensagem clara. Mostra também o limite: sem users-service não é possível obter nova sessão.
 4. `docker compose stop collections-service messaging-service` → pesquisa, consulta e publicação continuam a funcionar.
@@ -509,7 +509,7 @@ Cada etapa termina com algo demonstrável. As versões de ferramentas e bibliote
 | 7 (backend ✅; app ✅, testes, pedidos HTTP e percurso confirmado no emulador pelo utilizador; orientação numa câmara física por verificar) | Etapa E2: fotografia opcional, da galeria (Photo Picker) e da câmara do sistema chamada pela app | Publicar uma fotografia tirada na app e outra da galeria |
 | 8 (backend ✅, 10 testes novos e pedidos HTTP; app ✅, 28 testes novos, pedidos HTTP da app e verificação na interface pelo utilizador e pelo assistente, incluindo falha e recuperação, [app-android.md §16](app-android.md#16-comentários-gostos-e-visualizações-etapa-8-e3); incluindo o login a partir de uma interação) | Etapa E3: comentários, gostos, visualizações e ordenações por gostos e interações | Sem sessão, mesma lista ordenada por data, gostos, interações e estrelas |
 | 9 (contrato revisto em 2026-10-19; backend ✅, 2 + 7 testes novos e pedidos HTTP, [experiences-api.md §20](experiences-api.md#20-estado-da-implementação); app ✅, 20 testes novos e verificação no emulador, [app-android.md §17](app-android.md#17-descobrir-e-estatísticas-etapa-9-e4); feed pessoal com resultados, login a partir de Estatísticas e troca de conta confirmados pelo utilizador) | Etapa E4: feeds (EXP, com `GET /internal/me/feed-context` no USR; seguir já existe desde a etapa 5) e dashboard (estatísticas do EXP); navegação Pesquisar (início) / Descobrir / Estatísticas | Feed muda após seguir/escolher interesses e degrada para popular com o USR parado; dashboard coerente com as ações feitas |
-| 10 | notifications-service; outbox em USR, EXP e MSG (tentativas, deduplicação, `FAILED`); notificações Android com WorkManager | Gosto gera notificação; com NOT parado o gosto é aceite e a notificação chega depois de o reiniciar |
+| 10 | notifications-service; outbox em USR, EXP e MSG (tentativas, deduplicação, `FAILED`); notificações Android com WorkManager (contrato aprovado em 2026-10-22: [notifications-api.md](notifications-api.md); primeira parte: serviço e mensagens) | Comentário gera notificação; com NOT parado o comentário é aceite e a notificação chega depois de o reiniciar |
 | 11 (backend ✅, 9 + 1 testes e pedidos HTTP, [collections-api.md §13](collections-api.md#13-estado-da-implementação); app ✅, 18 testes, pedidos HTTP da app e percursos confirmados na interface pelo utilizador, incluindo a falha e a recuperação do experiences-service e o login a partir das listas, [app-android.md §18](app-android.md#18-listas-pessoais-etapa-11)) | collections-service (backend) e listas na app | Criar lista e guardar experiências |
 | 12 (contrato aprovado em 2026-10-20; backend ✅, 15 testes e pedidos HTTP, [messaging-api.md §19](messaging-api.md#19-estado-da-implementação); app ✅, 31 testes, pedidos HTTP da app e verificação na interface pelo assistente (10 percursos, 4 defeitos corrigidos), [app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12); convite em "Mensagens" com a sessão terminada só nos testes JVM) | messaging-service, mensagens e partilha, com consulta periódica | Partilhar experiência entre dois utilizadores |
 | 13 | Dashboard: "vezes guardada" (COL) junto às estatísticas do EXP | Contagem de vezes guardada coerente com as listas |

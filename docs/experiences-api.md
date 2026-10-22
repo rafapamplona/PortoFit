@@ -756,7 +756,7 @@ Regras gerais:
 - **Leituras públicas, escritas autenticadas.** Quem comenta, gosta ou vê vem sempre do `sub` do token, nunca do corpo; o `username` dos comentários é copiado do token, como nas experiências (§2.3).
 - **Experiência inexistente ou eliminada → `404 NOT_FOUND`** em todos estes endpoints (listar, comentar, gostar, retirar o gosto e visualizar). Para a app, uma experiência eliminada deixa de existir, com tudo o que lhe pertencia.
 - Gostos e comentários **não** alteram as avaliações (§7). Moderação fica fora do âmbito: o autor da experiência não apaga comentários de outros.
-- A partir da etapa 10, gostos e comentários geram eventos na outbox.
+- A partir da etapa 10, comentários e novas experiências geram eventos na outbox; gostos não, nesta versão ([notifications-api.md §3](notifications-api.md#3-eventos-e-destinatários)).
 
 ### 13.1 Comentários
 

@@ -586,7 +586,7 @@ Mesma estrutura das listas ([app-android.md §18](app-android.md#18-listas-pesso
 - **Iniciar conversas:** qualquer pessoa com sessão pode iniciar uma conversa com outra, sem ter de a seguir, sujeita aos limites do §10. Bloquear e denunciar ficam fora do âmbito.
 - **Consulta periódica:** 10 s na conversa e 30 s na caixa, só com o ecrã ativo, com recuo até 60 s nos erros (§12). Não há prazo máximo de entrega garantido.
 - **Editar e eliminar:** sem edição nem eliminação de mensagens ou conversas nesta versão (§13). É uma **decisão de âmbito do grupo**, não uma exigência confirmada da disciplina.
-- **Notificações:** ficam para a etapa própria. Nesta etapa não há outbox nem eventos.
+- **Notificações:** ficam para a etapa própria. Nesta etapa não há outbox nem eventos. Proposta: evento `MESSAGE_RECEIVED` sem o texto ([notifications-api.md](notifications-api.md)).
 - **Limites:** os valores propostos (§10) mantêm-se, todos configuráveis.
 - **Ajustes ao contrato:** cursor de leitura monotónico (§5.4), `seq` sem promessa de números seguidos (§6.3), recuperação com mais novidades do que a página (§6.3), partilhas atualizáveis à parte (§7.3), validação ao partilhar sem consumir a chave (§7.1), contas (§13), estimativas como hipóteses (§12).
 

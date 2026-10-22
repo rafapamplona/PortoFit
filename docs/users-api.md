@@ -263,7 +263,7 @@ GET /api/v1/users?q=ana&size=2
 - `404` se o utilizador não existir.
 - **Limite de produto (E4): cada pessoa segue no máximo 500 outras.** Seguir uma pessoa nova com 500 já seguidas → `409` com `"code": "FOLLOW_LIMIT_REACHED"` e nada é gravado. Seguir alguém já seguido continua `204`, mesmo no limite, e deixar de seguir nunca é limitado. A contagem e a inserção acontecem na mesma transação, com a linha do seguidor bloqueada, por isso pedidos simultâneos não ultrapassam o limite. O limite existe para o contexto do feed (§3.11) ser sempre a lista completa, sem truncagem.
 - O `followerId` vem sempre do token, nunca do pedido.
-- Começar a seguir gera, a partir da etapa 10, um evento "novo seguidor" para o notifications-service através da outbox ([arquitetura.md §3.11](arquitetura.md#311-notificações)). Até lá, nada é enviado.
+- Começar a seguir (relação nova) gera, a partir da etapa 10, um evento `USER_FOLLOWED` para o notifications-service através da outbox ([notifications-api.md §3](notifications-api.md#3-eventos-e-destinatários)); previsto também um endpoint interno com os ids dos seguidores, por cursor, para as notificações de novas experiências ([notifications-api.md §8.1](notifications-api.md#81-fonte-os-seguidores-do-autor-no-users-service)). Ver também [arquitetura.md §3.11](arquitetura.md#311-notificações). Até lá, nada é enviado.
 
 ### 3.10 Seguidores e seguidos
 
