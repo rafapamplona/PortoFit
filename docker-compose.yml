@@ -21,6 +21,8 @@ services:
       COLLECTIONS_DB_PASSWORD: ${COLLECTIONS_DB_PASSWORD:?defina COLLECTIONS_DB_PASSWORD no .env}
       MESSAGING_DB_USER: ${MESSAGING_DB_USER:?defina MESSAGING_DB_USER no .env}
       MESSAGING_DB_PASSWORD: ${MESSAGING_DB_PASSWORD:?defina MESSAGING_DB_PASSWORD no .env}
+      NOTIFICATIONS_DB_USER: ${NOTIFICATIONS_DB_USER:?defina NOTIFICATIONS_DB_USER no .env}
+      NOTIFICATIONS_DB_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD:?defina NOTIFICATIONS_DB_PASSWORD no .env}
     volumes:
       # PostgreSQL 18+: o volume monta em /var/lib/postgresql (os dados ficam em 18/docker).
       - postgres-data:/var/lib/postgresql
@@ -226,6 +228,10 @@ services:
       # Consulta interna em lote (docs/messaging-api.md §7.4), com a chave exclusiva deste serviço, só do .env.
       EXPERIENCES_BASE_URL: http://experiences-service:8083
       MESSAGING_INTERNAL_KEY: ${MESSAGING_INTERNAL_KEY:?defina MESSAGING_INTERNAL_KEY no .env}
+      # Outbox de notificações (docs/notifications-api.md §7): entrega em lote pela rede interna, com a chave
+      # exclusiva deste produtor, só do .env. Sem o notifications-service, as mensagens continuam a ser enviadas.
+      NOTIFICATIONS_BASE_URL: http://notifications-service:8086
+      NOTIFY_MESSAGING_KEY: ${NOTIFY_MESSAGING_KEY:?defina NOTIFY_MESSAGING_KEY no .env}
     volumes:
       # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
       - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
@@ -240,6 +246,45 @@ services:
         restart: true
     healthcheck:
       test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8085 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  notifications-service:
+    build: ./backend/notifications-service
+    image: portofit/notifications-service:0.1.0
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: notifications_db
+      DB_USER: ${NOTIFICATIONS_DB_USER:?defina NOTIFICATIONS_DB_USER no .env}
+      DB_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD:?defina NOTIFICATIONS_DB_PASSWORD no .env}
+      # Só a chave PÚBLICA, para validar localmente os access tokens do users-service.
+      JWT_PUBLIC_KEY_PATH: /run/secrets/users-jwt/public.pem
+      # Uma chave por produtor (docs/notifications-api.md §6.1), só do .env. Primeira parte: só o messaging-service;
+      # sem NOTIFY_USERS_KEY nem NOTIFY_EXPERIENCES_KEY, nenhum outro produtor é aceite.
+      NOTIFY_MESSAGING_KEY: ${NOTIFY_MESSAGING_KEY:?defina NOTIFY_MESSAGING_KEY no .env}
+    volumes:
+      # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
+      - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
+    ports:
+      - "127.0.0.1:8086:8086"
+    networks:
+      - data
+      - public
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8086 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3']
       interval: 10s
       timeout: 5s
       retries: 5
