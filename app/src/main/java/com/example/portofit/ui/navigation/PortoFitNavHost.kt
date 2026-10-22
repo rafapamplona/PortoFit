@@ -12,8 +12,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
@@ -27,7 +29,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.portofit.PortoFitApplication
 import com.example.portofit.R
+import com.example.portofit.data.auth.SessionState
+import com.example.portofit.data.model.NotificationTarget
+import com.example.portofit.notifications.TapAction
+import com.example.portofit.notifications.resolveTap
+import com.example.portofit.ui.feature.notifications.NotificationsScreen
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import com.example.portofit.ui.feature.collections.CollectionDetailScreen
 import com.example.portofit.ui.feature.collections.CollectionDetailViewModel
 import com.example.portofit.ui.feature.collections.CollectionsScreen
@@ -96,6 +106,14 @@ private object Routes {
     fun conversationWith(userId: String, username: String) =
         "conversation?${ConversationViewModel.PARTICIPANT_ID_ARG}=${Uri.encode(userId)}&${ConversationViewModel.PARTICIPANT_NAME_ARG}=${Uri.encode(username)}"
     const val SHARE = "experience/{${ShareExperienceViewModel.EXPERIENCE_ID_ARG}}/share"
+    const val NOTIFICATIONS = "notifications"
+
+    /** Destino de uma notificação (docs/notifications-api.md §15.1). */
+    fun of(target: NotificationTarget) = when (target) {
+        is NotificationTarget.Conversation -> conversation(target.conversationId, target.username)
+        is NotificationTarget.Experience -> experience(target.experienceId)
+        is NotificationTarget.Person -> person(target.userId)
+    }
     fun share(experienceId: String) = "experience/${Uri.encode(experienceId)}/share"
 }
 
@@ -149,6 +167,30 @@ fun PortoFitNavHost() {
         },
     ) { padding ->
         PortoFitGraph(navController, Modifier.padding(padding).consumeWindowInsets(padding))
+        NotificationTapHandler(navController)
+    }
+}
+
+/**
+ * Toque numa notificação do sistema (docs/notifications-api.md §15.6): espera que a sessão guardada seja lida e só abre
+ * o conteúdo se for da conta destinatária — por cima da caixa, marcando-a como lida. Outra conta ou sem sessão: só a
+ * caixa (com o convite para entrar); depois de entrar, nada abre sozinho (o toque já foi consumido).
+ */
+@Composable
+private fun NotificationTapHandler(navController: NavHostController) {
+    val container = (LocalContext.current.applicationContext as PortoFitApplication).container
+    LaunchedEffect(navController) {
+        container.notificationTaps.filterNotNull().collect { tap ->
+            val session = container.sessionManager.state.first { it !is SessionState.Loading }
+            container.notificationTaps.value = null
+            navController.navigate(Routes.NOTIFICATIONS) { launchSingleTop = true }
+            val action = resolveTap(tap, session)
+            if (action is TapAction.OpenTarget) {
+                container.markNotificationOpened(action.notificationId)
+                container.systemNotifier.cancel(action.seq)
+                navController.navigate(Routes.of(action.target))
+            }
+        }
     }
 }
 
@@ -167,6 +209,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                     onFindPeople = { if (entry.isResumed()) navController.navigateToTopLevel(Routes.SEARCH) },
                     onCollections = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
                     onMessages = { if (entry.isResumed()) navController.navigate(Routes.INBOX) },
+                    onNotifications = { if (entry.isResumed()) navController.navigate(Routes.NOTIFICATIONS) },
                 ),
             )
         }
@@ -179,7 +222,18 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                     onProfile = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                     onCollections = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
                     onMessages = { if (entry.isResumed()) navController.navigate(Routes.INBOX) },
+                    onNotifications = { if (entry.isResumed()) navController.navigate(Routes.NOTIFICATIONS) },
                 ),
+            )
+        }
+        composable(Routes.NOTIFICATIONS) { entry ->
+            NotificationsScreen(
+                onBack = { if (entry.isResumed()) navController.navigateUp() },
+                // O destino abre por cima da caixa: voltar regressa a ela. Conteúdo eliminado ou serviço em baixo: o
+                // ecrã de destino mostra o seu estado (§10).
+                onOpen = { target -> if (entry.isResumed()) navController.navigate(Routes.of(target)) },
+                // Sem sessão: entrar e regressar à caixa.
+                onLogin = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
             )
         }
         composable(Routes.INBOX) { entry ->
@@ -263,6 +317,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                 onPersonClick = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
                 onCollectionsClick = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
                 onMessagesClick = { if (entry.isResumed()) navController.navigate(Routes.INBOX) },
+                onNotificationsClick = { if (entry.isResumed()) navController.navigate(Routes.NOTIFICATIONS) },
             )
         }
         composable(Routes.LOGIN) { entry ->

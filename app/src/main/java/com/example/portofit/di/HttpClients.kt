@@ -60,6 +60,14 @@ object HttpClients {
         .connectionPool(ConnectionPool(2, USERS_IDLE_SECONDS, TimeUnit.SECONDS))
         .build()
 
+    /**
+     * notifications-service: pool própria de ligações curtas. As novas tentativas de ligação do OkHttp são seguras: as
+     * leituras e as marcações de leitura (PUT) são idempotentes (docs/notifications-api.md §5.3).
+     */
+    fun notifications(base: OkHttpClient): OkHttpClient = base.newBuilder()
+        .connectionPool(ConnectionPool(2, USERS_IDLE_SECONDS, TimeUnit.SECONDS))
+        .build()
+
     /** Chamadas de sessão: o cliente do users-service (mesma pool), sem novas tentativas automáticas. */
     fun session(users: OkHttpClient): OkHttpClient = users.newBuilder()
         .retryOnConnectionFailure(false)

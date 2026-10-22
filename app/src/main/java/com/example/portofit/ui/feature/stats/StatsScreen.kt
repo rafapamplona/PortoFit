@@ -61,6 +61,7 @@ class StatsActions(
     val onProfile: () -> Unit,
     val onCollections: () -> Unit = {},
     val onMessages: () -> Unit = {},
+    val onNotifications: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,7 +81,7 @@ fun StatsScreen(
                 title = { Text(stringResource(R.string.stats_title)) },
                 actions = {
                     if (state.signedIn == true) TextButton(onClick = viewModel::refresh) { Text(stringResource(R.string.refresh)) }
-                    AccountAction(session, actions.onLogin, actions.onProfile, accountViewModel::logout, actions.onCollections, actions.onMessages)
+                    AccountAction(session, actions.onLogin, actions.onProfile, accountViewModel::logout, actions.onCollections, actions.onMessages, actions.onNotifications)
                 },
             )
         },

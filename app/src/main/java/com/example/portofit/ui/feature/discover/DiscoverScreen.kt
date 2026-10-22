@@ -53,6 +53,7 @@ class DiscoverActions(
     val onFindPeople: () -> Unit,
     val onCollections: () -> Unit = {},
     val onMessages: () -> Unit = {},
+    val onNotifications: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +74,7 @@ fun DiscoverScreen(
                 title = { Text(stringResource(R.string.discover_title)) },
                 actions = {
                     TextButton(onClick = viewModel::refresh) { Text(stringResource(R.string.refresh)) }
-                    AccountAction(session, actions.onLogin, actions.onProfile, accountViewModel::logout, actions.onCollections, actions.onMessages)
+                    AccountAction(session, actions.onLogin, actions.onProfile, accountViewModel::logout, actions.onCollections, actions.onMessages, actions.onNotifications)
                 },
             )
         },

@@ -2,15 +2,18 @@
 <!--
    Regras de cópia de segurança e de transferência entre aparelhos (Android 12+).
    A sessão (refresh token cifrado com uma chave do Android Keystore) é excluída de ambas, tal como a chave
-   de visualização dos visitantes (E3), que pertence só a esta instalação.
+   de visualização dos visitantes (E3), que pertence só a esta instalação, e os cursores das notificações
+   (último seq notificado por conta), que só fazem sentido neste aparelho.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="session/" />
         <exclude domain="sharedpref" path="viewer_key.xml" />
+        <exclude domain="sharedpref" path="notifications_cursors.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="session/" />
         <exclude domain="sharedpref" path="viewer_key.xml" />
+        <exclude domain="sharedpref" path="notifications_cursors.xml" />
     </device-transfer>
 </data-extraction-rules>

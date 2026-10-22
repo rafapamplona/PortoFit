@@ -15,6 +15,8 @@ val experiencesBaseUrlOverride: String? = providers.gradleProperty("portofit.exp
 val collectionsBaseUrlOverride: String? = providers.gradleProperty("portofit.collectionsBaseUrl").orNull
 // URL do messaging-service (mesma regra).
 val messagingBaseUrlOverride: String? = providers.gradleProperty("portofit.messagingBaseUrl").orNull
+// URL do notifications-service (mesma regra).
+val notificationsBaseUrlOverride: String? = providers.gradleProperty("portofit.notificationsBaseUrl").orNull
 
 android {
     namespace = "com.example.portofit"
@@ -39,6 +41,7 @@ android {
             buildConfigField("String", "EXPERIENCES_BASE_URL", "\"${experiencesBaseUrlOverride ?: "http://10.0.2.2:8083/"}\"")
             buildConfigField("String", "COLLECTIONS_BASE_URL", "\"${collectionsBaseUrlOverride ?: "http://10.0.2.2:8084/"}\"")
             buildConfigField("String", "MESSAGING_BASE_URL", "\"${messagingBaseUrlOverride ?: "http://10.0.2.2:8085/"}\"")
+            buildConfigField("String", "NOTIFICATIONS_BASE_URL", "\"${notificationsBaseUrlOverride ?: "http://10.0.2.2:8086/"}\"")
         }
         release {
             optimization {
@@ -50,6 +53,7 @@ android {
             buildConfigField("String", "EXPERIENCES_BASE_URL", "\"${experiencesBaseUrlOverride ?: ""}\"")
             buildConfigField("String", "COLLECTIONS_BASE_URL", "\"${collectionsBaseUrlOverride ?: ""}\"")
             buildConfigField("String", "MESSAGING_BASE_URL", "\"${messagingBaseUrlOverride ?: ""}\"")
+            buildConfigField("String", "NOTIFICATIONS_BASE_URL", "\"${notificationsBaseUrlOverride ?: ""}\"")
         }
     }
     compileOptions {
@@ -81,6 +85,8 @@ dependencies {
     // Fotografias das experiências em Compose (com o cliente OkHttp da app).
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    // Consulta periódica das notificações com a app fechada (docs/notifications-api.md §15.3).
+    implementation(libs.androidx.work.runtime)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

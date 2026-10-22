@@ -22,6 +22,7 @@ class PortoFitApplication : Application(), SingletonImageLoader.Factory {
             experiencesBaseUrl = BuildConfig.EXPERIENCES_BASE_URL,
             collectionsBaseUrl = BuildConfig.COLLECTIONS_BASE_URL,
             messagingBaseUrl = BuildConfig.MESSAGING_BASE_URL,
+            notificationsBaseUrl = BuildConfig.NOTIFICATIONS_BASE_URL,
         )
     }
 

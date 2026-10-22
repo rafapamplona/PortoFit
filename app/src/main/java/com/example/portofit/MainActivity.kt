@@ -1,5 +1,6 @@
 package com.example.portofit
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
 import com.example.portofit.ui.components.LocalPhotoUrls
+import com.example.portofit.notifications.NotificationIntents
 import com.example.portofit.ui.components.PhotoUrls
 import com.example.portofit.ui.navigation.PortoFitNavHost
 import com.example.portofit.ui.theme.PortoFitTheme
@@ -22,6 +24,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestLocalNetworkAccessForDevelopment()
+        // Só o intent original: ao recriar a atividade (rotação, regresso pelos recentes) o toque já foi tratado.
+        if (savedInstanceState == null) receiveNotificationTap(intent)
         setContent {
             PortoFitTheme {
                 // Endereço das fotografias resolvido a partir da configuração (nunca fixo nos modelos).
@@ -30,6 +34,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        receiveNotificationTap(intent)
+    }
+
+    /** Ao voltar à app: a permissão pode ter mudado nas definições do Android (docs/notifications-api.md §15.2). */
+    override fun onStart() {
+        super.onStart()
+        (application as PortoFitApplication).container.syncNotifications()
+    }
+
+    /** Toque numa notificação do sistema: a navegação decide o que abrir, depois de confirmar a conta (§15.6). */
+    private fun receiveNotificationTap(intent: Intent?) {
+        if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        NotificationIntents.tapOf(intent)?.let { (application as PortoFitApplication).container.notificationTaps.value = it }
     }
 
     /**

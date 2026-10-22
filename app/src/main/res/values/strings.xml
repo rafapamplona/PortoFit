@@ -559,4 +559,42 @@
     <string name="error_invalid_request">O pedido não foi aceite pelo servidor.</string>
     <string name="error_not_configured">O endereço do serviço não está configurado nesta versão da app.</string>
     <string name="error_unexpected">Ocorreu um erro inesperado.</string>
+
+    <!-- Notificações (docs/notifications-api.md §9, §15). Só o tipo e quem: nunca o texto de mensagens ou comentários. -->
+    <string name="account_notifications">Notificações</string>
+    <string name="account_notifications_count">Notificações (%1$s)</string>
+    <string name="notifications_title">Notificações</string>
+    <string name="notifications_login_hint">Entra na tua conta para veres as tuas notificações. Depois de entrar, regressas aqui.</string>
+    <string name="notifications_empty">Ainda não tens notificações. Aqui aparecem mensagens, comentários, novos seguidores e publicações de quem segues.</string>
+    <string name="notifications_unavailable">Notificações indisponíveis de momento. O resto da app continua a funcionar; tenta novamente daqui a pouco.</string>
+    <string name="notifications_not_configured">As notificações não estão disponíveis nesta versão da app.</string>
+    <string name="notifications_session_ended">A tua sessão terminou. Entra novamente para veres as notificações.</string>
+    <string name="notifications_session_unverified">Não foi possível confirmar a tua sessão agora. Tenta novamente.</string>
+    <string name="notifications_refresh_failed">A atualização falhou; a tentar de novo.</string>
+    <string name="notifications_mark_all">Marcar todas como lidas</string>
+    <string name="notifications_mark_failed">Não foi possível marcar como lida. Continua por ler; tenta novamente.</string>
+    <string name="notifications_unread_description">Por ler: %1$s</string>
+    <plurals name="notifications_unread">
+        <item quantity="one">%1$s notificação por ler</item>
+        <item quantity="other">%1$s notificações por ler</item>
+    </plurals>
+    <string name="notifications_permission_explain">Recebe avisos de mensagens e comentários na barra do telemóvel. Podem chegar com atraso.</string>
+    <string name="notifications_permission_enable">Ativar</string>
+    <string name="notifications_permission_settings_hint">As notificações da PortoFit estão desligadas. Podes ativá-las nas definições do Android; a lista aqui continua a funcionar.</string>
+    <string name="notifications_permission_open_settings">Abrir definições</string>
+    <string name="notification_text_message">Nova mensagem de @%1$s</string>
+    <string name="notification_text_shared">\@%1$s partilhou uma experiência contigo</string>
+    <string name="notification_text_comment">\@%1$s comentou a tua experiência</string>
+    <string name="notification_text_follow">\@%1$s começou a seguir-te</string>
+    <string name="notification_text_published">\@%1$s publicou uma experiência</string>
+    <string name="notification_tap_to_open">Toca para abrir na PortoFit</string>
+    <string name="notification_public_text">Tens novidades</string>
+    <plurals name="notification_summary">
+        <item quantity="one">E mais %1$d novidade na caixa</item>
+        <item quantity="other">E mais %1$d novidades na caixa</item>
+    </plurals>
+    <string name="notification_channel_messages">Mensagens</string>
+    <string name="notification_channel_comments">Comentários</string>
+    <string name="notification_channel_followers">Seguidores</string>
+    <string name="notification_channel_experiences">Novas experiências</string>
 </resources>

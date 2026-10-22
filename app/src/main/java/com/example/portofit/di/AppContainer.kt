@@ -17,6 +17,17 @@ import com.example.portofit.data.remote.UsersApi
 import com.example.portofit.data.repository.CatalogRepository
 import com.example.portofit.data.remote.CollectionsApi
 import com.example.portofit.data.remote.MessagingApi
+import com.example.portofit.data.remote.NotificationsApi
+import com.example.portofit.data.repository.NetworkNotificationsRepository
+import com.example.portofit.data.repository.NotificationsRepository
+import com.example.portofit.data.repository.UnconfiguredNotificationsRepository
+import com.example.portofit.notifications.AndroidSystemNotifier
+import com.example.portofit.notifications.NotificationPoller
+import com.example.portofit.notifications.NotificationTap
+import com.example.portofit.notifications.NotificationsCoordinator
+import com.example.portofit.notifications.PreferencesCursorStore
+import com.example.portofit.notifications.WorkManagerScheduler
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.example.portofit.data.repository.MessagingRepository
 import com.example.portofit.data.repository.NetworkMessagingRepository
 import com.example.portofit.data.repository.UnconfiguredMessagingRepository
@@ -62,6 +73,7 @@ class AppContainer(
     val experiencesBaseUrl: String,
     collectionsBaseUrl: String = "",
     messagingBaseUrl: String = "",
+    notificationsBaseUrl: String = "",
 ) {
 
     private val json = Json {
@@ -76,6 +88,7 @@ class AppContainer(
     private val experiencesHttpClient = HttpClients.experiences(httpClient)
     private val collectionsHttpClient = HttpClients.collections(httpClient)
     private val messagingHttpClient = HttpClients.messaging(httpClient)
+    private val notificationsHttpClient = HttpClients.notifications(httpClient)
 
     /** Sessão da app: corre num âmbito próprio, independente de ecrãs e ViewModels. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -142,6 +155,48 @@ class AppContainer(
         messagingBaseUrl.takeIf { it.isNotBlank() }
             ?.let { NetworkMessagingRepository(retrofit(it, messagingHttpClient).create(MessagingApi::class.java), sessionManager, json) }
             ?: UnconfiguredMessagingRepository()
+
+    /** Caixa de notificações (docs/notifications-api.md §5): privada, sempre com sessão. */
+    val notificationsRepository: NotificationsRepository =
+        notificationsBaseUrl.takeIf { it.isNotBlank() }
+            ?.let { NetworkNotificationsRepository(retrofit(it, notificationsHttpClient).create(NotificationsApi::class.java), sessionManager) }
+            ?: UnconfiguredNotificationsRepository()
+
+    /** Notificações do sistema: os quatro canais são criados ao arrancar (§15.4). */
+    val systemNotifier = AndroidSystemNotifier(context).also { it.createChannels() }
+
+    private val notificationCursors = PreferencesCursorStore(context)
+
+    /** Trabalho periódico e notificações do sistema por conta: segue a sessão (§15.6). */
+    val notificationsCoordinator = NotificationsCoordinator(
+        session = sessionManager.state,
+        scheduler = WorkManagerScheduler(context),
+        notifier = systemNotifier,
+        cursors = notificationCursors,
+        scope = appScope,
+    )
+
+    /** Lógica do NotificationsWorker: o mesmo SessionManager (e a mesma renovação) da app. */
+    val notificationPoller = NotificationPoller(
+        repository = notificationsRepository,
+        session = sessionManager.state,
+        coordinator = notificationsCoordinator,
+        cursors = notificationCursors,
+        notifier = systemNotifier,
+    )
+
+    /** Toque numa notificação do sistema, à espera de ser tratado pela navegação (consumido uma vez). */
+    val notificationTaps = MutableStateFlow<NotificationTap?>(null)
+
+    /** Volta a decidir o agendamento (ao voltar à app ou depois de a permissão mudar). */
+    fun syncNotifications() {
+        appScope.launch { notificationsCoordinator.sync() }
+    }
+
+    /** Abrir pelo toque na barra marca como lida, como abrir na caixa (§15.5). Fora dos ecrãs: não depende deles. */
+    fun markNotificationOpened(notificationId: String) {
+        appScope.launch { notificationsRepository.markRead(notificationId) }
+    }
 
     /** Avisos de alterações nas listas (contagens e nomes noutros ecrãs). */
     val collectionChanges = CollectionChanges()
