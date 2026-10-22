@@ -99,6 +99,11 @@ services:
       CATALOG_BASE_URL: http://catalog-service:8081
       # Chave interna do experiences-service para o feed-context (docs/users-api.md §3.11), só do .env.
       USERS_INTERNAL_KEY: ${USERS_INTERNAL_KEY:?defina USERS_INTERNAL_KEY no .env}
+      # Outbox de notificações (docs/notifications-api.md §7), com a chave exclusiva deste produtor, só do .env.
+      NOTIFICATIONS_BASE_URL: http://notifications-service:8086
+      NOTIFY_USERS_KEY: ${NOTIFY_USERS_KEY:?defina NOTIFY_USERS_KEY no .env}
+      # Chave do notifications-service para os seguidores de uma pessoa (docs/notifications-api.md §8.1), só do .env.
+      USERS_FOLLOWERS_KEY: ${USERS_FOLLOWERS_KEY:?defina USERS_FOLLOWERS_KEY no .env}
     volumes:
       # Só de leitura e fora da imagem; a pasta secrets/ não está no Git.
       - ./secrets/users-jwt:/run/secrets/users-jwt:ro
@@ -146,6 +151,9 @@ services:
       COLLECTIONS_INTERNAL_KEY: ${COLLECTIONS_INTERNAL_KEY:?defina COLLECTIONS_INTERNAL_KEY no .env}
       # Chave própria do messaging-service para a mesma consulta (docs/messaging-api.md §7.4), só do .env.
       MESSAGING_INTERNAL_KEY: ${MESSAGING_INTERNAL_KEY:?defina MESSAGING_INTERNAL_KEY no .env}
+      # Outbox de notificações (docs/notifications-api.md §7), com a chave exclusiva deste produtor, só do .env.
+      NOTIFICATIONS_BASE_URL: http://notifications-service:8086
+      NOTIFY_EXPERIENCES_KEY: ${NOTIFY_EXPERIENCES_KEY:?defina NOTIFY_EXPERIENCES_KEY no .env}
     volumes:
       # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
       - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
@@ -268,9 +276,13 @@ services:
       DB_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD:?defina NOTIFICATIONS_DB_PASSWORD no .env}
       # Só a chave PÚBLICA, para validar localmente os access tokens do users-service.
       JWT_PUBLIC_KEY_PATH: /run/secrets/users-jwt/public.pem
-      # Uma chave por produtor (docs/notifications-api.md §6.1), só do .env. Primeira parte: só o messaging-service;
-      # sem NOTIFY_USERS_KEY nem NOTIFY_EXPERIENCES_KEY, nenhum outro produtor é aceite.
+      # Uma chave por produtor (docs/notifications-api.md §6.1), só do .env; cada uma só entrega os seus tipos.
+      NOTIFY_USERS_KEY: ${NOTIFY_USERS_KEY:?defina NOTIFY_USERS_KEY no .env}
+      NOTIFY_EXPERIENCES_KEY: ${NOTIFY_EXPERIENCES_KEY:?defina NOTIFY_EXPERIENCES_KEY no .env}
       NOTIFY_MESSAGING_KEY: ${NOTIFY_MESSAGING_KEY:?defina NOTIFY_MESSAGING_KEY no .env}
+      # Seguidores dos autores das novas experiências (docs/notifications-api.md §8.1), pela rede interna.
+      USERS_BASE_URL: http://users-service:8082
+      USERS_FOLLOWERS_KEY: ${USERS_FOLLOWERS_KEY:?defina USERS_FOLLOWERS_KEY no .env}
     volumes:
       # Só o ficheiro da chave pública, só de leitura; a chave privada não é montada neste contentor.
       - ./secrets/users-jwt/public.pem:/run/secrets/users-jwt/public.pem:ro
