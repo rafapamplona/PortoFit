@@ -1,7 +1,7 @@
 # notifications-service — Contrato da API
 
 > Caixa de notificações privada e notificações do sistema Android (requisito R10, etapa 10). Contexto geral em [arquitetura.md](arquitetura.md) (§3.2 responsabilidades, §3.4 isolamento, §3.8 autenticação, §3.11 notificações e *transactional outbox*, §4 falhas).
-> Estado: **contrato aprovado** (2026-10-22, decisões no [§19](#19-decisões-da-revisão-2026-10-22)). Implementação em duas partes: [§20](#20-estado-da-implementação).
+> Estado: **contrato aprovado** (2026-10-22, decisões no [§19](#19-decisões-da-revisão-2026-10-22)). Implementação em duas partes: a **primeira parte do backend está feita** (serviço, caixa e mensagens); a segunda parte e a app estão por fazer ([§20](#20-estado-da-implementação)).
 > Mesmas convenções dos outros contratos ([catalog-api.md](catalog-api.md), [users-api.md](users-api.md), [experiences-api.md](experiences-api.md), [collections-api.md](collections-api.md), [messaging-api.md](messaging-api.md)): JSON UTF-8, campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`.
 
 ## Índice
@@ -407,7 +407,7 @@ O notifications-service arranca sem os outros serviços; só depende do PostgreS
   - `USERS_FOLLOWERS_KEY`, só no users-service e no notifications-service.
 
   O `.env.example` recebe os nomes com valores de exemplo.
-- **Memória (hipótese a medir):** cerca de 240 MiB, como os outros serviços (≈ 1,5 GiB para sete contentores). Neste computador, o serviço pode ficar parado quando não é preciso: é exatamente o caso de falha previsto (§13).
+- **Memória:** medida na primeira parte, ≈ 214 MiB sem carga (≈ 1,33 GiB para os sete contentores; §20). Neste computador, o serviço pode ficar parado quando não é preciso: é exatamente o caso de falha previsto (§13).
 
 ## 15. App Android (proposta)
 
@@ -631,4 +631,104 @@ O peso desta etapa está mais na infraestrutura de eventos do que nos ecrãs.
 
 ## 20. Estado da implementação
 
-Ainda não implementado.
+### Primeira parte do backend (2026-10-22)
+
+`backend/notifications-service` e a outbox do messaging-service. O código das duas partes segue este contrato sem alterações.
+
+**Implementado:**
+
+- **Serviço independente:**
+  - projeto Gradle próprio;
+  - base `notifications_db` com o utilizador `NOTIFICATIONS_DB_USER`, sem privilégios de administração, criada no volume existente por `06-notifications-db.sh` (corrido duas vezes, sem erros);
+  - contentor em `127.0.0.1:8086`, com só a chave pública montada.
+- **Caixa (§5):**
+  - `GET /notifications` com `before`, `after` e `limit`, sobre um instantâneo da base;
+  - contagem por ler (até 100);
+  - marcação de uma e marcação até um `seq` (limitada ao `lastSeq`);
+  - `seq` atribuído com a linha `inbox` bloqueada.
+- **Entrega interna (§6):**
+  - lotes de 1 a 100 eventos (corpo até 256 KiB), com um resultado por evento;
+  - uma chave por produtor, comparada em tempo constante (uma chave vazia ou repetida não autoriza ninguém);
+  - validação estrita: um campo a mais (por exemplo, um texto) é `INVALID_EVENT`;
+  - deduplicação por `eventId`: o mesmo id com outro conteúdo é `CONFLICT`; também `EXPIRED`, futuro e `SELF_EVENT`.
+  - **Nesta parte só se aceita `MESSAGE_RECEIVED`, e só do messaging-service.** Os outros tipos do §3 respondem `REJECTED/UNSUPPORTED_TYPE`.
+- **Retenção (§12):**
+  - 90 dias e 1000 por pessoa, de hora a hora;
+  - deduplicação durante 35 dias (o arranque falha se não for maior do que a idade máxima);
+  - apagar notificações não apaga a deduplicação.
+- **Outbox no messaging-service (§7):**
+  - migração `V2__outbox.sql`;
+  - o evento é gravado na transação da mensagem, sem o texto e sem a experiência partilhada (só `TEXT` ou `SHARE`);
+  - uma repetição idempotente ou um envio recusado não criam evento;
+  - envio de 5 em 5 s (lotes até 100, `FOR UPDATE SKIP LOCKED`), recuo e `FAILED` como no §7;
+  - erro de configuração com recuo próprio e sem gastar tentativas;
+  - resumo de minuto a minuto e limpeza.
+  - Chave `NOTIFY_MESSAGING_KEY` só no `.env` (fora do Git e das imagens).
+
+**Testes automáticos** (PostgreSQL real, Testcontainers; corridos um serviço de cada vez, depois da última alteração):
+
+- **notifications-service: 9 testes.**
+  - Autenticação (sem token, outra chave, outra audiência, expirado).
+  - Chave interna: sem chave, errada, token de utilizador em vez de chave, `WRONG_PRODUCER` e `UNSUPPORTED_TYPE`.
+  - Lote misto: `ACCEPTED`, `DUPLICATE` no mesmo lote, `CONFLICT`, campo `text` a mais, `SELF_EVENT`, `EXPIRED`, futuro, tipo desconhecido; o texto não aparece em lado nenhum. Lotes de 0 e 101 eventos e corpo de 300 KB recusados.
+  - Privacidade: a notificação de outra pessoa dá o mesmo `404` de uma inexistente.
+  - Cursores: recentes, anteriores, novas até ao fim e lacunas depois da retenção.
+  - Leitura: idempotente, limitada ao `lastSeq`, e pedidos simultâneos.
+  - Concorrência: o mesmo evento 8 vezes ao mesmo tempo cria 1 notificação; 20 eventos simultâneos ficam com `seq` 1–21 sem repetições.
+  - Limite por pessoa e retenção: um evento reenviado depois de a notificação ser apagada é `DUPLICATE` e não a recria. Limpeza da deduplicação aos 35 dias.
+  - Configuração inválida da retenção.
+  - Registos sem usernames, chaves, tokens nem texto.
+- **messaging-service: 27 testes** (os 15 anteriores e 12 da outbox).
+  - Evento na mesma transação, com uma linha por mensagem gravada; nenhum evento em repetições idempotentes nem em recusas; `TEXT` e `SHARE`; os campos do payload são exatamente os do §3.1.
+  - notifications-service em baixo: envio `201` imediato, recuo de 5 s e 10 s, entrega única ao voltar.
+  - Resposta perdida (aceite, mas respondida com `503`): o reenvio é `DUPLICATE` e o evento fica `SENT` uma vez.
+  - Resposta parcial (`MISSING_RESULT`): só o evento em falta repete.
+  - `REJECTED` passa a `FAILED`.
+  - Chave recusada: recuo de 5 s e 10 s, 25 ciclos sem gastar tentativas, recuperação depois de corrigida; a chave não aparece nos registos.
+  - Chave por configurar.
+  - `MAX_ATTEMPTS` e `MAX_AGE`.
+  - Lotes de 100 e 50 pela ordem de criação.
+  - Dois envios simultâneos sem eventos repetidos.
+  - Limpeza.
+  - Resumo sem conteúdo.
+- **Defeito encontrado pelos testes, antes do commit:** a consulta do resumo da outbox não indicava o tipo do parâmetro da data, e o PostgreSQL recusava-a (o resumo teria falhado de minuto a minuto). Corrigido com `CAST(:now AS timestamptz)`.
+
+**Pedidos HTTP** (2026-10-22, no Docker Compose, com três contas temporárias apagadas no fim):
+
+- **Entrega:**
+  - mensagem `201` em 165 ms; evento `SENT` em cerca de 6 s (um ciclo do envio periódico);
+  - o destinatário vê `MESSAGE_RECEIVED` com o ator, a conversa e `TEXT`, sem texto, e 1 por ler;
+  - a autora e uma terceira pessoa não veem nada.
+- **Privacidade e leitura:**
+  - marcar a notificação de outra pessoa → `404` com o mesmo `code` e `detail` de uma inexistente (só muda o `instance`, o caminho pedido);
+  - sem token → `401`;
+  - marcar uma, repetir e marcar até 999 → `200`, 0 por ler.
+- **Chave interna:** sem chave, com chave errada ou com o token de um utilizador → `403`, sem notificação criada.
+- **notifications-service parado:**
+  - duas mensagens `201` em 190 ms e 23 ms;
+  - os eventos ficaram `PENDING` com 1 tentativa (`HttpConnectTimeoutException`);
+  - depois de `docker compose start`, o serviço ficou saudável em 13 s e os eventos foram entregues 2 s depois;
+  - 3 notificações para 3 eventos e 3 registos de deduplicação, sem repetições.
+- **Chave do produtor errada** (sobreposta só num arranque do messaging-service):
+  - mensagem `201`;
+  - evento `PENDING`, 0 tentativas, `CONFIG_HTTP_403`;
+  - três linhas de erro em cerca de 25 s (adiados 5, 10 e 20 s), sem a chave;
+  - com a chave correta, o evento foi entregue 9 s depois do arranque.
+- **Isolamento das bases:** `notifications_user` não entra em `messaging_db`; `messaging_user` e `users_user` não entram em `notifications_db`.
+- **Registos dos dois serviços:** sem usernames, chaves, tokens nem texto.
+
+**Consumo medido** (sete contentores, sem carga):
+
+- **notifications-service:** ≈ 214 MiB; imagem de 499 MB; primeiro arranque em 27 s (com as migrações).
+- **messaging-service:** ≈ 211 MiB.
+- **PostgreSQL:** ≈ 80 MiB.
+- **Total:** ≈ 1,33 GiB.
+- **`notifications_db`:** ≈ 8 MB.
+
+**Ainda não implementado (segunda parte e app):**
+
+- outbox no users-service e no experiences-service: `USER_FOLLOWED`, com a janela de 24 h, `COMMENT_CREATED` e `EXPERIENCE_PUBLISHED`;
+- resolução de seguidores: `FanOutJob` e a tabela `fan_out_job` (a migração atual ainda não a tem), consulta paginada e `USERS_FOLLOWERS_KEY`;
+- app Android: caixa, contagem, WorkManager, canais e permissão.
+
+O reenvio manual de eventos `FAILED` está documentado na infraestrutura, mas não foi exercitado nesta verificação. *Push* com Firebase Cloud Messaging continua a ser um requisito **a confirmar com a docente** ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).

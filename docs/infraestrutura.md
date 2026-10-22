@@ -7,12 +7,13 @@
 
 | Componente | Função | Acesso |
 |---|---|---|
-| `postgres` | PostgreSQL com as bases `catalog_db`, `users_db`, `experiences_db`, `collections_db` e `messaging_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
+| `postgres` | PostgreSQL com as bases `catalog_db`, `users_db`, `experiences_db`, `collections_db`, `messaging_db` e `notifications_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
 | `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
 | `users-service` | Contas, sessões (JWT + refresh tokens), perfis e seguir ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
 | `experiences-service` | Experiências, fotografias e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db` e o volume `experiences-media`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
 | `collections-service` | Listas pessoais e experiências guardadas ([collections-api.md](collections-api.md)) sobre `collections_db`; consulta as experiências no experiences-service em lote; valida os JWT só com a chave pública | `http://localhost:8084` |
-| `messaging-service` | Conversas entre duas pessoas, mensagens e partilha de experiências ([messaging-api.md](messaging-api.md)) sobre `messaging_db`; valida o destinatário no users-service e as partilhas no experiences-service (em lote, com chave própria); valida os JWT só com a chave pública | `http://localhost:8085` |
+| `messaging-service` | Conversas entre duas pessoas, mensagens e partilha de experiências ([messaging-api.md](messaging-api.md)) sobre `messaging_db`; valida o destinatário no users-service e as partilhas no experiences-service (em lote, com chave própria); valida os JWT só com a chave pública; entrega os eventos de mensagens novas ao notifications-service (outbox) | `http://localhost:8085` |
+| `notifications-service` | Caixa de notificações privada e entrega interna de eventos ([notifications-api.md](notifications-api.md)) sobre `notifications_db`; uma chave por produtor; valida os JWT só com a chave pública | `http://localhost:8086` |
 
 ```
 PortoFit/
@@ -27,11 +28,13 @@ PortoFit/
 │   │   ├── 02-users-db.sh        cria users_db e o seu utilizador (idempotente; ver §3.1)
 │   │   ├── 03-experiences-db.sh  cria experiences_db e o seu utilizador (idempotente; ver §3.1)
 │   │   ├── 04-collections-db.sh  cria collections_db e o seu utilizador (idempotente; ver §3.1)
-│   │   └── 05-messaging-db.sh    cria messaging_db e o seu utilizador (idempotente; ver §3.1)
+│   │   ├── 05-messaging-db.sh    cria messaging_db e o seu utilizador (idempotente; ver §3.1)
+│   │   └── 06-notifications-db.sh cria notifications_db e o seu utilizador (idempotente; ver §3.1)
 │   ├── users-service/            projeto Gradle independente: auth/, user/, security/, catalog/, api/
 │   ├── experiences-service/      projeto Gradle independente: experience/, rating/, catalog/, security/, api/
 │   ├── collections-service/      projeto Gradle independente: collection/, experiences/, security/, api/
-│   ├── messaging-service/        projeto Gradle independente: conversation/, users/, experiences/, security/, api/
+│   ├── messaging-service/        projeto Gradle independente: conversation/, outbox/, users/, experiences/, security/, api/
+│   ├── notifications-service/    projeto Gradle independente: notification/, internal/, security/, api/
 │   └── catalog-service/          projeto Gradle independente da app Android
 │       ├── Dockerfile            build em duas etapas (JDK → JRE)
 │       ├── build.gradle.kts, settings.gradle.kts, gradlew, gradle/wrapper/
@@ -99,7 +102,7 @@ Os scripts de `backend/postgres/init/` só correm quando o volume de dados está
 
 ### 3.1 Acrescentar a base de um serviço novo a um volume existente
 
-Num volume que já tem dados (ex.: criado antes do users-service, do experiences-service, do collections-service ou do messaging-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh`, o `03-experiences-db.sh`, o `04-collections-db.sh` e o `05-messaging-db.sh` são **idempotentes** e podem ser corridos à mão sem apagar nada. Exemplo para o users-service (para o experiences-service, o mesmo com `EXPERIENCES_DB_*`, `03-experiences-db.sh` e `experiences-service`):
+Num volume que já tem dados (ex.: criado antes do users-service, do experiences-service, do collections-service, do messaging-service ou do notifications-service), os scripts de inicialização não voltam a correr. O `02-users-db.sh`, o `03-experiences-db.sh`, o `04-collections-db.sh`, o `05-messaging-db.sh` e o `06-notifications-db.sh` são **idempotentes** e podem ser corridos à mão sem apagar nada. Exemplo para o users-service (para o experiences-service, o mesmo com `EXPERIENCES_DB_*`, `03-experiences-db.sh` e `experiences-service`):
 
 1. Acrescentar `USERS_DB_USER` e `USERS_DB_PASSWORD` ao `.env` (ver `.env.example`).
 2. Aplicar a configuração ao PostgreSQL (o contentor é recriado com as novas variáveis; **o volume e os dados mantêm-se**; os outros serviços perdem a ligação alguns segundos e recuperam sozinhos):
@@ -118,7 +121,7 @@ Num volume que já tem dados (ex.: criado antes do users-service, do experiences
 | Ação | Comando |
 |---|---|
 | Arrancar (sem reconstruir) | `docker compose up -d --wait` |
-| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`, `experiences-service`, `collections-service`, `messaging-service`); um de cada vez, para poupar memória |
+| Reconstruir após alterar o código de um serviço | `docker compose up -d --build --wait catalog-service` (ou `users-service`, `experiences-service`, `collections-service`, `messaging-service`, `notifications-service`); um de cada vez, para poupar memória |
 | Estado e saúde | `docker compose ps` |
 | Logs (seguir em direto) | `docker compose logs -f catalog-service` (ou `users-service`) |
 | Logs da base de dados | `docker compose logs postgres` |
@@ -284,13 +287,63 @@ curl.exe "http://localhost:8085/api/v1/conversations/<conversationId>/messages?a
 - **users-service:** só ao criar uma conversa nova, pelo perfil público (`http://users-service:8082`, sem token nem chave). Com ele parado, as conversas existentes continuam.
 - **Experiências:** consulta em lote no experiences-service com `MESSAGING_INTERNAL_KEY`. Com ele parado, as mensagens de texto continuam e as partilhas aparecem como `UNKNOWN`.
 - **Limites:** `portofit.messaging.*` em `application.yaml` (texto 1000 caracteres, 120 mensagens e 20 conversas novas por hora e por pessoa, em memória; 10 000 mensagens por conversa).
-- **Testes:** `cd backend\messaging-service; .\gradlew.bat test` (15 testes; PostgreSQL real via Testcontainers; users-service e experiences-service falsos e chaves dos próprios testes).
+- **Outbox de notificações:** cada mensagem nova grava um evento na tabela `outbox` de `messaging_db`, entregue de 5 em 5 s ao notifications-service com `NOTIFY_MESSAGING_KEY` (ver notifications-service, abaixo). Com ele parado, as mensagens continuam a ser enviadas.
+- **Testes:** `cd backend\messaging-service; .\gradlew.bat test` (27 testes; PostgreSQL real via Testcontainers; users-service, experiences-service e notifications-service falsos e chaves dos próprios testes).
+
+### notifications-service
+
+Contrato completo em [notifications-api.md](notifications-api.md). A caixa exige o access token da própria pessoa; a entrega interna exige a chave de um produtor.
+
+```powershell
+# Notificações mais recentes, as novas depois do seq 0 e a contagem por ler
+curl.exe "http://localhost:8086/api/v1/notifications?limit=20" -H "Authorization: Bearer <access>"
+curl.exe "http://localhost:8086/api/v1/notifications?after=0" -H "Authorization: Bearer <access>"
+curl.exe http://localhost:8086/api/v1/notifications/unread-count -H "Authorization: Bearer <access>"
+# Marcar como lidas até ao seq 12
+curl.exe -X PUT http://localhost:8086/api/v1/notifications/read -H "Authorization: Bearer <access>" `
+  -H "Content-Type: application/json" -d '{\"upToSeq\":12}'
+```
+
+- **Primeira vez num volume existente** (feito em 2026-10-22, volume preservado):
+  1. acrescentar `NOTIFICATIONS_DB_USER`, `NOTIFICATIONS_DB_PASSWORD` e `NOTIFY_MESSAGING_KEY` ao `.env` (ver `.env.example`; valores aleatórios longos, e a chave diferente de todas as outras);
+  2. `docker compose up -d --wait postgres`;
+  3. `docker compose exec -T postgres bash /docker-entrypoint-initdb.d/06-notifications-db.sh` (repetir não faz mal; em Git Bash, com `MSYS_NO_PATHCONV=1`);
+  4. arrancar o notifications-service e reconstruir o messaging-service (passa a ter a outbox), um de cada vez.
+- **Chaves dos produtores:**
+  - só `NOTIFY_MESSAGING_KEY` nesta primeira parte, no messaging-service e no notifications-service;
+  - sem `NOTIFY_USERS_KEY` nem `NOTIFY_EXPERIENCES_KEY`, nenhum outro produtor é aceite;
+  - para mudar uma chave: alterar o `.env` e recriar os dois contentores (`docker compose up -d --wait notifications-service messaging-service`).
+- **Retenção:** 90 dias e 1000 notificações por pessoa; os ids dos eventos recebidos guardam-se 35 dias (`portofit.notifications.*`).
+- **Testes:** `cd backend\notifications-service; .\gradlew.bat test` (9 testes; PostgreSQL real via Testcontainers; chaves dos próprios testes).
+
+**Diagnóstico da outbox** (no produtor; contagens e códigos, nunca o `payload`):
+
+```powershell
+# Eventos por estado e último erro, com o mais antigo de cada grupo
+"SELECT status, last_error, count(*), min(created_at) FROM outbox GROUP BY 1, 2 ORDER BY 1, 2;" |
+  docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d messaging_db'
+# Ids dos eventos FAILED
+"SELECT event_id, type, attempts, last_error, created_at FROM outbox WHERE status = 'FAILED' ORDER BY created_at;" |
+  docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d messaging_db'
+```
+
+O log do messaging-service mostra, de minuto a minuto e só quando há pendentes ou falhados, uma linha `Outbox: N pendentes (mais antigo há S s), F falhados, E entregues na última hora`. Um erro de chave aparece como `Falha de configuração na entrega de notificações (HTTP_403)`, uma vez por período de recuo.
+
+**Reenvio manual de um evento `FAILED`** (depois de corrigida a causa; [notifications-api.md §6.4](notifications-api.md#64-eventos-antigos-e-reenvio-manual)):
+
+```powershell
+"UPDATE outbox SET status = 'PENDING', attempts = 0, next_attempt_at = now(), last_error = NULL WHERE status = 'FAILED' AND event_id = '<eventId>';" |
+  docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d messaging_db'
+```
+
+- Não altera o `eventId` nem o conteúdo: um evento que já tinha chegado responde `DUPLICATE`, e um com mais de 30 dias responde `EXPIRED` e volta a `FAILED`.
+- Como o evento tem mais de 24 h, uma nova falha temporária devolve-o logo a `FAILED/MAX_AGE`; nesse caso, repetir quando o notifications-service estiver saudável.
 
 ## 7. Configuração relevante
 
 | Aspeto | Valor | Onde |
 |---|---|---|
-| Portas publicadas | `127.0.0.1:8081` (catálogo), `127.0.0.1:8082` (users), `127.0.0.1:8083` (experiences), `127.0.0.1:8084` (collections), `127.0.0.1:8085` (messaging), só no próprio computador | `docker-compose.yml` |
+| Portas publicadas | `127.0.0.1:8081` (catálogo), `127.0.0.1:8082` (users), `127.0.0.1:8083` (experiences), `127.0.0.1:8084` (collections), `127.0.0.1:8085` (messaging), `127.0.0.1:8086` (notifications), só no próprio computador | `docker-compose.yml` |
 | PostgreSQL | sem porta publicada; rede `data` marcada como interna | `docker-compose.yml` |
 | Utilizador da base de dados | `catalog_user`: sem superutilizador, sem criar bases/papéis; dono apenas de `catalog_db`; sem acesso à base `postgres` | `01-catalog-db.sh` |
 | Pool de ligações | máx. 5; espera por ligação 5 s; validação 3 s | `application.yaml` |
@@ -302,7 +355,7 @@ curl.exe "http://localhost:8085/api/v1/conversations/<conversationId>/messages?a
 | Healthcheck dos serviços | pedido a `/actuator/health` a cada 10 s (via `bash`, porque a imagem JRE não tem `curl`) | `docker-compose.yml` |
 | Imagem do serviço | só o JRE e o `app.jar`; corre com o utilizador `app` (não root); `.env` e ficheiros locais excluídos por `.dockerignore` | `Dockerfile` |
 
-Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Na etapa 6 (2026-10-19), com quatro contentores: catalog-service ≈ 206 MiB, users-service ≈ 222 MiB, experiences-service ≈ 232 MiB, PostgreSQL ≈ 61 MiB (≈ 0,7 GiB no total). Na etapa 12 (2026-10-20), com seis contentores e sem carga: messaging-service ≈ 244 MiB, users-service ≈ 248 MiB, catalog-service ≈ 231 MiB, experiences-service ≈ 228 MiB, collections-service ≈ 223 MiB, PostgreSQL ≈ 80 MiB (≈ 1,25 GiB no total). Com o emulador e o Android Studio abertos, o computador ficou com cerca de 0,4 GiB livres; o messaging-service pode ser parado quando não é preciso (`docker compose stop messaging-service`).
+Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Na etapa 6 (2026-10-19), com quatro contentores: catalog-service ≈ 206 MiB, users-service ≈ 222 MiB, experiences-service ≈ 232 MiB, PostgreSQL ≈ 61 MiB (≈ 0,7 GiB no total). Na etapa 12 (2026-10-20), com seis contentores e sem carga: messaging-service ≈ 244 MiB, users-service ≈ 248 MiB, catalog-service ≈ 231 MiB, experiences-service ≈ 228 MiB, collections-service ≈ 223 MiB, PostgreSQL ≈ 80 MiB (≈ 1,25 GiB no total). Com o emulador e o Android Studio abertos, o computador ficou com cerca de 0,4 GiB livres; o messaging-service pode ser parado quando não é preciso (`docker compose stop messaging-service`). Na etapa 10 (2026-10-22), com sete contentores e sem carga: notifications-service ≈ 214 MiB, messaging-service ≈ 211 MiB, catalog-service ≈ 231 MiB, collections-service ≈ 203 MiB, experiences-service ≈ 203 MiB, users-service ≈ 192 MiB, PostgreSQL ≈ 80 MiB (≈ 1,33 GiB no total). O notifications-service também pode ficar parado: as mensagens continuam e os eventos esperam na outbox.
 
 ## 8. Limitações conhecidas
 

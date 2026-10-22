@@ -586,13 +586,13 @@ Mesma estrutura das listas ([app-android.md §18](app-android.md#18-listas-pesso
 - **Iniciar conversas:** qualquer pessoa com sessão pode iniciar uma conversa com outra, sem ter de a seguir, sujeita aos limites do §10. Bloquear e denunciar ficam fora do âmbito.
 - **Consulta periódica:** 10 s na conversa e 30 s na caixa, só com o ecrã ativo, com recuo até 60 s nos erros (§12). Não há prazo máximo de entrega garantido.
 - **Editar e eliminar:** sem edição nem eliminação de mensagens ou conversas nesta versão (§13). É uma **decisão de âmbito do grupo**, não uma exigência confirmada da disciplina.
-- **Notificações:** ficam para a etapa própria. Nesta etapa não há outbox nem eventos. Proposta: evento `MESSAGE_RECEIVED` sem o texto ([notifications-api.md](notifications-api.md)).
+- **Notificações:** ficaram para a etapa própria. Na etapa 12 não havia outbox nem eventos. Desde a etapa 10 (primeira parte, 2026-10-22), cada mensagem grava um evento `MESSAGE_RECEIVED` sem o texto na outbox ([notifications-api.md §7](notifications-api.md#7-outbox-nos-produtores)).
 - **Limites:** os valores propostos (§10) mantêm-se, todos configuráveis.
 - **Ajustes ao contrato:** cursor de leitura monotónico (§5.4), `seq` sem promessa de números seguidos (§6.3), recuperação com mais novidades do que a página (§6.3), partilhas atualizáveis à parte (§7.3), validação ao partilhar sem consumir a chave (§7.1), contas (§13), estimativas como hipóteses (§12).
 
 ## 19. Estado da implementação
 
-Etapa 12 (backend), `backend/messaging-service`, mais a chave própria na consulta em lote do experiences-service (§7.4). Sem outbox nem notificações. A app foi integrada depois ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)).
+Etapa 12 (backend), `backend/messaging-service`, mais a chave própria na consulta em lote do experiences-service (§7.4). Sem outbox nem notificações na etapa 12; a outbox foi acrescentada na etapa 10 (ver o fim desta secção). A app foi integrada depois ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)).
 
 **Implementado:**
 
@@ -725,4 +725,14 @@ Executados depois da última alteração ao código.
 - **Verificado depois da correção:** abertura a frio em 1,18 s e, com o users-service atrasado 1,3 s por `docker pause`, abertura com resposta em 1,7 s (com 1 s teria sido `503`). Usaram-se ids inexistentes (`404 USER_NOT_FOUND`), por isso nenhuma conversa foi criada. As contas temporárias foram apagadas; contas, publicações, listas e volumes foram preservados.
 - **Verificado depois na interface (2026-10-22):** abrir, enviar, receber, partilhar e as falhas dos serviços ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)). A primeira abertura depois de reiniciar o messaging-service levou cerca de 15 s no servidor (código frio: cerca de 10 s antes da validação do primeiro token). A app desiste aos 10 s e pede para tentar novamente, sem duplicados.
 
-**Ainda não implementado:** as notificações (etapa própria) e a contagem de partilhas no dashboard.
+**Outbox de notificações (etapa 10, primeira parte, 2026-10-22):**
+
+- migração `V2__outbox.sql`;
+- cada mensagem nova grava, na mesma transação, um evento `MESSAGE_RECEIVED` para a outra pessoa, com o tipo `TEXT` ou `SHARE`, sem o texto nem a experiência;
+- uma repetição idempotente ou um envio recusado não gravam evento;
+- a entrega ao notifications-service é periódica, com a chave exclusiva `NOTIFY_MESSAGING_KEY`;
+- com o notifications-service parado, as mensagens continuam a ser enviadas.
+
+Regras, testes (27 no total, 12 da outbox) e verificação em [notifications-api.md §20](notifications-api.md#20-estado-da-implementação).
+
+**Ainda não implementado:** a contagem de partilhas no dashboard. As notificações na app ficam para a etapa 10 (app).
