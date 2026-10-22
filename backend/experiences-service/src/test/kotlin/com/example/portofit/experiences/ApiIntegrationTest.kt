@@ -93,6 +93,7 @@ abstract class ApiIntegrationTest {
 		val keys: TestKeys = TestKeys.create()
 		val catalog: CatalogStub = CatalogStub.start()
 		val users: UsersStub = UsersStub.start()
+		val notifications: NotificationsStub = NotificationsStub.start()
 		val clock: MutableClock = MutableClock.instance
 		val mediaDir: Path = Files.createTempDirectory("experiences-media-test")
 
@@ -105,6 +106,11 @@ abstract class ApiIntegrationTest {
 			registry.add("portofit.users.internal-key") { UsersStub.KEY }
 			registry.add("portofit.internal.collections-key") { COLLECTIONS_KEY }
 			registry.add("portofit.internal.messaging-key") { MESSAGING_KEY }
+			// A outbox é enviada pelos próprios testes (runOnce), nunca pelo agendamento.
+			registry.add("portofit.outbox.enabled") { false }
+			registry.add("portofit.notifications.base-url") { notifications.url }
+			registry.add("portofit.notifications.internal-key") { NotificationsStub.KEY }
+			registry.add("portofit.notifications.timeout") { "1s" }
 			registry.add("portofit.publishing.max-per-author") { LIMIT }
 			registry.add("portofit.media.storage-dir") { mediaDir.toString() }
 			registry.add("portofit.media.max-pending-per-owner") { PENDING_LIMIT }

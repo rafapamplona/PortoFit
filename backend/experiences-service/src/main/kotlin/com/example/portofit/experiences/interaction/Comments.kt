@@ -9,6 +9,7 @@ import com.example.portofit.experiences.experience.AuthorRef
 import com.example.portofit.experiences.experience.ExperienceController
 import com.example.portofit.experiences.experience.ExperienceRepository
 import com.example.portofit.experiences.experience.ExperienceRules
+import com.example.portofit.experiences.outbox.OutboxRepository
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -154,6 +155,8 @@ class CommentService(
 	private val limits: InteractionLimits,
 	private val publishing: PublishingProperties,
 	private val tx: TransactionTemplate,
+	private val outbox: OutboxRepository,
+	private val mapper: JsonMapper,
 ) {
 
 	private val log = LoggerFactory.getLogger(javaClass)
@@ -164,16 +167,19 @@ class CommentService(
 		return PageResponse.of(rows.map { it.toView() }, page, size, total)
 	}
 
-	/** Idempotente pela chave, como a publicação (docs/experiences-api.md §5, §13.1). */
+	/**
+	 * Idempotente pela chave, como a publicação (docs/experiences-api.md §5, §13.1). Um comentário novo na experiência
+	 * de outra pessoa grava, na mesma transação, o evento `COMMENT_CREATED` para o autor (docs/notifications-api.md §3).
+	 */
 	fun create(authorId: UUID, authorUsername: String, key: UUID, experienceId: UUID, text: String): CommentResult {
 		val hash = requestHash(experienceId, text)
 		comments.findRequest(authorId, key)?.let { return replay(it, hash) }
 
 		limits.comments.check(authorId)
 		val created = tx.execute {
-			experiences.activeAuthor(experienceId, lock = true) ?: throw ApiErrors.notFound()
+			val experienceAuthor = experiences.activeAuthor(experienceId, lock = true) ?: throw ApiErrors.notFound()
 			val id = comments.insertWithKey(authorId, authorUsername, key, hash, experienceId, text) ?: return@execute null
-			comments.find(id)
+			comments.find(id)?.also { if (experienceAuthor != authorId) enqueueCommentEvent(it, experienceAuthor) }
 		}
 		if (created == null) {
 			// Outro pedido com a mesma chave confirmou primeiro: esta tentativa é uma repetição.
@@ -182,6 +188,21 @@ class CommentService(
 		}
 		limits.comments.record(authorId)
 		return CommentResult(created.toView(), replayed = false)
+	}
+
+	/** Só ids e o username de quem comentou; nunca o texto do comentário. */
+	private fun enqueueCommentEvent(comment: CommentRow, recipientId: UUID) {
+		val eventId = UUID.randomUUID()
+		val payload = linkedMapOf(
+			"eventId" to eventId.toString(),
+			"type" to COMMENT_CREATED,
+			"occurredAt" to comment.createdAt.toString(),
+			"actor" to linkedMapOf("userId" to comment.authorId.toString(), "username" to comment.authorUsername),
+			"recipientId" to recipientId.toString(),
+			"experienceId" to comment.experienceId.toString(),
+			"commentId" to comment.id.toString(),
+		)
+		outbox.insert(eventId, COMMENT_CREATED, mapper.writeValueAsString(payload))
 	}
 
 	/** Só o autor; `editedAt` só muda se o texto mudar. */
@@ -213,6 +234,10 @@ class CommentService(
 	}
 
 	/** Nunca recria nem devolve o texto de um comentário eliminado. */
+	private companion object {
+		const val COMMENT_CREATED = "COMMENT_CREATED"
+	}
+
 	private fun replay(request: CommentRequestRow, hash: String): CommentResult {
 		val row = comments.find(request.commentId)
 		if (row == null || row.deleted) throw ApiErrors.commentDeleted()

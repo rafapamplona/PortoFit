@@ -198,3 +198,82 @@ class UsersStub private constructor(private val server: HttpServer) {
 		}
 	}
 }
+
+/**
+ * Falso notifications-service: `POST /api/v1/internal/events`. Confirma a chave (403 se errada), lembra-se dos eventos
+ * aceites (um repetido → DUPLICATE) e regista quantas vezes cada um foi aceite. [mode] simula falhas: indisponível,
+ * resposta perdida (aceita mas responde 503), resposta parcial (sem o último resultado), recusa e chave recusada.
+ */
+class NotificationsStub private constructor(private val server: HttpServer) {
+
+	enum class Mode { UP, DOWN, LOST_RESPONSE, PARTIAL, REJECT, FORBIDDEN }
+
+	@Volatile
+	var mode = Mode.UP
+
+	/** Atraso de cada resposta (para sobrepor pedidos). */
+	@Volatile
+	var delayMillis = 0L
+
+	/** Quantas vezes cada evento foi aceite (ACCEPTED); tem de ser no máximo 1. */
+	val accepted = ConcurrentHashMap<String, Int>()
+
+	/** Ids de cada pedido HTTP, pela ordem do lote. */
+	val requests = CopyOnWriteArrayList<List<String>>()
+
+	/** Corpos recebidos (para confirmar que nunca levam conteúdo). */
+	val bodies = CopyOnWriteArrayList<String>()
+
+	val url: String get() = "http://127.0.0.1:${server.address.port}"
+
+	fun reset() {
+		mode = Mode.UP
+		delayMillis = 0
+		requests.clear()
+		bodies.clear()
+	}
+
+	companion object {
+		const val KEY = "chave-notificacoes-dos-testes"
+
+		private val ID = Regex("\"eventId\":\"([0-9a-f-]{36})\"")
+
+		fun start(): NotificationsStub {
+			val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+			val stub = NotificationsStub(server)
+			server.createContext("/api/v1/internal/events") { exchange ->
+				val body = exchange.requestBody.readAllBytes().toString(Charsets.UTF_8)
+				val ids = ID.findAll(body).map { it.groupValues[1] }.toList()
+				stub.requests += ids
+				stub.bodies += body
+				if (stub.delayMillis > 0) Thread.sleep(stub.delayMillis)
+				val key = exchange.requestHeaders.getFirst("X-Internal-Key")
+				fun results(list: List<String>) = list.joinToString(",", """{"results":[""", "]}") { id ->
+					if (stub.accepted.putIfAbsent(id, 1) == null) """{"eventId":"$id","status":"ACCEPTED"}"""
+					else """{"eventId":"$id","status":"DUPLICATE"}"""
+				}
+				val (status, response) = when {
+					stub.mode == Mode.FORBIDDEN || key != KEY -> 403 to """{"status":403,"code":"FORBIDDEN"}"""
+					stub.mode == Mode.DOWN -> 503 to """{"status":503}"""
+					stub.mode == Mode.LOST_RESPONSE -> {
+						results(ids)
+						503 to """{"status":503}"""
+					}
+					stub.mode == Mode.PARTIAL -> 200 to results(ids.dropLast(1))
+					stub.mode == Mode.REJECT -> 200 to ids.joinToString(",", """{"results":[""", "]}") { """{"eventId":"$it","status":"REJECTED","reason":"INVALID_EVENT"}""" }
+					else -> 200 to results(ids)
+				}
+				val bytes = response.toByteArray(Charsets.UTF_8)
+				exchange.responseHeaders.add("Content-Type", "application/json")
+				runCatching {
+					exchange.sendResponseHeaders(status, bytes.size.toLong())
+					exchange.responseBody.use { it.write(bytes) }
+				}
+				exchange.close()
+			}
+			server.executor = Executors.newCachedThreadPool()
+			server.start()
+			return stub
+		}
+	}
+}

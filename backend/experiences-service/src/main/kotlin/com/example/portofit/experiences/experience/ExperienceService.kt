@@ -5,10 +5,12 @@ import com.example.portofit.experiences.api.PageResponse
 import com.example.portofit.experiences.catalog.CatalogClient
 import com.example.portofit.experiences.config.PublishingProperties
 import com.example.portofit.experiences.media.MediaService
+import com.example.portofit.experiences.outbox.OutboxRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
+import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 
 /** Resultado de uma publicação: criada agora, ou repetição de uma tentativa já aceite. */
@@ -22,13 +24,17 @@ class ExperienceService(
 	private val media: MediaService,
 	private val properties: PublishingProperties,
 	private val tx: TransactionTemplate,
+	private val outbox: OutboxRepository,
+	private val mapper: JsonMapper,
 ) {
 
 	private val log = LoggerFactory.getLogger(javaClass)
 
 	/**
 	 * Publicação idempotente (docs/experiences-api.md §5). A repetição de uma chave já usada responde sem
-	 * consultar o catálogo nem contar para o limite. O catálogo é consultado fora da transação.
+	 * consultar o catálogo nem contar para o limite. O catálogo é consultado fora da transação. Uma publicação nova
+	 * grava, na mesma transação, o evento `EXPERIENCE_PUBLISHED` (docs/notifications-api.md §3); quem segue o autor é
+	 * resolvido depois pelo notifications-service (§8).
 	 */
 	fun publish(authorId: UUID, authorUsername: String, key: UUID, input: PublishInput): PublishResult {
 		val hash = input.requestHash()
@@ -46,7 +52,7 @@ class ExperienceService(
 				media.attach(mediaId, id, authorId)
 				experiences.setPhoto(id, mediaId)
 			}
-			experiences.findAny(id)
+			experiences.findAny(id)?.also { enqueuePublishedEvent(it) }
 		}
 		if (created == null) {
 			// Outro pedido com a mesma chave confirmou primeiro: esta tentativa é uma repetição.
@@ -55,6 +61,19 @@ class ExperienceService(
 		}
 		limiter.record(authorId)
 		return PublishResult(created.toView(), replayed = false)
+	}
+
+	/** Só ids e o username do autor; nunca o texto, as estrelas nem a fotografia. */
+	private fun enqueuePublishedEvent(row: ExperienceRow) {
+		val eventId = UUID.randomUUID()
+		val payload = linkedMapOf(
+			"eventId" to eventId.toString(),
+			"type" to EXPERIENCE_PUBLISHED,
+			"occurredAt" to row.createdAt.toString(),
+			"actor" to linkedMapOf("userId" to row.authorId.toString(), "username" to row.authorUsername),
+			"experienceId" to row.id.toString(),
+		)
+		outbox.insert(eventId, EXPERIENCE_PUBLISHED, mapper.writeValueAsString(payload))
 	}
 
 	/** [viewerId]: quem pede, com sessão; null para visitantes (sem `likedByMe`). */
@@ -142,5 +161,9 @@ class ExperienceService(
 		if (row == null || row.deleted) throw ApiErrors.experienceDeleted()
 		if (request.requestHash != hash) throw ApiErrors.differentContent(row.id)
 		return PublishResult(row.toView(), replayed = true)
+	}
+
+	private companion object {
+		const val EXPERIENCE_PUBLISHED = "EXPERIENCE_PUBLISHED"
 	}
 }
