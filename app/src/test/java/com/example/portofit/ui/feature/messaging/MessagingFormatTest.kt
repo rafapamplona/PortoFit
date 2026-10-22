@@ -1,6 +1,8 @@
 package com.example.portofit.ui.feature.messaging
 
+import com.example.portofit.R
 import com.example.portofit.data.model.MessageRules
+import com.example.portofit.data.repository.MessagingError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -36,5 +38,16 @@ class MessagingFormatTest {
         assertEquals(1000, MessageRules.cleanText("😀".repeat(1000))?.codePointCount(0, 2000))
         assertTrue(MessageRules.isValidOptional(""))
         assertFalse(MessageRules.isValidOptional("a".repeat(1001)))
+    }
+
+    @Test
+    fun `o teu texto mantem-se so quando ha rascunho`() {
+        // Abrir a partir do perfil (sem texto) e partilha sem texto: a mensagem não promete um texto que não existe.
+        assertEquals(R.string.messaging_error_users_unavailable, messagingErrorMessage(MessagingError.USERS_UNAVAILABLE))
+        assertEquals(R.string.messaging_error_users_unavailable_draft, messagingErrorMessage(MessagingError.USERS_UNAVAILABLE, hasDraft = true))
+        assertEquals(R.string.messaging_error_experiences_unavailable, messagingErrorMessage(MessagingError.EXPERIENCES_UNAVAILABLE, hasDraft = false))
+        assertEquals(R.string.messaging_error_experiences_unavailable_draft, messagingErrorMessage(MessagingError.EXPERIENCES_UNAVAILABLE, hasDraft = true))
+        // Abrir sem resposta: resultado desconhecido (nunca "nada foi criado").
+        assertEquals(R.string.messaging_error_unavailable, messagingErrorMessage(MessagingError.UNAVAILABLE, hasDraft = true))
     }
 }

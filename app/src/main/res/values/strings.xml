@@ -533,12 +533,14 @@
     <string name="share_send">Enviar</string>
     <string name="share_sent">Partilhada com @%1$s.</string>
     <string name="share_open_conversation">Abrir conversa</string>
-    <string name="messaging_error_users_unavailable">Não é possível iniciar a conversa agora. Nada foi criado e o teu texto mantém-se; tenta novamente daqui a pouco.</string>
+    <string name="messaging_error_users_unavailable">Não é possível iniciar a conversa agora. Nada foi criado; tenta novamente daqui a pouco.</string>
+    <string name="messaging_error_users_unavailable_draft">Não é possível iniciar a conversa agora. Nada foi criado e o teu texto mantém-se; tenta novamente daqui a pouco.</string>
     <string name="messaging_error_user_not_found">Esta pessoa já não existe.</string>
     <string name="messaging_error_self">Não podes enviar mensagens a ti próprio.</string>
     <string name="messaging_error_conversation_gone">Esta conversa já não existe.</string>
     <string name="messaging_error_experience_gone">Esta experiência já não existe e não pode ser partilhada.</string>
-    <string name="messaging_error_experiences_unavailable">Não foi possível partilhar agora. Nada foi enviado e o teu texto mantém-se; tenta novamente ou envia só o texto.</string>
+    <string name="messaging_error_experiences_unavailable">Não foi possível partilhar agora. Nada foi enviado; tenta novamente daqui a pouco.</string>
+    <string name="messaging_error_experiences_unavailable_draft">Não foi possível partilhar agora. Nada foi enviado e o teu texto mantém-se; tenta novamente ou envia só o texto.</string>
     <string name="messaging_error_full">Esta conversa atingiu o número máximo de mensagens.</string>
     <string name="messaging_error_too_many">Enviaste muitas mensagens em pouco tempo. Tenta mais tarde.</string>
     <plurals name="messaging_error_too_many_minutes">
@@ -546,7 +548,7 @@
         <item quantity="other">Enviaste muitas mensagens em pouco tempo. Tenta daqui a %d minutos.</item>
     </plurals>
     <string name="messaging_error_validation">A mensagem não foi aceite. Verifica o texto.</string>
-    <string name="messaging_error_unavailable">Mensagens indisponíveis de momento. Nada foi criado; tenta novamente.</string>
+    <string name="messaging_error_unavailable">Não foi possível confirmar a abertura da conversa (sem resposta do servidor). Tentar novamente é seguro: não cria conversas repetidas.</string>
     <string name="messaging_error_session_ended">A tua sessão terminou. Entra novamente.</string>
 
     <!-- Erros -->

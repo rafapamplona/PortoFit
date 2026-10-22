@@ -46,7 +46,10 @@ enum class MessagingError {
     CONVERSATION_FULL,
     TOO_MANY_REQUESTS,
     VALIDATION,
-    /** Abrir: sem ligação ou erro do servidor. Abrir é idempotente: repetir é seguro. */
+    /**
+     * Abrir: sem resposta (rede, timeout) ou erro do servidor. O resultado é desconhecido — a conversa pode ter sido criada —
+     * mas abrir é idempotente: repetir devolve a mesma conversa.
+     */
     UNAVAILABLE,
     SESSION_ENDED,
     SESSION_UNVERIFIED,

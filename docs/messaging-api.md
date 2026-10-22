@@ -707,7 +707,7 @@ Executados depois da última alteração ao código.
 - **Memória:** messaging-service ≈ 244 MiB parado depois da verificação; seis contentores ≈ 1,25 GiB.
 - **Não medido:** consumo de bateria e de dados no telemóvel, e o efeito de várias conversas abertas ao mesmo tempo (fica para a etapa da app).
 
-**App Android (etapa 12):** caixa no menu da conta, "Enviar mensagem" no perfil, conversa com histórico, consulta periódica só com o ecrã ativo, leitura das mensagens mostradas e "Partilhar" no detalhe da experiência ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)). Verificação na interface por fazer.
+**App Android (etapa 12):** caixa no menu da conta, "Enviar mensagem" no perfil, conversa com histórico, consulta periódica só com o ecrã ativo, leitura das mensagens mostradas e "Partilhar" no detalhe da experiência ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)). Verificada na interface em 2026-10-22.
 
 **Diagnóstico de 2026-10-22 ("Não é possível iniciar a conversa agora").** O utilizador tocou em "Enviar mensagem" no perfil de outra conta e a abertura falhou:
 
@@ -723,6 +723,6 @@ Executados depois da última alteração ao código.
 - **Causa:** o prazo de 1 s era apertado de mais para picos de latência normais neste ambiente; não havia nenhum defeito de implementação.
 - **Correção:** prazo de resposta do users-service passado para **2 s** (como a consulta às experiências; dentro dos 1–2 s da [arquitetura §4.1](arquitetura.md#41-princípios)). Os 15 testes passam.
 - **Verificado depois da correção:** abertura a frio em 1,18 s e, com o users-service atrasado 1,3 s por `docker pause`, abertura com resposta em 1,7 s (com 1 s teria sido `503`). Usaram-se ids inexistentes (`404 USER_NOT_FOUND`), por isso nenhuma conversa foi criada. As contas temporárias foram apagadas; contas, publicações, listas e volumes foram preservados.
-- **Ainda não confirmado na interface:** abrir a conversa, enviar e receber mensagens na app.
+- **Verificado depois na interface (2026-10-22):** abrir, enviar, receber, partilhar e as falhas dos serviços ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)). A primeira abertura depois de reiniciar o messaging-service levou cerca de 15 s no servidor (código frio: cerca de 10 s antes da validação do primeiro token). A app desiste aos 10 s e pede para tentar novamente, sem duplicados.
 
 **Ainda não implementado:** as notificações (etapa própria) e a contagem de partilhas no dashboard.

@@ -1141,13 +1141,50 @@ Verificaram-se por HTTP **os pedidos que a app faz** (mesmos caminhos, tamanhos 
 
 Na primeira execução, abrir a conversa deu `503 USERS_UNAVAILABLE`: com o computador quase sem memória, o users-service passou do prazo de 1 s. Nada foi criado, como o contrato prevê. As contas foram apagadas e a verificação repetida, com abertura à primeira (`201`).
 
-**Primeira tentativa do utilizador (2026-10-22):** "Enviar mensagem" no perfil de outra conta mostrou "Não é possível iniciar a conversa agora". O messaging-service não obteve resposta do users-service dentro de 1 s; o prazo passou a 2 s ([messaging-api.md §19](messaging-api.md#19-estado-da-implementação), diagnóstico). Não é um teste bem-sucedido: abrir a conversa, enviar e receber continuam por confirmar.
+**Primeira tentativa do utilizador (2026-10-22):** "Enviar mensagem" no perfil de outra conta mostrou "Não é possível iniciar a conversa agora". O messaging-service não obteve resposta do users-service dentro de 1 s; o prazo passou a 2 s ([messaging-api.md §19](messaging-api.md#19-estado-da-implementação), diagnóstico). Não foi um teste bem-sucedido; a verificação na interface foi feita depois (abaixo).
 
-**Pendente (na interface, no emulador ou num telemóvel, com memória livre):**
-- enviar e receber entre duas contas;
-- histórico e "Carregar mensagens anteriores";
-- o botão de mensagens novas sem deslocar a leitura;
-- marcar como lidas na caixa;
-- partilhar a partir do detalhe;
-- o login a partir da caixa, da conversa e da partilha;
-- as falhas do users-service e do experiences-service vistas no ecrã.
+### Verificação na interface (2026-10-22, pelo assistente)
+
+Feita no emulador, conduzido por ADB/uiautomator, com capturas de ecrã. Usaram-se quatro contas temporárias (`verifuimsg*`), apagadas no fim com as suas conversas, mensagens e experiências.
+
+- **Sessão do utilizador:** a sessão da `pamplona` na app foi terminada para usar as contas temporárias. A app ficou sem sessão; é preciso entrar de novo. Os dados da app não foram limpos.
+- **Medições:** o messaging-service teve, só durante a verificação, um registo de acessos temporário (método, caminho, estado; sem cabeçalhos) e registos `DEBUG`. Ficou depois com a configuração normal.
+- **O "outro lado":** as mensagens da outra pessoa foram enviadas por HTTP, enquanto a conta na app era observada no ecrã. A direção inversa (A → B) também foi feita na app, depois de trocar de conta.
+- **Memória:** o computador tinha cerca de 0,25 GB livres. O emulador (já aberto) respondeu, embora devagar.
+
+| # | Verificação | Observado no ecrã |
+|---|---|---|
+| 1 | Abrir conversa pelo perfil | Visitante: "Enviar mensagem" leva ao login; ao entrar, regressa ao perfil sem pedidos ao messaging-service e com 0 conversas. Com sessão abre a conversa. Primeira abertura com o serviço a frio: ver os defeitos abaixo; "Tentar novamente" abriu a mesma conversa (`200`), sem duplicar |
+| 2 | Enviar e receber nos dois sentidos | B enviou pela app (1 `POST`, `201`); a resposta de A apareceu sozinha. Depois A, na app, respondeu a B. Servidor e ecrã com as mesmas mensagens, sem repetidas. Enviadas à direita (cor primária, "Tu"), recebidas à esquerda |
+| 3 | Caixa e por ler | "3 mensagens por ler" → abrir (`PUT …/read`) → voltar: sem contagem. Para A, depois de trocar de conta: "7 mensagens por ler" |
+| 4 | Histórico e mensagens novas a ler mais acima | Ao abrir: as últimas 30 mensagens, a última à vista. "Carregar mensagens anteriores" trouxe as 15 mais antigas, por ordem. A ler mais acima, chegaram 2 (e depois 1) mensagens: a lista não se moveu e apareceu "2 mensagens novas" / "1 mensagem nova". Nenhum `PUT read` enquanto se lia mais acima; tocar na indicação leva ao fim e marca |
+| 5 | Partilhar pelo detalhe e abrir pela conversa | Detalhe → "Partilhar" → pré-visualização e conversa recente (a conversa sem mensagens não aparece) → texto opcional → "Enviar" → "Partilhada com @…" → "Abrir conversa" → cartão (atividade, local, estrelas, texto, autor) → o toque abre a experiência |
+| 6 | Partilha eliminada vs. indisponível | experiences-service parado: "Experiência temporariamente indisponível." com "Atualizar", e o texto da mensagem visível; uma mensagem de texto foi enviada (`201`). De volta: "Atualizar" pediu só `GET …/shares?seqs=48` e o cartão voltou. A autora eliminou a experiência: "Esta experiência foi eliminada.", sem conteúdo antigo, com o texto mantido |
+| 7 | Login a partir de "Enviar mensagem" e "Partilhar" | Ambos regressam ao contexto (perfil; seletor de partilha) sem conversa criada nem `POST` de mensagens. **"Mensagens" não foi verificado no ecrã:** sem sessão não há entrada para a caixa (o menu da conta só a mostra com sessão). O convite só aparece se a sessão terminar com o ecrã aberto, o que está coberto pelos testes JVM |
+| 8 | users-service parado | Conversa nova: "Não é possível iniciar a conversa agora. Nada foi criado; tenta novamente daqui a pouco."; de volta, "Tentar novamente" abriu-a (`201`). Com ele parado, a caixa e a conversa existente funcionaram e uma mensagem foi enviada (`201`) |
+| 9 | messaging-service parado | "Enviar": "Não foi possível confirmar se a mensagem foi enviada. Repetir é seguro", com o rascunho mantido e bloqueado; 25 s sem repetição automática. De volta, "Tentar novamente": 1 `POST` (`201`) e 1 mensagem no servidor |
+| 10 | Terminar sessão e trocar de conta | 40 s depois de B sair, 0 pedidos de mensagens. A, depois de entrar, vê só as suas conversas; o rascunho que B deixara por enviar não aparece nem foi enviado |
+
+**Pedidos concorrentes (os dois do mesmo segundo nos registos de 2026-10-22):**
+
+- **Duplo toque** em "Enviar mensagem" (dois toques no mesmo comando ADB): 1 `POST /conversations` e um só ecrã ("Voltar" regressou ao perfil).
+- **Duas rotações** com a conversa aberta a partir do perfil: 1 abertura e 1 carga inicial. Depois houve só a consulta imediata ao voltar a ficar ativo e as periódicas, nunca sobrepostas.
+- **Explicação mais provável (não reproduzida exatamente):** a cena original não vem de toques nem de recriação. Com o messaging-service acabado de arrancar, o primeiro pedido autenticado ficou cerca de 10 s parado antes da validação do token (medido com registos `DEBUG`: 15,2 s e 15,5 s no total), e a app desiste ao fim de 10 s. Um "Tentar novamente" durante esse bloqueio deixa dois pedidos à espera do mesmo arranque, que terminam juntos.
+- **Nenhum defeito de concorrência encontrado,** por isso não houve correção.
+
+**Defeitos encontrados e corrigidos** (código; confirmado de novo no ecrã depois de cada correção):
+
+1. **"Nada foi criado" falso:** depois de um timeout ao abrir, a app dizia "Mensagens indisponíveis de momento. Nada foi criado", mas o servidor tinha criado a conversa (`201` depois de 15 s). Agora diz "Não foi possível confirmar a abertura da conversa (sem resposta do servidor). Tentar novamente é seguro: não cria conversas repetidas."
+2. **Última mensagem tapada ao abrir:** a barra de escrita só aparecia quando as mensagens carregavam, depois de a lista descer ao fim, e tapava as últimas. Agora a barra existe desde que a conversa é conhecida ("Enviar" ativo só depois de carregar).
+3. **Teclado aberto tapava as mensagens enviadas e recebidas:** a lista desce agora até ao fim real (último item e depois deslocamento consumido só até ao fim). Também acompanha cada passo da animação do teclado, se a pessoa estava no fim.
+   - **Consequência observada antes da correção:** a mesma frase foi enviada duas vezes pelo guião de verificação, porque a primeira ficou escondida. Foram dois envios distintos, com chaves diferentes; a app não duplicou nada.
+4. **"O teu texto mantém-se":** aparece agora só onde há texto escrito. Desapareceu da abertura a partir do perfil e da partilha sem texto (`messagingErrorMessage(error, hasDraft)`).
+
+**Observações sem correção:**
+
+- **Código frio no messaging-service:** depois de cada reinício, os primeiros pedidos de cada tipo foram lentos neste computador. A primeira validação de token levou cerca de 10 s; a primeira consulta às experiências passou dos 2 s e deu `503`, com o texto mantido e o envio seguinte com sucesso. A quente, o mesmo caminho levou 30–44 ms. Em todos os casos, "Tentar novamente" resolveu sem duplicados.
+- **Escrita por ADB:** algumas letras ou espaços duplicados ("Ve  esta aula", "CCom") vêm do teclado virtual com `adb input text`, não da app.
+
+**Testes automáticos depois das correções:** 265 testes JVM, 0 falhas (+1: escolha da mensagem consoante haja rascunho). `assembleDebug` e `lintDebug` sem erros.
+
+**Pendente:** o convite para entrar no ecrã "Mensagens" quando a sessão termina com ele aberto (só testes JVM).

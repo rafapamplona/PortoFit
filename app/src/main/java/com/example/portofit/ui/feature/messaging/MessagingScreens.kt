@@ -1,11 +1,14 @@
 package com.example.portofit.ui.feature.messaging
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -44,11 +47,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -202,7 +207,10 @@ fun ConversationScreen(
     Scaffold(
         topBar = { BackTopBar(title, onBack) },
         bottomBar = {
-            if (state.signedIn == true && state.canSend) Composer(state, viewModel, onDiscard = { confirmDiscard = true })
+            // Presente desde que a conversa é conhecida (também a carregar): a área da lista não muda de tamanho quando as
+            // mensagens chegam, e a última fica visível ao abrir. "Enviar" só fica ativo com a conversa carregada.
+            val composerArea = state.load == ConversationLoad.Loading || state.load == ConversationLoad.Loaded
+            if (state.signedIn == true && state.conversationId != null && composerArea) Composer(state, viewModel, onDiscard = { confirmDiscard = true })
         },
     ) { innerPadding ->
         val modifier = Modifier.fillMaxSize().padding(innerPadding)
@@ -221,6 +229,17 @@ fun ConversationScreen(
         }
     }
 }
+
+/**
+ * Até ao fim real da lista: primeiro o último item, depois um deslocamento para a frente que só é consumido até ao fim.
+ * Assim a última mensagem fica inteira à vista, também com a área reduzida pelo teclado.
+ */
+private suspend fun LazyListState.scrollToEnd(lastIndex: Int) {
+    scrollToItem(lastIndex)
+    scrollBy(END_DISTANCE)
+}
+
+private const val END_DISTANCE = 100_000f
 
 /** Seq da última mensagem mostrada (pelo menos metade dentro do ecrã); as chaves das mensagens são o `seq`. */
 private fun lastShownSeq(listState: LazyListState): Long? {
@@ -264,6 +283,15 @@ private fun MessageList(
     // Última mensagem quando quem lê deixou de estar no fim: só as recebidas depois dela contam como "novas".
     var awaySinceSeq by rememberSaveable { mutableStateOf<Long?>(null) }
     var previousLastSeq by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Quem está no fim (decidido quando o próprio utilizador pára de deslocar) continua no fim quando o teclado abre.
+    var followEnd by rememberSaveable { mutableStateOf(true) }
+    val currentLastSeq by rememberUpdatedState(lastSeq)
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) followEnd = lastShownSeq(listState).let { it == null || it == currentLastSeq }
+    }
+    // A cada passo da animação do teclado (a área da lista encolhe): quem estava no fim continua no fim.
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    LaunchedEffect(imeBottom) { if (followEnd && messages.isNotEmpty()) listState.scrollToEnd(messages.size) }
 
     LaunchedEffect(lastSeq) {
         if (lastSeq == null) return@LaunchedEffect
@@ -272,7 +300,8 @@ private fun MessageList(
         val lastIsMine = messages.last().senderId == state.myUserId
         // Abrir (sem anterior), estar no fim ou acabar de enviar: segue para o fim. A ler mais acima: fica onde está.
         if (previous == null || lastIsMine || (lastVisibleSeq ?: 0) >= previous) {
-            listState.scrollToItem(messages.size)
+            listState.scrollToEnd(messages.size)
+            followEnd = true
             awaySinceSeq = null
         } else if (awaySinceSeq == null) {
             awaySinceSeq = previous
@@ -318,7 +347,7 @@ private fun MessageList(
         if (newCount > 0) {
             val label = pluralStringResource(R.plurals.conversation_new_messages_count, newCount, newCount)
             SmallFloatingActionButton(
-                onClick = { scope.launch { listState.animateScrollToItem(messages.size) } },
+                onClick = { scope.launch { listState.animateScrollToItem(messages.size); listState.scrollToEnd(messages.size) } },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp).semantics { contentDescription = label },
             ) {
                 Text(label, modifier = Modifier.padding(horizontal = 12.dp))
@@ -396,7 +425,7 @@ private fun Composer(state: ConversationUiState, viewModel: ConversationViewMode
                 SendState.Unconfirmed -> {
                     ErrorText(stringResource(R.string.conversation_unconfirmed))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = viewModel::send) { Text(stringResource(R.string.retry)) }
+                        Button(onClick = viewModel::send, enabled = state.canSend) { Text(stringResource(R.string.retry)) }
                         TextButton(onClick = onDiscard) { Text(stringResource(R.string.conversation_discard)) }
                     }
                 }
@@ -422,7 +451,7 @@ private fun Composer(state: ConversationUiState, viewModel: ConversationViewMode
                     },
                 )
                 if (state.send != SendState.Unconfirmed) {
-                    Button(onClick = viewModel::send, enabled = state.send != SendState.Sending) {
+                    Button(onClick = viewModel::send, enabled = state.canSend && state.send != SendState.Sending) {
                         Text(stringResource(if (state.send == SendState.Sending) R.string.conversation_sending else R.string.conversation_send))
                     }
                 }
@@ -588,7 +617,8 @@ private fun ConfirmShare(
                 }
             }
             else -> {
-                if (send is ShareSendState.Failed) ErrorText(sendErrorMessage(send.error, send.retryAfterSeconds))
+                // "O teu texto mantém-se" só quando há texto escrito.
+                if (send is ShareSendState.Failed) ErrorText(sendErrorMessage(send.error, send.retryAfterSeconds, hasDraft = state.text.isNotBlank()))
                 // Confirmação explícita: só este botão envia.
                 Button(onClick = viewModel::send, enabled = send != ShareSendState.Sending && !state.experienceGone && state.textValid) {
                     Text(stringResource(if (send == ShareSendState.Sending) R.string.conversation_sending else R.string.share_send))
@@ -642,22 +672,23 @@ private fun dataErrorMessage(error: DataError): Int =
     if (error == DataError.NOT_CONFIGURED) R.string.messages_not_configured else R.string.messages_unavailable
 
 @Composable
-private fun sendErrorMessage(error: MessagingError, retryAfterSeconds: Long?): String =
+private fun sendErrorMessage(error: MessagingError, retryAfterSeconds: Long?, hasDraft: Boolean = false): String =
     if (error == MessagingError.TOO_MANY_REQUESTS && retryAfterSeconds != null) {
         val minutes = ((retryAfterSeconds + 59) / 60).toInt().coerceAtLeast(1)
         pluralStringResource(R.plurals.messaging_error_too_many_minutes, minutes, minutes)
     } else {
-        stringResource(messagingErrorMessage(error))
+        stringResource(messagingErrorMessage(error, hasDraft))
     }
 
+/** [hasDraft]: há texto escrito que se mantém (partilha com texto); sem ele, a mensagem não o promete. */
 @StringRes
-fun messagingErrorMessage(error: MessagingError): Int = when (error) {
-    MessagingError.USERS_UNAVAILABLE -> R.string.messaging_error_users_unavailable
+fun messagingErrorMessage(error: MessagingError, hasDraft: Boolean = false): Int = when (error) {
+    MessagingError.USERS_UNAVAILABLE -> if (hasDraft) R.string.messaging_error_users_unavailable_draft else R.string.messaging_error_users_unavailable
     MessagingError.USER_NOT_FOUND -> R.string.messaging_error_user_not_found
     MessagingError.CANNOT_MESSAGE_SELF -> R.string.messaging_error_self
     MessagingError.CONVERSATION_GONE -> R.string.messaging_error_conversation_gone
     MessagingError.EXPERIENCE_GONE -> R.string.messaging_error_experience_gone
-    MessagingError.EXPERIENCES_UNAVAILABLE -> R.string.messaging_error_experiences_unavailable
+    MessagingError.EXPERIENCES_UNAVAILABLE -> if (hasDraft) R.string.messaging_error_experiences_unavailable_draft else R.string.messaging_error_experiences_unavailable
     MessagingError.CONVERSATION_FULL -> R.string.messaging_error_full
     MessagingError.TOO_MANY_REQUESTS -> R.string.messaging_error_too_many
     MessagingError.VALIDATION -> R.string.messaging_error_validation
