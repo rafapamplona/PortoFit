@@ -4,6 +4,7 @@ import com.example.portofit.users.api.ApiErrors
 import com.example.portofit.users.api.ApiException
 import com.example.portofit.users.api.PageResponse
 import com.example.portofit.users.config.FollowProperties
+import com.example.portofit.users.outbox.OutboxRepository
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
 
@@ -37,15 +39,19 @@ data class FollowCounts(val followers: Long, val following: Long)
 @Repository
 class FollowRepository(private val jdbc: JdbcClient) {
 
-	/** Cria a relação se ainda não existir; pedidos repetidos ou simultâneos não criam duplicados. */
-	fun follow(followerId: UUID, followedId: UUID) {
+	/**
+	 * Cria a relação se ainda não existir; pedidos repetidos ou simultâneos não criam duplicados. Devolve a data da
+	 * relação criada, ou null se já existia.
+	 */
+	fun follow(followerId: UUID, followedId: UUID): Instant? =
 		jdbc.sql(
 			"""
 			INSERT INTO follow (follower_id, followed_id) VALUES (:follower, :followed)
 			ON CONFLICT (follower_id, followed_id) DO NOTHING
+			RETURNING created_at
 			""",
-		).param("follower", followerId).param("followed", followedId).update()
-	}
+		).param("follower", followerId).param("followed", followedId)
+			.query { rs, _ -> rs.getTimestamp(1).toInstant() }.optional().orElse(null)
 
 	/** Bloqueia a linha do seguidor até ao fim da transação (seguir em série, para o limite não ser ultrapassado). */
 	fun lockFollower(followerId: UUID) {
@@ -116,11 +122,15 @@ class FollowService(
 	private val users: UserRepository,
 	private val properties: FollowProperties,
 	private val transactions: TransactionTemplate,
+	private val outbox: OutboxRepository,
+	private val mapper: JsonMapper,
 ) {
 
 	/**
 	 * Idempotente. Limite de produto (docs/users-api.md §3.9): seguir alguém novo com o máximo já atingido → 409;
 	 * seguir alguém já seguido continua 204. Contagem e inserção na mesma transação, com o seguidor bloqueado.
+	 * Uma relação nova grava, na mesma transação, o evento `USER_FOLLOWED` (docs/notifications-api.md §3); confirmar
+	 * uma relação existente não grava nada.
 	 */
 	fun follow(followerId: UUID, followedId: UUID) {
 		checkTarget(followerId, followedId)
@@ -129,12 +139,27 @@ class FollowService(
 				follows.lockFollower(followerId)
 				if (follows.isFollowing(followerId, followedId)) return@executeWithoutResult
 				if (follows.followingCount(followerId) >= properties.maxFollowing) throw ApiErrors.followLimitReached(properties.maxFollowing)
-				follows.follow(followerId, followedId)
+				val since = follows.follow(followerId, followedId) ?: return@executeWithoutResult
+				enqueueFollowEvent(followerId, followedId, since)
 			}
 		} catch (e: DataIntegrityViolationException) {
 			// A pessoa foi apagada entre a verificação e a inserção (chave estrangeira).
 			throw ApiErrors.notFound()
 		}
+	}
+
+	/** Só ids e o username atual de quem segue (cópia de apresentação); nunca email nem outros dados. */
+	private fun enqueueFollowEvent(followerId: UUID, followedId: UUID, since: Instant) {
+		val username = users.findById(followerId)?.username ?: error("seguidor bloqueado sem linha")
+		val eventId = UUID.randomUUID()
+		val payload = linkedMapOf(
+			"eventId" to eventId.toString(),
+			"type" to USER_FOLLOWED,
+			"occurredAt" to since.toString(),
+			"actor" to linkedMapOf("userId" to followerId.toString(), "username" to username),
+			"recipientId" to followedId.toString(),
+		)
+		outbox.insert(eventId, USER_FOLLOWED, mapper.writeValueAsString(payload))
 	}
 
 	fun unfollow(followerId: UUID, followedId: UUID) {
@@ -156,6 +181,10 @@ class FollowService(
 		if (users.findById(userId) == null) throw ApiErrors.notFound()
 		val (items, total) = query(userId, pageValue, sizeValue)
 		return PageResponse.of(items, pageValue, sizeValue, total)
+	}
+
+	private companion object {
+		const val USER_FOLLOWED = "USER_FOLLOWED"
 	}
 
 	private fun checkTarget(followerId: UUID, followedId: UUID) {

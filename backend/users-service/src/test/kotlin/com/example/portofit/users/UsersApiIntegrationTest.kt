@@ -1,6 +1,7 @@
 package com.example.portofit.users
 
 import com.example.portofit.users.auth.TokenService
+import com.example.portofit.users.outbox.OutboxRelay
 import com.nimbusds.jose.jwk.JWKSet
 import com.nimbusds.jose.jwk.RSAKey
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet
@@ -68,6 +69,7 @@ class UsersApiIntegrationTest {
 	@Autowired lateinit var tokens: TokenService
 	@Autowired lateinit var jwtEncoder: JwtEncoder
 	@Autowired lateinit var signingKey: RSAKey
+	@Autowired lateinit var relay: OutboxRelay
 
 	@LocalServerPort var port: Int = 0
 
@@ -506,6 +508,157 @@ class UsersApiIntegrationTest {
 			.andExpect { status { isNotFound() } }
 	}
 
+	// --- Notificações: evento de novo seguidor e seguidores internos (docs/notifications-api.md §3, §7, §8.1) ---
+
+	private fun followEvents(recipient: UUID): List<JsonNode> =
+		jdbc.sql("SELECT payload FROM outbox WHERE payload::jsonb ->> 'recipientId' = :r ORDER BY created_at")
+			.param("r", recipient.toString()).query(String::class.java).list().map { mapper.readTree(it) }
+
+	private fun follow(who: Session, target: UUID) =
+		mvc.put("/api/v1/users/$target/follow") { bearer(who.access) }
+
+	@Test
+	fun `seguir grava um evento so por relacao nova, na mesma transacao e sem dados privados`() {
+		val a = newSession()
+		val b = newSession()
+		follow(a, b.userId).andExpect { status { isNoContent() } }
+		follow(a, b.userId).andExpect { status { isNoContent() } } // confirma a relação: sem evento
+		val (event) = followEvents(b.userId)
+		assertEquals(1, followEvents(b.userId).size)
+		assertEquals(setOf("eventId", "type", "occurredAt", "actor", "recipientId"), event.propertyNames().toSet())
+		assertEquals("USER_FOLLOWED", event["type"].asString())
+		assertEquals(a.userId.toString(), event["actor"]["userId"].asString())
+		assertEquals(a.username, event["actor"]["username"].asString())
+		assertEquals(setOf("userId", "username"), event["actor"].propertyNames().toSet())
+		val since = jdbc.sql("SELECT created_at FROM follow WHERE follower_id = :a AND followed_id = :b").param("a", a.userId).param("b", b.userId)
+			.query { rs, _ -> rs.getTimestamp(1).toInstant() }.single()
+		assertEquals(since, Instant.parse(event["occurredAt"].asString()), "occurredAt é a data da relação")
+		assertFalse(event.toString().contains("@example.org"))
+		// Recusas não gravam nada: a própria pessoa e o limite de seguidos.
+		follow(a, a.userId).andExpect { status { isBadRequest() } }
+		assertEquals(0, followEvents(a.userId).size)
+		val full = newSession()
+		val targets = (1..MAX_FOLLOWING + 1).map { newSession() }
+		targets.take(MAX_FOLLOWING).forEach { follow(full, it.userId).andExpect { status { isNoContent() } } }
+		follow(full, targets.last().userId).andExpect { status { isConflict() } }
+		assertEquals(0, followEvents(targets.last().userId).size)
+		// Deixar de seguir e voltar a seguir é uma relação nova: outro evento (o notifications-service junta-os, §6.3).
+		mvc.delete("/api/v1/users/${b.userId}/follow") { bearer(a.access) }.andExpect { status { isNoContent() } }
+		follow(a, b.userId).andExpect { status { isNoContent() } }
+		assertEquals(2, followEvents(b.userId).size)
+		// Pedidos simultâneos: uma relação, um evento.
+		val c = newSession()
+		val d = newSession()
+		concurrently(8) {
+			HttpClient.newHttpClient().send(
+				HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port/api/v1/users/${d.userId}/follow"))
+					.header("Authorization", "Bearer ${c.access}").PUT(HttpRequest.BodyPublishers.noBody()).build(),
+				HttpResponse.BodyHandlers.ofString(),
+			).statusCode()
+		}
+		assertEquals(1, followEvents(d.userId).size)
+	}
+
+	@Test
+	fun `eventos de seguir esperam pelo notifications-service e o reenvio manual de um FAILED entrega uma vez`() {
+		jdbc.sql("DELETE FROM outbox").update()
+		notifications.reset()
+		val a = newSession()
+		val b = newSession()
+		notifications.mode = NotificationsStub.Mode.DOWN
+		follow(a, b.userId).andExpect { status { isNoContent() } } // seguir não espera pelas notificações
+		makeOutboxDue()
+		assertEquals(1, relay.runOnce())
+		assertEquals("PENDING:1", outboxState())
+		notifications.mode = NotificationsStub.Mode.UP
+		makeOutboxDue()
+		assertEquals(1, relay.runOnce())
+		assertEquals("SENT:1", outboxState())
+		val first = followEvents(b.userId).single()["eventId"].asString()
+		assertEquals(1, notifications.accepted[first])
+
+		// Um evento recusado passa a FAILED; depois de corrigida a causa, o procedimento documentado
+		// (docs/infraestrutura.md, reenvio manual) volta a pô-lo PENDING e o envio seguinte entrega-o uma vez.
+		jdbc.sql("DELETE FROM outbox").update()
+		val c = newSession()
+		notifications.mode = NotificationsStub.Mode.REJECT
+		follow(c, b.userId).andExpect { status { isNoContent() } }
+		makeOutboxDue()
+		relay.runOnce()
+		val failed = jdbc.sql("SELECT event_id FROM outbox WHERE status = 'FAILED' AND last_error = 'REJECTED/INVALID_EVENT'").query(UUID::class.java).single()
+		notifications.mode = NotificationsStub.Mode.UP
+		makeOutboxDue()
+		assertEquals(0, relay.runOnce(), "um FAILED nunca é repetido sozinho")
+		val requeued = jdbc.sql(
+			"UPDATE outbox SET status = 'PENDING', attempts = 0, next_attempt_at = now(), last_error = NULL WHERE status = 'FAILED' AND event_id = '$failed'",
+		).update()
+		assertEquals(1, requeued)
+		makeOutboxDue()
+		assertEquals(1, relay.runOnce())
+		assertEquals("SENT:0", outboxState())
+		assertEquals(1, notifications.accepted[failed.toString()])
+	}
+
+	/** O `now()` da base pode ir uns milissegundos à frente do relógio da JVM usado pelo envio. */
+	private fun makeOutboxDue() {
+		jdbc.sql("UPDATE outbox SET next_attempt_at = now() - interval '1 minute' WHERE status = 'PENDING'").update()
+	}
+
+	private fun outboxState(): String =
+		jdbc.sql("SELECT string_agg(status || ':' || attempts, ',') FROM outbox").query(String::class.java).single()
+
+	private fun followers(target: UUID, query: String, key: String? = FOLLOWERS_KEY, token: String? = null) =
+		mvc.get("/api/v1/internal/users/$target/followers$query") {
+			if (key != null) header("X-Internal-Key", key)
+			if (token != null) bearer(token)
+		}
+
+	private fun followerIds(target: UUID, query: String): Pair<List<String>, String?> {
+		val body = followers(target, query).andExpect { status { isOk() } }.andReturn().json()
+		assertEquals(setOf("items", "nextCursor"), body.propertyNames().toSet())
+		return texts(body["items"]) to body["nextCursor"]?.takeUnless { it.isNull }?.asString()
+	}
+
+	@Test
+	fun `seguidores internos so com a chave propria, paginacao estavel e recorte temporal`() {
+		val target = newSession()
+		val f = (1..8).map { newSession() }
+		f.take(7).forEach { follow(it, target.userId).andExpect { status { isNoContent() } } }
+		val now = Instant.now().plusSeconds(1)
+
+		// Autorização: só a chave do notifications-service; nem a do feed-context, nem um token.
+		for (key in listOf(null, "", "errada", INTERNAL_KEY)) {
+			followers(target.userId, "?followedBefore=$now", key).andExpect {
+				status { isForbidden() }
+				jsonPath("$.code") { value("FORBIDDEN") }
+			}
+		}
+		followers(target.userId, "?followedBefore=$now", key = null, token = target.access).andExpect { status { isForbidden() } }
+		followers(UUID.randomUUID(), "?followedBefore=$now").andExpect { status { isNotFound() } }
+		for (q in listOf("", "?followedBefore=ontem", "?followedBefore=$now&limit=0", "?followedBefore=$now&limit=501", "?followedBefore=$now&cursor=xyz")) {
+			followers(target.userId, q).andExpect { status { isBadRequest() } }
+		}
+
+		// Páginas de 3, pela ordem da relação; só ids.
+		val (page1, cursor1) = followerIds(target.userId, "?followedBefore=$now&limit=3")
+		assertEquals(f.take(3).map { it.userId.toString() }, page1)
+		// Entre páginas: alguém já lido e alguém por ler deixam de seguir; alguém começa depois da publicação.
+		mvc.delete("/api/v1/users/${target.userId}/follow") { bearer(f[1].access) }.andExpect { status { isNoContent() } }
+		mvc.delete("/api/v1/users/${target.userId}/follow") { bearer(f[4].access) }.andExpect { status { isNoContent() } }
+		Thread.sleep(1100) // a relação seguinte fica depois de followedBefore
+		follow(f[7], target.userId).andExpect { status { isNoContent() } }
+		val (page2, cursor2) = followerIds(target.userId, "?followedBefore=$now&limit=3&cursor=$cursor1")
+		assertEquals(listOf(f[3], f[5], f[6]).map { it.userId.toString() }, page2, "sem repetir nem saltar ninguém")
+		assertEquals(null, cursor2, "fim: sem mais seguidores até followedBefore")
+
+		// Recorte: followedBefore igual à data de uma relação inclui-a, e nada depois dela.
+		val third = jdbc.sql("SELECT created_at FROM follow WHERE follower_id = :f AND followed_id = :t").param("f", f[2].userId).param("t", target.userId)
+			.query { rs, _ -> rs.getTimestamp(1).toInstant() }.single()
+		assertEquals(listOf(f[0], f[2]).map { it.userId.toString() } to null, followerIds(target.userId, "?followedBefore=$third"))
+		// Sem seguidores: 200 com items vazio (a única forma de concluir que não há).
+		assertEquals(emptyList<String>() to null, followerIds(f[0].userId, "?followedBefore=$now"))
+	}
+
 	// --- Auxiliares ---
 
 	private fun texts(node: JsonNode): List<String> = (0 until node.size()).map { node[it].asString() }
@@ -608,9 +761,11 @@ class UsersApiIntegrationTest {
 		/** Limite de seguidos nos testes (o real é 500) e chave interna só dos testes. */
 		const val MAX_FOLLOWING = 3
 		const val INTERNAL_KEY = "chave-interna-dos-testes"
+		const val FOLLOWERS_KEY = "chave-seguidores-dos-testes"
 
 		private val keys = TestKeys.create()
 		val catalog = CatalogStub.start()
+		val notifications = NotificationsStub.start()
 
 		@JvmStatic
 		@DynamicPropertySource
@@ -626,6 +781,12 @@ class UsersApiIntegrationTest {
 			registry.add("portofit.rate-limit.refresh-per-origin") { 100000 }
 			registry.add("portofit.follows.max-following") { MAX_FOLLOWING }
 			registry.add("portofit.internal.feed-context-key") { INTERNAL_KEY }
+			registry.add("portofit.internal.followers-key") { FOLLOWERS_KEY }
+			// A outbox é enviada pelos próprios testes (runOnce), nunca pelo agendamento.
+			registry.add("portofit.outbox.enabled") { false }
+			registry.add("portofit.notifications.base-url") { notifications.url }
+			registry.add("portofit.notifications.internal-key") { NotificationsStub.KEY }
+			registry.add("portofit.notifications.timeout") { "1s" }
 		}
 	}
 }

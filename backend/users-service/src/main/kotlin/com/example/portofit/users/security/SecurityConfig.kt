@@ -42,6 +42,8 @@ class SecurityConfig {
 				authorize(HttpMethod.GET, "/api/v1/users", permitAll)
 				authorize(HttpMethod.GET, "/api/v1/users/**", permitAll)
 				authorize(HttpMethod.GET, "/.well-known/jwks.json", permitAll)
+				// Só com a chave do notifications-service, verificada no controlador (docs/notifications-api.md §8.1).
+				authorize(HttpMethod.GET, "/api/v1/internal/users/*/followers", permitAll)
 				authorize("/actuator/health", permitAll)
 				authorize("/error", permitAll)
 				authorize("/api/v1/me", authenticated)

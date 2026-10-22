@@ -62,7 +62,26 @@ portofit:
   internal:
     # Chave do experiences-service para /api/v1/internal (docs/users-api.md §3.11), só do .env; vazia = recusa sempre.
     feed-context-key: ${USERS_INTERNAL_KEY:}
+    # Chave do notifications-service para os seguidores de uma pessoa (docs/notifications-api.md §8.1), só do .env.
+    followers-key: ${USERS_FOLLOWERS_KEY:}
   catalog:
     base-url: ${CATALOG_BASE_URL:http://localhost:8081}
     timeout: 2s
     cache-ttl: 10m
+  notifications:
+    # POST /api/v1/internal/events, pela rede interna do Compose (docs/notifications-api.md §6.1).
+    base-url: ${NOTIFICATIONS_BASE_URL:http://localhost:8086}
+    connect-timeout: 500ms
+    timeout: 5s
+    # Só do .env (NOTIFY_USERS_KEY, exclusiva deste produtor), nunca no Git nem na imagem.
+    internal-key: ${NOTIFY_USERS_KEY:}
+  outbox:
+    # Envio de 5 em 5 s, recuo de 5 s a 10 min, FAILED ao fim de 20 tentativas ou 24 h (docs/notifications-api.md §7).
+    enabled: true
+    batch-size: 100
+    initial-backoff: 5s
+    max-backoff: 10m
+    max-attempts: 20
+    max-age: 24h
+    sent-retention: 3d
+    failed-retention: 30d
