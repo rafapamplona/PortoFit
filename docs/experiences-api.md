@@ -756,7 +756,7 @@ Regras gerais:
 - **Leituras públicas, escritas autenticadas.** Quem comenta, gosta ou vê vem sempre do `sub` do token, nunca do corpo; o `username` dos comentários é copiado do token, como nas experiências (§2.3).
 - **Experiência inexistente ou eliminada → `404 NOT_FOUND`** em todos estes endpoints (listar, comentar, gostar, retirar o gosto e visualizar). Para a app, uma experiência eliminada deixa de existir, com tudo o que lhe pertencia.
 - Gostos e comentários **não** alteram as avaliações (§7). Moderação fica fora do âmbito: o autor da experiência não apaga comentários de outros.
-- A partir da etapa 10, comentários e novas experiências geram eventos na outbox; gostos não, nesta versão ([notifications-api.md §3](notifications-api.md#3-eventos-e-destinatários)).
+- Desde a etapa 10, um comentário novo na experiência de outra pessoa e uma experiência nova gravam um evento na outbox, na mesma transação; gostos não, nesta versão ([notifications-api.md §3](notifications-api.md#3-eventos-e-destinatários)).
 
 ### 13.1 Comentários
 
@@ -1102,7 +1102,7 @@ As experiências referem-se ao catálogo por ids. Para os ids das publicações 
 ## 16. Dados e infraestrutura
 
 - Base de dados `experiences_db`, com utilizador próprio sem privilégios de administração, criada por um script `03-experiences-db.sh` idempotente, como o dos utilizadores ([infraestrutura.md §3.1](infraestrutura.md#31-acrescentar-a-base-de-um-serviço-novo-a-um-volume-existente)). O volume existente é preservado.
-- Tabelas: `experience` e `publish_request` (E1); `media` (E2); `comment`, `experience_like`, `experience_view` (E3); `outbox` (etapa 10). Esquema gerido por Flyway, com uma migração nova por etapa e sem alterar as anteriores.
+- Tabelas: `experience` e `publish_request` (E1); `media` (E2); `comment`, `experience_like`, `experience_view` (E3); `outbox` (etapa 10, `V4__outbox.sql`). Esquema gerido por Flyway, com uma migração nova por etapa e sem alterar as anteriores.
 - `experience.id` gerado com `uuidv7()` (função nativa do PostgreSQL 18). Unicidade (`author_id`, `idempotency_key`) em `publish_request`. Restrições na base de dados para o conteúdo: estrelas de 1 a 5 e texto de 1 a 2000 caracteres numa experiência ativa; texto e estrelas nulos numa eliminada.
 - Configuração:
   - URL do catálogo pela rede interna do Compose (`http://catalog-service:8081`);
@@ -1250,6 +1250,8 @@ Etapa E1 (backend), `backend/experiences-service`, com as alterações correspon
 - sem migração nova: as consultas usam os índices existentes.
 
 **Consulta interna em lote (etapa 11):** `GET /api/v1/internal/experiences` para o collections-service (§4.7), com `COLLECTIONS_INTERNAL_KEY`; +1 teste (48 no total). Detalhes e verificação em [collections-api.md §13](collections-api.md#13-estado-da-implementação).
+
+**Notificações (etapa 10):** `EXPERIENCE_PUBLISHED` e `COMMENT_CREATED` na outbox (`V4__outbox.sql`), entregues com `NOTIFY_EXPERIENCES_KEY`; sem texto, sem eventos de repetições nem de comentários na própria experiência. +2 testes (50 no total). Detalhes e verificação em [notifications-api.md §20](notifications-api.md#20-estado-da-implementação).
 
 **Chave do messaging-service (etapa 12):** a consulta em lote aceita também `MESSAGING_INTERNAL_KEY` (`portofit.internal.messaging-key`), mantendo a das listas. O teste da consulta passou a cobrir as duas chaves, a recusa da chave do users-service e a chave vazia (48 testes, 0 falhas).
 

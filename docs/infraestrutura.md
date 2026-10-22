@@ -13,7 +13,7 @@
 | `experiences-service` | Experiências, fotografias e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db` e o volume `experiences-media`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
 | `collections-service` | Listas pessoais e experiências guardadas ([collections-api.md](collections-api.md)) sobre `collections_db`; consulta as experiências no experiences-service em lote; valida os JWT só com a chave pública | `http://localhost:8084` |
 | `messaging-service` | Conversas entre duas pessoas, mensagens e partilha de experiências ([messaging-api.md](messaging-api.md)) sobre `messaging_db`; valida o destinatário no users-service e as partilhas no experiences-service (em lote, com chave própria); valida os JWT só com a chave pública; entrega os eventos de mensagens novas ao notifications-service (outbox) | `http://localhost:8085` |
-| `notifications-service` | Caixa de notificações privada e entrega interna de eventos ([notifications-api.md](notifications-api.md)) sobre `notifications_db`; uma chave por produtor; valida os JWT só com a chave pública | `http://localhost:8086` |
+| `notifications-service` | Caixa de notificações privada e entrega interna de eventos ([notifications-api.md](notifications-api.md)) sobre `notifications_db`; uma chave por produtor (users, experiences, messaging); resolve os seguidores das novas experiências no users-service; valida os JWT só com a chave pública | `http://localhost:8086` |
 
 ```
 PortoFit/
@@ -30,8 +30,8 @@ PortoFit/
 │   │   ├── 04-collections-db.sh  cria collections_db e o seu utilizador (idempotente; ver §3.1)
 │   │   ├── 05-messaging-db.sh    cria messaging_db e o seu utilizador (idempotente; ver §3.1)
 │   │   └── 06-notifications-db.sh cria notifications_db e o seu utilizador (idempotente; ver §3.1)
-│   ├── users-service/            projeto Gradle independente: auth/, user/, security/, catalog/, api/
-│   ├── experiences-service/      projeto Gradle independente: experience/, rating/, catalog/, security/, api/
+│   ├── users-service/            projeto Gradle independente: auth/, user/, outbox/, security/, catalog/, api/
+│   ├── experiences-service/      projeto Gradle independente: experience/, interaction/, outbox/, rating/, catalog/, security/, api/
 │   ├── collections-service/      projeto Gradle independente: collection/, experiences/, security/, api/
 │   ├── messaging-service/        projeto Gradle independente: conversation/, outbox/, users/, experiences/, security/, api/
 │   ├── notifications-service/    projeto Gradle independente: notification/, internal/, security/, api/
@@ -216,7 +216,7 @@ curl.exe "http://localhost:8082/api/v1/users?q=ana"
 - Os interesses são validados no catalog-service pela rede interna do Compose (`http://catalog-service:8081`); se o catálogo falhar, só acrescentar interesses novos devolve `503 CATALOG_UNAVAILABLE`.
 - Limites de tentativas (`portofit.rate-limit.*` em `application.yaml`): em memória, por conta e por origem; reiniciar o serviço apaga-os.
 - Contexto do feed (E4): `GET /api/v1/internal/me/feed-context`, só para o experiences-service, com o token do utilizador e `X-Internal-Key` = `USERS_INTERNAL_KEY` do `.env` (sem a chave → `403`).
-- Testes: `cd backend\users-service; .\gradlew.bat test` (26 testes; PostgreSQL real via Testcontainers; chaves e catálogo falsos gerados pelos próprios testes).
+- Testes: `cd backend\users-service; .\gradlew.bat test` (29 testes; PostgreSQL real via Testcontainers; chaves, catálogo e notifications-service falsos gerados pelos próprios testes).
 
 ### experiences-service
 
@@ -239,7 +239,7 @@ curl.exe "http://localhost:8083/api/v1/ratings/places?ids=3f1c9a2e-6b0d-4c55-9a7
 - Fotografias (E2): `POST /api/v1/media` (multipart, campo `file`, até 10 MiB, JPEG ou PNG) devolve um `mediaId` pendente; associa-se com `"mediaId"` ao publicar ou editar. Limites e limpeza em `portofit.media.*` (`application.yaml`). A imagem guarda a pasta `/data/media` com dono `app` (o volume novo herda-o).
 - Feeds e dashboard (E4): o feed pessoal pede o contexto ao users-service (`http://users-service:8082`, com `USERS_INTERNAL_KEY`); se ele falhar, responde com o popular (`POPULAR_FALLBACK`). Modo de demonstração em `portofit.feed.include-demo-places`.
 - Consulta interna em lote para o collections-service e o messaging-service: `GET /api/v1/internal/experiences?ids=…` com `X-Internal-Key` = `COLLECTIONS_INTERNAL_KEY` ou `MESSAGING_INTERNAL_KEY` do `.env`, uma chave por serviço (sem chave ou com outra → `403`).
-- Testes: `cd backend\experiences-service; .\gradlew.bat test` (48 testes: 17 da E1, 13 das fotografias, 10 dos comentários, gostos e visualizações, 7 dos feeds e dashboard e 1 da consulta interna; PostgreSQL real via Testcontainers; catálogo e users-service falsos, chaves, relógio e pasta de fotografias dos próprios testes).
+- Testes: `cd backend\experiences-service; .\gradlew.bat test` (50 testes: 17 da E1, 13 das fotografias, 10 dos comentários, gostos e visualizações, 7 dos feeds e dashboard, 1 da consulta interna e 2 dos eventos de notificações; PostgreSQL real via Testcontainers; catálogo e users-service falsos, chaves, relógio e pasta de fotografias dos próprios testes).
 
 ### collections-service
 
@@ -309,14 +309,16 @@ curl.exe -X PUT http://localhost:8086/api/v1/notifications/read -H "Authorizatio
   2. `docker compose up -d --wait postgres`;
   3. `docker compose exec -T postgres bash /docker-entrypoint-initdb.d/06-notifications-db.sh` (repetir não faz mal; em Git Bash, com `MSYS_NO_PATHCONV=1`);
   4. arrancar o notifications-service e reconstruir o messaging-service (passa a ter a outbox), um de cada vez.
-- **Chaves dos produtores:**
-  - só `NOTIFY_MESSAGING_KEY` nesta primeira parte, no messaging-service e no notifications-service;
-  - sem `NOTIFY_USERS_KEY` nem `NOTIFY_EXPERIENCES_KEY`, nenhum outro produtor é aceite;
-  - para mudar uma chave: alterar o `.env` e recriar os dois contentores (`docker compose up -d --wait notifications-service messaging-service`).
+- **Segunda parte** (2026-10-22): acrescentar `NOTIFY_USERS_KEY`, `NOTIFY_EXPERIENCES_KEY` e `USERS_FOLLOWERS_KEY` ao `.env` e reconstruir, um de cada vez, o notifications-service, o users-service e o experiences-service (migrações novas aplicadas no arranque).
+- **Chaves** (só do `.env`, cada uma exclusiva):
+  - `NOTIFY_USERS_KEY`, `NOTIFY_EXPERIENCES_KEY` e `NOTIFY_MESSAGING_KEY`: cada produtor e o notifications-service; cada chave só entrega os tipos do seu produtor;
+  - `USERS_FOLLOWERS_KEY`: notifications-service e users-service, para `GET /api/v1/internal/users/{id}/followers`;
+  - para mudar uma chave: alterar o `.env` e recriar os dois contentores que a usam (ex.: `docker compose up -d --wait notifications-service users-service`).
+- **Novas experiências:** os destinatários (quem segue o autor) são resolvidos depois, por páginas, a partir do users-service. Com o users-service parado, a resolução fica `PENDING` e retoma sozinha.
 - **Retenção:** 90 dias e 1000 notificações por pessoa; os ids dos eventos recebidos guardam-se 35 dias (`portofit.notifications.*`).
-- **Testes:** `cd backend\notifications-service; .\gradlew.bat test` (9 testes; PostgreSQL real via Testcontainers; chaves dos próprios testes).
+- **Testes:** `cd backend\notifications-service; .\gradlew.bat test` (17 testes; PostgreSQL real via Testcontainers; users-service falso e chaves dos próprios testes).
 
-**Diagnóstico da outbox** (no produtor; contagens e códigos, nunca o `payload`):
+**Diagnóstico da outbox** (no produtor: `messaging_db`, `users_db` ou `experiences_db`; contagens e códigos, nunca o `payload`):
 
 ```powershell
 # Eventos por estado e último erro, com o mais antigo de cada grupo
@@ -327,7 +329,7 @@ curl.exe -X PUT http://localhost:8086/api/v1/notifications/read -H "Authorizatio
   docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d messaging_db'
 ```
 
-O log do messaging-service mostra, de minuto a minuto e só quando há pendentes ou falhados, uma linha `Outbox: N pendentes (mais antigo há S s), F falhados, E entregues na última hora`. Um erro de chave aparece como `Falha de configuração na entrega de notificações (HTTP_403)`, uma vez por período de recuo.
+O log de cada produtor mostra, de minuto a minuto e só quando há pendentes ou falhados, uma linha `Outbox: N pendentes (mais antigo há S s), F falhados, E entregues na última hora`. Um erro de chave aparece como `Falha de configuração na entrega de notificações (HTTP_403)`, uma vez por período de recuo.
 
 **Reenvio manual de um evento `FAILED`** (depois de corrigida a causa; [notifications-api.md §6.4](notifications-api.md#64-eventos-antigos-e-reenvio-manual)):
 
@@ -338,6 +340,17 @@ O log do messaging-service mostra, de minuto a minuto e só quando há pendentes
 
 - Não altera o `eventId` nem o conteúdo: um evento que já tinha chegado responde `DUPLICATE`, e um com mais de 30 dias responde `EXPIRED` e volta a `FAILED`.
 - Como o evento tem mais de 24 h, uma nova falha temporária devolve-o logo a `FAILED/MAX_AGE`; nesse caso, repetir quando o notifications-service estiver saudável.
+- O mesmo comando serve para `users_db` e `experiences_db` (trocar o `-d`). Exercitado em 2026-10-22 num evento de teste: `UPDATE 1` e entrega única.
+
+**Resoluções de novas experiências** (no notifications-service; só estados e códigos):
+
+```powershell
+"SELECT status, last_error, count(*), sum(recipients) FROM fan_out_job GROUP BY 1, 2 ORDER BY 1, 2;" |
+  docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d notifications_db'
+# Repor uma resolução FAILED (retoma do último cursor guardado; ninguém é notificado duas vezes)
+"UPDATE fan_out_job SET status = 'PENDING', attempts = 0, next_attempt_at = now(), last_error = NULL WHERE status = 'FAILED' AND event_id = '<eventId>';" |
+  docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d notifications_db'
+```
 
 ## 7. Configuração relevante
 
@@ -355,7 +368,7 @@ O log do messaging-service mostra, de minuto a minuto e só quando há pendentes
 | Healthcheck dos serviços | pedido a `/actuator/health` a cada 10 s (via `bash`, porque a imagem JRE não tem `curl`) | `docker-compose.yml` |
 | Imagem do serviço | só o JRE e o `app.jar`; corre com o utilizador `app` (não root); `.env` e ficheiros locais excluídos por `.dockerignore` | `Dockerfile` |
 
-Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Na etapa 6 (2026-10-19), com quatro contentores: catalog-service ≈ 206 MiB, users-service ≈ 222 MiB, experiences-service ≈ 232 MiB, PostgreSQL ≈ 61 MiB (≈ 0,7 GiB no total). Na etapa 12 (2026-10-20), com seis contentores e sem carga: messaging-service ≈ 244 MiB, users-service ≈ 248 MiB, catalog-service ≈ 231 MiB, experiences-service ≈ 228 MiB, collections-service ≈ 223 MiB, PostgreSQL ≈ 80 MiB (≈ 1,25 GiB no total). Com o emulador e o Android Studio abertos, o computador ficou com cerca de 0,4 GiB livres; o messaging-service pode ser parado quando não é preciso (`docker compose stop messaging-service`). Na etapa 10 (2026-10-22), com sete contentores e sem carga: notifications-service ≈ 214 MiB, messaging-service ≈ 211 MiB, catalog-service ≈ 231 MiB, collections-service ≈ 203 MiB, experiences-service ≈ 203 MiB, users-service ≈ 192 MiB, PostgreSQL ≈ 80 MiB (≈ 1,33 GiB no total). O notifications-service também pode ficar parado: as mensagens continuam e os eventos esperam na outbox.
+Valores medidos na etapa 3: catalog-service ≈ 190 MiB e PostgreSQL ≈ 80 MiB, com 3,7 GiB atribuídos ao Docker Desktop. Na etapa 6 (2026-10-19), com quatro contentores: catalog-service ≈ 206 MiB, users-service ≈ 222 MiB, experiences-service ≈ 232 MiB, PostgreSQL ≈ 61 MiB (≈ 0,7 GiB no total). Na etapa 12 (2026-10-20), com seis contentores e sem carga: messaging-service ≈ 244 MiB, users-service ≈ 248 MiB, catalog-service ≈ 231 MiB, experiences-service ≈ 228 MiB, collections-service ≈ 223 MiB, PostgreSQL ≈ 80 MiB (≈ 1,25 GiB no total). Com o emulador e o Android Studio abertos, o computador ficou com cerca de 0,4 GiB livres; o messaging-service pode ser parado quando não é preciso (`docker compose stop messaging-service`). Na etapa 10 (2026-10-22), com sete contentores e sem carga: notifications-service ≈ 214 MiB, messaging-service ≈ 211 MiB, catalog-service ≈ 231 MiB, collections-service ≈ 203 MiB, experiences-service ≈ 203 MiB, users-service ≈ 192 MiB, PostgreSQL ≈ 80 MiB (≈ 1,33 GiB no total). O notifications-service também pode ficar parado: as mensagens continuam e os eventos esperam na outbox. Depois da segunda parte (outbox no users-service e no experiences-service): notifications-service ≈ 215 MiB, users-service ≈ 244 MiB, experiences-service ≈ 235 MiB, PostgreSQL ≈ 89 MiB (≈ 1,3 GiB no total).
 
 ## 8. Limitações conhecidas
 

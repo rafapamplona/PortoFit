@@ -1,7 +1,7 @@
 # notifications-service — Contrato da API
 
 > Caixa de notificações privada e notificações do sistema Android (requisito R10, etapa 10). Contexto geral em [arquitetura.md](arquitetura.md) (§3.2 responsabilidades, §3.4 isolamento, §3.8 autenticação, §3.11 notificações e *transactional outbox*, §4 falhas).
-> Estado: **contrato aprovado** (2026-10-22, decisões no [§19](#19-decisões-da-revisão-2026-10-22)). Implementação em duas partes: a **primeira parte do backend está feita** (serviço, caixa e mensagens); a segunda parte e a app estão por fazer ([§20](#20-estado-da-implementação)).
+> Estado: **contrato aprovado** (2026-10-22, decisões no [§19](#19-decisões-da-revisão-2026-10-22)). **Backend implementado** em duas partes (serviço, caixa e mensagens; seguidores, comentários e novas experiências); a app está por fazer ([§20](#20-estado-da-implementação)).
 > Mesmas convenções dos outros contratos ([catalog-api.md](catalog-api.md), [users-api.md](users-api.md), [experiences-api.md](experiences-api.md), [collections-api.md](collections-api.md), [messaging-api.md](messaging-api.md)): JSON UTF-8, campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`.
 
 ## Índice
@@ -396,18 +396,18 @@ O notifications-service arranca sem os outros serviços; só depende do PostgreS
   | Tabela | Chaves e índices |
   |---|---|
   | `inbox` | chave primária `recipient_id` |
-  | `notification` | chave primária `id`; único (`recipient_id`, `seq`); único (`event_id`, `recipient_id`); índice (`recipient_id`) só das não lidas |
+  | `notification` | chave primária `id`; único (`recipient_id`, `seq`); único (`event_id`, `recipient_id`); índice (`recipient_id`) só das não lidas; índice (`recipient_id`, `actor_id`, `occurred_at`) só de `USER_FOLLOWED` (janela de 24 h) |
   | `received_event` | chave primária `event_id` |
-  | `fan_out_job` | chave primária `event_id` |
+  | `fan_out_job` | chave primária `event_id`; índice dos `PENDING` devidos (migração `V2__fan_out.sql`) |
 
-  Os produtores ganham uma tabela `outbox` cada (users_db, experiences_db, messaging_db), numa migração nova.
+  Os produtores têm uma tabela `outbox` cada, numa migração nova: `V3__outbox.sql` (users_db), `V4__outbox.sql` (experiences_db) e `V2__outbox.sql` (messaging_db).
 - **Contentor `notifications-service`** em **`127.0.0.1:8086`**, na rede interna com o PostgreSQL e o users-service. Monta só a chave pública, só de leitura.
 - **Chaves novas no `.env`** (fora do Git e das imagens):
   - `NOTIFY_USERS_KEY`, `NOTIFY_EXPERIENCES_KEY` e `NOTIFY_MESSAGING_KEY`, cada uma só no seu produtor e no notifications-service;
   - `USERS_FOLLOWERS_KEY`, só no users-service e no notifications-service.
 
   O `.env.example` recebe os nomes com valores de exemplo.
-- **Memória:** medida na primeira parte, ≈ 214 MiB sem carga (≈ 1,33 GiB para os sete contentores; §20). Neste computador, o serviço pode ficar parado quando não é preciso: é exatamente o caso de falha previsto (§13).
+- **Memória:** ≈ 215 MiB sem carga, medida nas duas partes (≈ 1,3 GiB para os sete contentores; §20). Neste computador, o serviço pode ficar parado quando não é preciso: é exatamente o caso de falha previsto (§13).
 
 ## 15. App Android (proposta)
 
@@ -725,10 +725,60 @@ O peso desta etapa está mais na infraestrutura de eventos do que nos ecrãs.
 - **Total:** ≈ 1,33 GiB.
 - **`notifications_db`:** ≈ 8 MB.
 
-**Ainda não implementado (segunda parte e app):**
+### Segunda parte do backend (2026-10-22)
 
-- outbox no users-service e no experiences-service: `USER_FOLLOWED`, com a janela de 24 h, `COMMENT_CREATED` e `EXPERIENCE_PUBLISHED`;
-- resolução de seguidores: `FanOutJob` e a tabela `fan_out_job` (a migração atual ainda não a tem), consulta paginada e `USERS_FOLLOWERS_KEY`;
-- app Android: caixa, contagem, WorkManager, canais e permissão.
+Os outros dois produtores e a resolução dos seguidores. A outbox é a do messaging-service, igual nos três produtores (§7).
 
-O reenvio manual de eventos `FAILED` está documentado na infraestrutura, mas não foi exercitado nesta verificação. *Push* com Firebase Cloud Messaging continua a ser um requisito **a confirmar com a docente** ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).
+**Implementado:**
+
+- **users-service:**
+  - uma relação nova grava `USER_FOLLOWED` na mesma transação (`V3__outbox.sql`), com `occurredAt` = data da relação;
+  - confirmar uma relação existente, seguir-se a si próprio ou passar o limite de seguidos não grava nada;
+  - endpoint interno de seguidores (§8.1) com `USERS_FOLLOWERS_KEY`, verificada antes de tudo o resto; só ids, cursor opaco (`since`, `followerId`), `limit` 1–500, recorte `since ≤ followedBefore`, `no-store`.
+- **experiences-service** (`V4__outbox.sql`):
+  - uma publicação nova grava `EXPERIENCE_PUBLISHED`;
+  - um comentário novo na experiência de outra pessoa grava `COMMENT_CREATED` para o autor;
+  - nunca com o texto, as estrelas nem a fotografia;
+  - repetições idempotentes, recusas e comentários na própria experiência não gravam nada.
+- **notifications-service:**
+  - os quatro tipos, cada um só com a chave do seu produtor e só com os seus campos;
+  - `USER_FOLLOWED` do mesmo par dentro de 24 h → `DUPLICATE`, sem nova notificação;
+  - `EXPERIENCE_PUBLISHED` grava um `fan_out_job` (`V2__fan_out.sql`) na transação da deduplicação;
+  - **resolução** de 5 em 5 s, página a página (500), cada página numa transação com o trabalho bloqueado (`SKIP LOCKED`): pedido ao users-service, notificações da página (exceto o autor; `ON CONFLICT (event_id, recipient_id) DO NOTHING`, sem gastar `seq`) e o cursor seguinte;
+  - falha temporária → `PENDING` no mesmo cursor, recuo de 10 s a 10 min, `FAILED` ao fim de 48 h; `404` → `DONE` com `AUTHOR_NOT_FOUND`; `403` ou chave por configurar → recuo próprio sem gastar tentativas; resposta ilegível → falha temporária, nunca "sem seguidores";
+  - acima de 10 000 destinatários → `TRUNCATED`, com aviso no registo;
+  - trabalhos terminados apagados com a retenção da deduplicação (35 dias).
+
+**Testes automáticos** (PostgreSQL real; um serviço de cada vez, depois da última alteração; o messaging-service não mudou e não foi repetido):
+
+- **users-service: 29 testes (3 novos).**
+  - Um evento só por relação nova, com `occurredAt` igual à data da relação e só os campos do §3.1; nenhum em repetições, em `CANNOT_FOLLOW_SELF` nem no limite; 8 pedidos simultâneos → 1 evento.
+  - notifications-service em baixo: seguir `204`, evento `PENDING` e entregue uma vez depois.
+  - **Reenvio manual:** um evento recusado fica `FAILED` e não é repetido sozinho; o `UPDATE` documentado repõe-no e o envio seguinte entrega-o uma vez.
+  - Seguidores internos: sem chave, chave errada, chave do feed-context ou só token → `403`; pessoa inexistente → `404`; parâmetros inválidos → `400`; páginas de 3 sem repetir nem saltar ninguém quando há quem deixe de seguir ou comece a seguir entre páginas; recorte por `followedBefore` (inclusive); sem seguidores → `200` com `items` vazio.
+- **experiences-service: 50 testes (2 novos).** Publicação e comentário gravam um evento cada, sem texto; nenhum em repetições, recusas, na própria experiência ou numa inexistente; 6 comentários simultâneos com a mesma chave → 1 evento; com o notifications-service em baixo os eventos esperam e chegam uma vez.
+- **notifications-service: 17 testes (8 novos).**
+  - As três chaves cruzadas com os quatro tipos: todas as combinações de outro produtor → `WRONG_PRODUCER`.
+  - Comentário e seguidor: só o destinatário vê; campos a mais e a própria ação recusados.
+  - Seguir de novo dentro de 24 h → `DUPLICATE`; fora da janela → nova; 6 eventos simultâneos do mesmo par → 1 notificação.
+  - Resolução por páginas de 3: só quem segue, exceto o autor (mesmo que venha na lista), com `followedBefore` = `occurredAt` e a chave própria.
+  - **Interrupção:** uma falha na 2.ª página deixa o trabalho `PENDING` no cursor guardado, com as 3 primeiras notificações e recuo de 10 s; depois termina com 7. Repetir tudo desde o início (paragem antes de guardar o cursor) não cria nem gasta `seq`.
+  - Três resoluções simultâneas de duas publicações: cada seguidor notificado uma vez por publicação.
+  - Falhas: `503` e resposta ilegível → `PENDING` (recuo 10 s, 20 s), nunca `DONE`; 48 h → `FAILED`; `404` → `DONE`/`AUTHOR_NOT_FOUND`; lista vazia → `DONE` com 0; `403` → adiado sem tentativas e recuperado; 12 seguidores com limite 10 → `TRUNCATED`.
+
+**Pedidos HTTP** (2026-10-22, no Docker Compose, com três contas temporárias apagadas no fim):
+
+- **Novo seguidor:** seguir duas vezes → `204`, um evento, uma notificação para a seguida. Deixar de seguir e voltar → segundo evento entregue, mas sem segunda notificação. A primeira entrega excedeu os 5 s (notifications-service acabado de arrancar a frio); a repetição foi deduplicada.
+- **Nova experiência:** publicação `201`; resolução `DONE` com 1 destinatário em 1,7 s. Quem segue recebeu `EXPERIENCE_PUBLISHED`; quem não segue e a autora não.
+- **Comentário:** o de outra pessoa notificou a autora, sem texto; o da autora na própria experiência não gerou nada.
+- **notifications-service parado:** seguir `204` (28 ms), comentar `201` (33 ms) e publicar `201` (28 ms); os eventos ficaram `PENDING` nas duas outboxes e foram entregues uma vez 19 s depois de o serviço voltar.
+- **Reenvio manual** de um evento `FAILED` de teste (marcado `FAILED` antes de o serviço voltar): não se repetiu sozinho; o comando documentado em PowerShell respondeu `UPDATE 1` e o evento foi entregue uma vez.
+- **Credenciais:**
+  - `COMMENT_CREATED` com a chave do users-service ou do messaging-service → `REJECTED/WRONG_PRODUCER`;
+  - seguidores sem chave, com uma chave de produtor, com a do feed-context ou com um token → `403`;
+  - com a chave própria → `200`, só `items` (os 2 ids certos) e `nextCursor`.
+- **Registos dos três serviços:** sem usernames, chaves nem textos.
+
+**Consumo medido** (sete contentores, sem carga): notifications-service ≈ 215 MiB, users-service ≈ 244 MiB, experiences-service ≈ 235 MiB; total ≈ 1,3 GiB.
+
+**Ainda não implementado:** a app Android (caixa, contagem, WorkManager, canais e permissão; §15). Gostos não geram notificações nesta versão. *Push* com Firebase Cloud Messaging continua a ser um requisito **a confirmar com a docente** ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).

@@ -263,7 +263,7 @@ GET /api/v1/users?q=ana&size=2
 - `404` se o utilizador não existir.
 - **Limite de produto (E4): cada pessoa segue no máximo 500 outras.** Seguir uma pessoa nova com 500 já seguidas → `409` com `"code": "FOLLOW_LIMIT_REACHED"` e nada é gravado. Seguir alguém já seguido continua `204`, mesmo no limite, e deixar de seguir nunca é limitado. A contagem e a inserção acontecem na mesma transação, com a linha do seguidor bloqueada, por isso pedidos simultâneos não ultrapassam o limite. O limite existe para o contexto do feed (§3.11) ser sempre a lista completa, sem truncagem.
 - O `followerId` vem sempre do token, nunca do pedido.
-- Começar a seguir (relação nova) gera, a partir da etapa 10, um evento `USER_FOLLOWED` para o notifications-service através da outbox ([notifications-api.md §3](notifications-api.md#3-eventos-e-destinatários)); previsto também um endpoint interno com os ids dos seguidores, por cursor, para as notificações de novas experiências ([notifications-api.md §8.1](notifications-api.md#81-fonte-os-seguidores-do-autor-no-users-service)). Ver também [arquitetura.md §3.11](arquitetura.md#311-notificações). Até lá, nada é enviado.
+- Começar a seguir (relação nova) grava, na mesma transação, um evento `USER_FOLLOWED` na outbox, entregue depois ao notifications-service ([notifications-api.md §3, §7](notifications-api.md#3-eventos-e-destinatários)). Confirmar uma relação existente não grava nada. Os ids dos seguidores, para as notificações de novas experiências, vêm de um endpoint interno só para o notifications-service ([notifications-api.md §8.1](notifications-api.md#81-fonte-os-seguidores-do-autor-no-users-service)). Ver também [arquitetura.md §3.11](arquitetura.md#311-notificações).
 
 ### 3.10 Seguidores e seguidos
 
@@ -519,7 +519,7 @@ O users-service não chama nenhum outro serviço para autenticar, ler perfis ou 
 
 ## 10. Dados (users_db)
 
-Base de dados `users_db` com utilizador próprio sem privilégios de administração, como o catálogo. Tabelas previstas: `app_user`, `user_interest`, `follow`, `refresh_token`, e mais tarde `outbox` (etapa 10). Esquema gerido por Flyway; sem dados de demonstração nas migrações.
+Base de dados `users_db` com utilizador próprio sem privilégios de administração, como o catálogo. Tabelas: `app_user`, `user_interest`, `follow`, `refresh_token` e `outbox` (etapa 10, `V3__outbox.sql`). Esquema gerido por Flyway; sem dados de demonstração nas migrações.
 
 ## 11. Decisões da revisão (2026-10-18)
 
@@ -548,7 +548,7 @@ Na app: botão Seguir / Deixar de seguir, contagens e listas, ver [app-android.m
 
 **E4 (etapa 9):** `GET /api/v1/internal/me/feed-context` (§3.11: token do utilizador e chave interna `USERS_INTERNAL_KEY`, só ids, `no-store`) e o limite de 500 seguidos aplicado ao seguir (§3.9, `409 FOLLOW_LIMIT_REACHED`, com a linha do seguidor bloqueada na transação). Testes e verificação em [experiences-api.md §20](experiences-api.md#20-estado-da-implementação).
 
-**Ainda não implementado:** os eventos de "novo seguidor" (notificações, etapa 10).
+**Notificações (etapa 10):** evento `USER_FOLLOWED` na outbox (`V3__outbox.sql`) e `GET /api/v1/internal/users/{userId}/followers` com `USERS_FOLLOWERS_KEY` (só ids, cursor estável, recorte por `followedBefore`). Regras, testes (29 no total) e verificação em [notifications-api.md §20](notifications-api.md#20-estado-da-implementação).
 
 **Notas da implementação**
 
