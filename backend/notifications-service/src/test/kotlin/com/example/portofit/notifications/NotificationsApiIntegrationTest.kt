@@ -3,131 +3,27 @@ package com.example.portofit.notifications
 import com.example.portofit.notifications.config.NotificationsProperties
 import com.example.portofit.notifications.internal.EventIngestService
 import com.example.portofit.notifications.notification.NotificationService
-import com.nimbusds.jose.jwk.JWKSet
-import com.nimbusds.jose.jwk.RSAKey
-import com.nimbusds.jose.jwk.source.ImmutableJWKSet
-import com.nimbusds.jose.proc.SecurityContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
-import org.springframework.boot.test.web.server.LocalServerPort
-import org.springframework.context.annotation.Import
-import org.springframework.jdbc.core.simple.JdbcClient
-import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm
-import org.springframework.security.oauth2.jwt.JwsHeader
-import org.springframework.security.oauth2.jwt.JwtClaimsSet
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
-import org.springframework.test.context.DynamicPropertyRegistry
-import org.springframework.test.context.DynamicPropertySource
-import tools.jackson.databind.JsonNode
-import tools.jackson.databind.json.JsonMapper
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.security.KeyPair
-import java.security.interfaces.RSAPrivateKey
-import java.security.interfaces.RSAPublicKey
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.Callable
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * notifications-service, primeira parte (docs/notifications-api.md): PostgreSQL real (Testcontainers), tokens assinados
- * por uma chave só dos testes, pedidos HTTP reais. Cada teste usa pessoas novas.
+ * notifications-service: caixa, entrega interna, deduplicação e retenção (docs/notifications-api.md §5, §6, §12).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration::class)
 @ExtendWith(OutputCaptureExtension::class)
-class NotificationsApiIntegrationTest {
+class NotificationsApiIntegrationTest : ApiIntegrationTest() {
 
-	@Autowired lateinit var mapper: JsonMapper
-	@Autowired lateinit var jdbc: JdbcClient
 	@Autowired lateinit var notifications: NotificationService
 	@Autowired lateinit var ingest: EventIngestService
-
-	@LocalServerPort var port: Int = 0
-
-	private val client: HttpClient = HttpClient.newHttpClient()
-
-	data class Resp(val status: Int, val body: String, val json: JsonNode?)
-
-	data class Person(val id: UUID, val username: String, val token: String)
-
-	private fun person(): Person {
-		val id = UUID.randomUUID()
-		val username = "u" + id.toString().replace("-", "").take(10)
-		return Person(id, username, sign(id))
-	}
-
-	private fun sign(userId: UUID, audience: String = "portofit-api", keyPair: KeyPair = keys.keyPair, expiresAt: Instant = Instant.now().plusSeconds(900)): String {
-		val rsa = RSAKey.Builder(keyPair.public as RSAPublicKey).privateKey(keyPair.private as RSAPrivateKey).keyIDFromThumbprint().build()
-		val encoder = NimbusJwtEncoder(ImmutableJWKSet<SecurityContext>(JWKSet(rsa)))
-		val claims = JwtClaimsSet.builder().issuer("portofit-users").audience(listOf(audience)).subject(userId.toString())
-			.issuedAt(expiresAt.minusSeconds(900)).expiresAt(expiresAt).id(UUID.randomUUID().toString()).claim("username", "u").build()
-		val header = JwsHeader.with(SignatureAlgorithm.RS256).keyId(rsa.keyID).type("JWT").build()
-		return encoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue
-	}
-
-	private fun call(method: String, path: String, token: String? = null, body: String? = null, key: String? = null): Resp {
-		val builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path"))
-			.method(method, if (body == null) HttpRequest.BodyPublishers.noBody() else HttpRequest.BodyPublishers.ofString(body))
-		if (token != null) builder.header("Authorization", "Bearer $token")
-		if (body != null) builder.header("Content-Type", "application/json")
-		if (key != null) builder.header("X-Internal-Key", key)
-		val response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString())
-		return Resp(response.statusCode(), response.body(), runCatching { mapper.readTree(response.body()) }.getOrNull())
-	}
-
-	private fun messageEvent(
-		recipient: Person,
-		actor: Person,
-		seq: Long = 1,
-		eventId: UUID = UUID.randomUUID(),
-		occurredAt: Instant = Instant.now(),
-		kind: String = "TEXT",
-		extra: Map<String, Any> = emptyMap(),
-	): Map<String, Any> = linkedMapOf(
-		"eventId" to eventId.toString(), "type" to "MESSAGE_RECEIVED", "occurredAt" to occurredAt.toString(),
-		"actor" to mapOf("userId" to actor.id.toString(), "username" to actor.username),
-		"recipientId" to recipient.id.toString(), "conversationId" to CONVERSATION.toString(), "messageSeq" to seq, "messageKind" to kind,
-	) + extra
-
-	private fun deliver(events: List<Map<String, Any>>, key: String = MESSAGING_KEY): Resp =
-		call("POST", "/api/v1/internal/events", body = mapper.writeValueAsString(mapOf("events" to events)), key = key)
-
-	private fun statuses(resp: Resp) = (0 until resp.json!!["results"].size()).map { resp.json["results"][it] }
-		.map { it["status"].asString() + (it["reason"]?.let { r -> "/" + r.asString() } ?: "") }
-
-	private fun list(who: Person, query: String = ""): JsonNode = call("GET", "/api/v1/notifications$query", who.token).also { assertEquals(200, it.status, it.body) }.json!!
-
-	private fun seqs(page: JsonNode) = (0 until page["items"].size()).map { page["items"][it]["seq"].asLong() }
-
-	private fun count(sql: String, vararg params: Pair<String, Any>): Long =
-		params.fold(jdbc.sql(sql)) { spec, (k, v) -> spec.param(k, v) }.query(Long::class.javaObjectType).single()
-
-	private fun <T> concurrently(n: Int, task: (Int) -> T): List<T> {
-		val pool = Executors.newFixedThreadPool(n)
-		try {
-			val start = CountDownLatch(1)
-			val futures = (0 until n).map { i -> pool.submit(Callable { start.await(); task(i) }) }
-			start.countDown()
-			return futures.map { it.get() }
-		} finally {
-			pool.shutdown()
-		}
-	}
 
 	// --- Autenticação e privacidade ---
 
@@ -167,15 +63,20 @@ class NotificationsApiIntegrationTest {
 		}
 		// Um token de utilizador não substitui a chave.
 		assertEquals(403, call("POST", "/api/v1/internal/events", me.token, mapper.writeValueAsString(mapOf("events" to listOf(event)))).status)
-		// Outro produtor não pode entregar mensagens; e os tipos da segunda parte ainda não são tratados.
-		assertEquals(listOf("REJECTED/WRONG_PRODUCER"), statuses(deliver(listOf(event), USERS_KEY)))
-		val comment = linkedMapOf<String, Any>(
-			"eventId" to UUID.randomUUID().toString(), "type" to "COMMENT_CREATED", "occurredAt" to Instant.now().toString(),
-			"actor" to mapOf("userId" to UUID.randomUUID().toString(), "username" to "rui.costa"), "recipientId" to me.id.toString(),
-			"experienceId" to UUID.randomUUID().toString(), "commentId" to UUID.randomUUID().toString(),
+		// Cada chave só entrega os tipos do seu produtor (§6.1): todas as combinações cruzadas são recusadas.
+		val other = person()
+		val own = mapOf(
+			MESSAGING_KEY to listOf(event),
+			USERS_KEY to listOf(followEvent(me, other)),
+			EXPERIENCES_KEY to listOf(commentEvent(me, other), publishedEvent(other)),
 		)
-		assertEquals(listOf("REJECTED/UNSUPPORTED_TYPE"), statuses(deliver(listOf(comment), EXPERIENCES_KEY)))
+		for ((key, events) in own) {
+			for (wrong in own.keys - key) {
+				assertEquals(List(events.size) { "REJECTED/WRONG_PRODUCER" }, statuses(deliver(events, wrong)), "chave errada para ${events.map { it["type"] }}")
+			}
+		}
 		assertEquals(0, list(me)["items"].size())
+		assertEquals(0L, count("SELECT count(*) FROM fan_out_job WHERE actor_id = :a", "a" to other.id))
 	}
 
 	// --- Lotes, validação e deduplicação ---
@@ -344,24 +245,5 @@ class NotificationsApiIntegrationTest {
 		val logs = output.all
 		assertFalse(logs.contains(ana.username) || logs.contains(me.username))
 		assertFalse(logs.contains("segredo-xyz") || logs.contains(MESSAGING_KEY) || logs.contains("chave-errada-xyz") || logs.contains(me.token))
-	}
-
-	companion object {
-		const val MESSAGING_KEY = "chave-mensagens-dos-testes"
-		const val USERS_KEY = "chave-users-dos-testes"
-		const val EXPERIENCES_KEY = "chave-experiencias-dos-testes"
-		const val MAX_PER_RECIPIENT = 30
-		val CONVERSATION: UUID = UUID.randomUUID()
-		val keys: TestKeys = TestKeys.create()
-
-		@JvmStatic
-		@DynamicPropertySource
-		fun properties(registry: DynamicPropertyRegistry) {
-			registry.add("portofit.security.public-key-location") { keys.publicKeyUri }
-			registry.add("portofit.producers.messaging-key") { MESSAGING_KEY }
-			registry.add("portofit.producers.users-key") { USERS_KEY }
-			registry.add("portofit.producers.experiences-key") { EXPERIENCES_KEY }
-			registry.add("portofit.notifications.max-per-recipient") { MAX_PER_RECIPIENT }
-		}
 	}
 }

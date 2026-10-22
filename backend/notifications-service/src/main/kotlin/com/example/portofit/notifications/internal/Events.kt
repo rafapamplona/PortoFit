@@ -44,15 +44,20 @@ data class EventResult(val eventId: String?, val status: EventStatus, val reason
 
 data class EventsResponse(val results: List<EventResult>)
 
-/** Um evento válido, já normalizado; [hash] identifica o conteúdo (o mesmo `eventId` com outro conteúdo → CONFLICT). */
-data class ParsedEvent(val eventId: UUID, val type: String, val notification: NewNotification, val hash: String)
+/**
+ * Um evento válido, já normalizado; [hash] identifica o conteúdo (o mesmo `eventId` com outro conteúdo → CONFLICT).
+ * Tem uma [notification] para um destinatário indicado pelo produtor, ou um [fanOut] (`EXPERIENCE_PUBLISHED`, §8).
+ */
+data class ParsedEvent(val eventId: UUID, val type: String, val notification: NewNotification?, val fanOut: FanOutRequest?, val hash: String)
+
+/** Nova experiência: os destinatários (quem segue o autor) são resolvidos depois, por páginas (§8.2). */
+data class FanOutRequest(val actor: Actor, val experienceId: UUID, val occurredAt: Instant)
 
 class RejectedEvent(val reason: String) : Exception(reason)
 
 /**
- * Validação estrita dos eventos (§3.1, §6.4). Campos desconhecidos são recusados: um produtor nunca consegue fazer
- * passar conteúdo privado (ex.: o texto de uma mensagem). Primeira parte: só `MESSAGE_RECEIVED` é tratado; os outros
- * tipos do contrato são recusados com `UNSUPPORTED_TYPE` até à segunda parte.
+ * Validação estrita dos eventos (§3.1, §6.4). Cada tipo tem os seus campos e só esses: um produtor nunca consegue fazer
+ * passar conteúdo privado (ex.: o texto de uma mensagem ou de um comentário).
  */
 class EventParser(private val properties: NotificationsProperties, private val clock: Clock) {
 
@@ -62,8 +67,7 @@ class EventParser(private val properties: NotificationsProperties, private val c
 		val type = text(node, "type")
 		if (type !in Producer.entries.flatMap { it.types }) throw RejectedEvent(INVALID)
 		if (type !in producer.types) throw RejectedEvent("WRONG_PRODUCER")
-		if (type != "MESSAGE_RECEIVED") throw RejectedEvent("UNSUPPORTED_TYPE")
-		allowOnly(node, setOf("eventId", "type", "occurredAt", "actor", "recipientId", "conversationId", "messageSeq", "messageKind"))
+		allowOnly(node, COMMON + FIELDS.getValue(type))
 		val occurredAt = instant(node, "occurredAt")
 		val now = clock.instant()
 		if (occurredAt.isAfter(now.plus(properties.maxFutureSkew))) throw RejectedEvent(INVALID)
@@ -72,25 +76,37 @@ class EventParser(private val properties: NotificationsProperties, private val c
 		if (!actorNode.isObject) throw RejectedEvent(INVALID)
 		allowOnly(actorNode, setOf("userId", "username"))
 		val actor = Actor(uuid(actorNode, "userId"), text(actorNode, "username").also { if (!USERNAME.matches(it)) throw RejectedEvent(INVALID) })
+		val common = listOf(eventId, type, occurredAt, actor.userId, actor.username)
+
+		if (type == EXPERIENCE_PUBLISHED) {
+			val experienceId = uuid(node, "experienceId")
+			return ParsedEvent(eventId, type, null, FanOutRequest(actor, experienceId, occurredAt), hash(common + experienceId))
+		}
 		val recipientId = uuid(node, "recipientId")
 		if (recipientId == actor.userId) throw RejectedEvent("SELF_EVENT")
-		val conversationId = uuid(node, "conversationId")
-		val seqNode = node.get("messageSeq")
-		val messageSeq = if (seqNode != null && seqNode.isIntegralNumber && seqNode.canConvertToLong()) seqNode.longValue() else throw RejectedEvent(INVALID)
-		if (messageSeq <= 0) throw RejectedEvent(INVALID)
-		val kind = text(node, "messageKind")
-		if (kind != "TEXT" && kind != "SHARE") throw RejectedEvent(INVALID)
-		val canonical = listOf(eventId, type, occurredAt, actor.userId, actor.username, recipientId, conversationId, messageSeq, kind).joinToString("|")
-		val hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8)))
-		return ParsedEvent(
-			eventId, type,
-			NewNotification(
-				recipientId = recipientId, type = type, actor = actor, conversationId = conversationId, messageSeq = messageSeq,
-				messageKind = kind, eventId = eventId, occurredAt = occurredAt,
-			),
-			hash,
-		)
+		val base = NewNotification(recipientId = recipientId, type = type, actor = actor, eventId = eventId, occurredAt = occurredAt)
+		val (notification, values) = when (type) {
+			"MESSAGE_RECEIVED" -> {
+				val conversationId = uuid(node, "conversationId")
+				val seqNode = node.get("messageSeq")
+				val messageSeq = if (seqNode != null && seqNode.isIntegralNumber && seqNode.canConvertToLong()) seqNode.longValue() else throw RejectedEvent(INVALID)
+				if (messageSeq <= 0) throw RejectedEvent(INVALID)
+				val kind = text(node, "messageKind")
+				if (kind != "TEXT" && kind != "SHARE") throw RejectedEvent(INVALID)
+				base.copy(conversationId = conversationId, messageSeq = messageSeq, messageKind = kind) to listOf(recipientId, conversationId, messageSeq, kind)
+			}
+			"COMMENT_CREATED" -> {
+				val experienceId = uuid(node, "experienceId")
+				val commentId = uuid(node, "commentId")
+				base.copy(experienceId = experienceId, commentId = commentId) to listOf(recipientId, experienceId, commentId)
+			}
+			else -> base to listOf(recipientId) // USER_FOLLOWED
+		}
+		return ParsedEvent(eventId, type, notification, null, hash(common + values))
 	}
+
+	private fun hash(values: List<Any>): String =
+		HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(values.joinToString("|").toByteArray(Charsets.UTF_8)))
 
 	private fun allowOnly(node: JsonNode, allowed: Set<String>) {
 		if (node.propertyNames().any { it !in allowed }) throw RejectedEvent(INVALID)
@@ -109,6 +125,15 @@ class EventParser(private val properties: NotificationsProperties, private val c
 
 	companion object {
 		const val INVALID = "INVALID_EVENT"
+		const val EXPERIENCE_PUBLISHED = "EXPERIENCE_PUBLISHED"
+		private val COMMON = setOf("eventId", "type", "occurredAt", "actor")
+		/** Os únicos campos de cada tipo, além dos comuns (§3.1). */
+		private val FIELDS = mapOf(
+			"MESSAGE_RECEIVED" to setOf("recipientId", "conversationId", "messageSeq", "messageKind"),
+			"COMMENT_CREATED" to setOf("recipientId", "experienceId", "commentId"),
+			"USER_FOLLOWED" to setOf("recipientId"),
+			EXPERIENCE_PUBLISHED to setOf("experienceId"),
+		)
 		/** Regras do username no users-service (docs/users-api.md §2.1). */
 		val USERNAME = Regex("^[a-z0-9](?:[a-z0-9._]{1,28})[a-z0-9]$")
 	}
@@ -133,13 +158,14 @@ class ReceivedEventRepository(private val jdbc: JdbcClient) {
 }
 
 /**
- * Entrega interna (§6): cada evento na sua transação — deduplicação e notificação juntas, com o `seq` atribuído com a
- * caixa do destinatário bloqueada. Um evento recusado não estraga os outros do lote.
+ * Entrega interna (§6): cada evento na sua transação — deduplicação e notificação (ou trabalho de resolução, §8.2)
+ * juntas, com o `seq` atribuído com a caixa do destinatário bloqueada. Um evento recusado não estraga os outros do lote.
  */
 @Service
 class EventIngestService(
 	private val events: ReceivedEventRepository,
 	private val notifications: NotificationRepository,
+	private val fanOuts: FanOutRepository,
 	private val properties: NotificationsProperties,
 	private val tx: TransactionTemplate,
 	clock: Clock,
@@ -164,8 +190,17 @@ class EventIngestService(
 			return@execute if (known == event.hash) EventResult(event.eventId.toString(), EventStatus.DUPLICATE)
 			else EventResult(event.eventId.toString(), EventStatus.REJECTED, "CONFLICT")
 		}
-		val n = event.notification
+		event.fanOut?.let {
+			fanOuts.create(event.eventId, it)
+			return@execute EventResult(event.eventId.toString(), EventStatus.ACCEPTED)
+		}
+		val n = event.notification!!
 		val seq = notifications.lockInbox(n.recipientId) + 1
+		// Seguir de novo dentro da janela: aceite como repetido, sem nova notificação (§6.3). A caixa está bloqueada,
+		// por isso dois eventos simultâneos do mesmo par veem-se um ao outro.
+		if (n.type == "USER_FOLLOWED" && notifications.recentFollow(n.recipientId, n.actor.userId, n.occurredAt, properties.followDedupWindow)) {
+			return@execute EventResult(event.eventId.toString(), EventStatus.DUPLICATE)
+		}
 		notifications.insert(n, seq)
 		notifications.trim(n.recipientId, properties.maxPerRecipient)
 		EventResult(event.eventId.toString(), EventStatus.ACCEPTED)

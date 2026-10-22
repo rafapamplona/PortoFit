@@ -47,7 +47,6 @@ portofit:
     public-key-location: ${JWT_PUBLIC_KEY_PATH:/run/secrets/users-jwt/public.pem}
   producers:
     # Uma chave por produtor (docs/notifications-api.md §6.1), só do .env; vazia = esse produtor não entrega.
-    # Primeira parte: só o messaging-service entrega eventos.
     users-key: ${NOTIFY_USERS_KEY:}
     experiences-key: ${NOTIFY_EXPERIENCES_KEY:}
     messaging-key: ${NOTIFY_MESSAGING_KEY:}
@@ -61,3 +60,17 @@ portofit:
     max-future-skew: 5m
     # Lote de até 100 eventos.
     max-body-bytes: 262144
+    # Seguir, deixar de seguir e voltar a seguir dentro da janela: uma só notificação (§6.3).
+    follow-dedup-window: 24h
+    # Resolução dos seguidores das novas experiências (§8): páginas de 500, limite de proteção, desistência.
+    fan-out-enabled: true
+    max-fan-out: 10000
+    fan-out-page: 500
+    fan-out-max-age: 48h
+  users:
+    # GET /api/v1/internal/users/{id}/followers, pela rede interna do Compose (§8.1).
+    base-url: ${USERS_BASE_URL:http://localhost:8082}
+    connect-timeout: 500ms
+    timeout: 2s
+    # Só do .env (USERS_FOLLOWERS_KEY, exclusiva desta consulta), nunca no Git nem na imagem.
+    followers-key: ${USERS_FOLLOWERS_KEY:}

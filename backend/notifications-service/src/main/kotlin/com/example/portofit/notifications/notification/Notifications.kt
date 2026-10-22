@@ -83,20 +83,35 @@ class NotificationRepository(private val jdbc: JdbcClient) {
 			.query(Long::class.javaObjectType).single()
 	}
 
-	/** Na transação em curso, com a caixa bloqueada por [lockInbox]. */
-	fun insert(n: NewNotification, seq: Long) {
-		jdbc.sql(
+	/**
+	 * Na transação em curso, com a caixa bloqueada por [lockInbox]. Devolve false (sem gastar o `seq`) se o evento já
+	 * tiver notificado esta pessoa: uma página de seguidores repetida depois de uma interrupção não duplica (§8.2).
+	 */
+	fun insert(n: NewNotification, seq: Long): Boolean {
+		val inserted = jdbc.sql(
 			"""
 			INSERT INTO notification (recipient_id, seq, type, actor_id, actor_username, experience_id, comment_id, conversation_id,
 				message_seq, message_kind, event_id, occurred_at)
 			VALUES (:r, :seq, :type, :actor, :username, :e, :c, :conv, :mseq, :kind, :event, :occurred)
+			ON CONFLICT (event_id, recipient_id) DO NOTHING
 			""",
 		).param("r", n.recipientId).param("seq", seq).param("type", n.type).param("actor", n.actor.userId).param("username", n.actor.username)
 			.param("e", n.experienceId).param("c", n.commentId).param("conv", n.conversationId).param("mseq", n.messageSeq)
 			.param("kind", n.messageKind).param("event", n.eventId).param("occurred", Timestamp.from(n.occurredAt))
-			.update()
-		jdbc.sql("UPDATE inbox SET last_seq = :seq WHERE recipient_id = :r").param("seq", seq).param("r", n.recipientId).update()
+			.update() > 0
+		if (inserted) jdbc.sql("UPDATE inbox SET last_seq = :seq WHERE recipient_id = :r").param("seq", seq).param("r", n.recipientId).update()
+		return inserted
 	}
+
+	/** Já há uma notificação de [actorId] a seguir [recipientId] dentro da janela antes de [occurredAt] (§6.3). */
+	fun recentFollow(recipientId: UUID, actorId: UUID, occurredAt: Instant, window: Duration): Boolean =
+		jdbc.sql(
+			"""
+			SELECT EXISTS (SELECT 1 FROM notification WHERE recipient_id = :r AND actor_id = :a AND type = 'USER_FOLLOWED'
+				AND occurred_at > :since)
+			""",
+		).param("r", recipientId).param("a", actorId).param("since", Timestamp.from(occurredAt.minus(window)))
+			.query(Boolean::class.javaObjectType).single()
 
 	/** Limite por pessoa: as mais antigas saem primeiro (lidas ou não). */
 	fun trim(recipientId: UUID, max: Int): Int =
