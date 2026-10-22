@@ -50,6 +50,7 @@ abstract class ApiIntegrationTest {
 	fun restoreStubs() {
 		experiences.mode = ExperiencesStub.Mode.UP
 		users.mode = UsersStub.Mode.UP
+		notifications.reset()
 	}
 
 	data class Person(val id: UUID, val username: String, val token: String)
@@ -167,6 +168,7 @@ abstract class ApiIntegrationTest {
 		val keys: TestKeys = TestKeys.create()
 		val experiences: ExperiencesStub = ExperiencesStub.start()
 		val users: UsersStub = UsersStub.start()
+		val notifications: NotificationsStub = NotificationsStub.start()
 
 		@JvmStatic
 		@DynamicPropertySource
@@ -179,6 +181,11 @@ abstract class ApiIntegrationTest {
 			registry.add("portofit.messaging.max-messages-per-window") { MAX_MESSAGES_PER_WINDOW }
 			registry.add("portofit.messaging.max-new-conversations-per-window") { MAX_NEW_CONVERSATIONS }
 			registry.add("portofit.messaging.max-messages-per-conversation") { MAX_PER_CONVERSATION }
+			// A outbox é enviada pelos próprios testes (runOnce), nunca pelo agendamento.
+			registry.add("portofit.outbox.enabled") { false }
+			registry.add("portofit.notifications.base-url") { notifications.url }
+			registry.add("portofit.notifications.internal-key") { NotificationsStub.KEY }
+			registry.add("portofit.notifications.timeout") { "1s" }
 		}
 	}
 }

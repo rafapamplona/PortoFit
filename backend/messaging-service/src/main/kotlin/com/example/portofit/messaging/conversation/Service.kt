@@ -5,6 +5,7 @@ import com.example.portofit.messaging.config.MessagingProperties
 import com.example.portofit.messaging.experiences.ExperienceStatus
 import com.example.portofit.messaging.experiences.ExperiencesClient
 import com.example.portofit.messaging.experiences.LookupResult
+import com.example.portofit.messaging.outbox.OutboxRepository
 import com.example.portofit.messaging.users.UserLookup
 import com.example.portofit.messaging.users.UsersClient
 import org.springframework.dao.DuplicateKeyException
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.TransactionTemplate
+import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 
 data class OpenResult(val conversation: ConversationView, val created: Boolean)
@@ -28,6 +30,8 @@ class ConversationService(
 	private val properties: MessagingProperties,
 	private val tx: TransactionTemplate,
 	transactionManager: PlatformTransactionManager,
+	private val outbox: OutboxRepository,
+	private val mapper: JsonMapper,
 ) {
 	/** Leituras com várias consultas (mensagens, lastSeq, haver mais) sobre o mesmo instantâneo. */
 	private val snapshot = TransactionTemplate(transactionManager).apply {
@@ -73,7 +77,7 @@ class ConversationService(
 	 * Enviar (§6.2): idempotente por (remetente, chave). A experiência é confirmada fora da transação; uma recusa ou
 	 * uma falha não grava nada nem consome a chave. Uma mensagem só de texto nunca chama o experiences-service.
 	 */
-	fun send(conversationId: UUID, me: UUID, key: UUID, content: MessageContent): SendResult {
+	fun send(conversationId: UUID, me: UUID, myUsername: String, key: UUID, content: MessageContent): SendResult {
 		if (!conversations.isMember(conversationId, me)) throw ApiErrors.notFound()
 		val hash = MessagingRules.requestHash(conversationId, content)
 		conversations.findKey(me, key)?.let { return replay(it, hash, me) }
@@ -96,7 +100,10 @@ class ConversationService(
 					// Um pedido simultâneo com a mesma chave pode ter confirmado enquanto esperávamos pelo bloqueio.
 					if (conversations.findKey(me, key) != null) return@execute null
 					if (count >= properties.maxMessagesPerConversation) throw ApiErrors.conversationFull(properties.maxMessagesPerConversation)
-					conversations.insertMessage(conversationId, lastSeq + 1, me, content, key, hash)
+					val message = conversations.insertMessage(conversationId, lastSeq + 1, me, content, key, hash)
+					// Mesma transação: ou ficam a mensagem e o evento, ou nenhum (docs/notifications-api.md §7).
+					enqueueMessageEvent(conversationId, me, myUsername, message, shared = content.experienceId != null)
+					message
 				}
 			} catch (e: DuplicateKeyException) {
 				// A mesma chave, ao mesmo tempo, noutra conversa: a outra ficou com ela.
@@ -109,6 +116,26 @@ class ConversationService(
 		sent?.let { return it }
 		val existing = conversations.findKey(me, key) ?: error("chave registada sem mensagem")
 		return replay(existing, hash, me)
+	}
+
+	/**
+	 * Evento `MESSAGE_RECEIVED` para a outra pessoa (docs/notifications-api.md §3.1). Nunca leva o texto nem a
+	 * experiência partilhada: só ids, o tipo (`TEXT`/`SHARE`) e o username de quem enviou (cópia de apresentação).
+	 */
+	private fun enqueueMessageEvent(conversationId: UUID, me: UUID, myUsername: String, message: MessageRow, shared: Boolean) {
+		val recipient = conversations.otherParticipant(conversationId, me)
+		val eventId = UUID.randomUUID()
+		val payload = linkedMapOf(
+			"eventId" to eventId.toString(),
+			"type" to MESSAGE_RECEIVED,
+			"occurredAt" to message.createdAt.toString(),
+			"actor" to linkedMapOf("userId" to me.toString(), "username" to myUsername),
+			"recipientId" to recipient.toString(),
+			"conversationId" to conversationId.toString(),
+			"messageSeq" to message.seq,
+			"messageKind" to if (shared) "SHARE" else "TEXT",
+		)
+		outbox.insert(eventId, MESSAGE_RECEIVED, mapper.writeValueAsString(payload))
 	}
 
 	/** Histórico e novas (§6.3): por seq crescente; uma falha do experiences-service nunca impede a resposta. */
@@ -189,4 +216,8 @@ class ConversationService(
 		createdAt = createdAt,
 		clientKey = idempotencyKey.takeIf { senderId == me },
 	)
+
+	private companion object {
+		const val MESSAGE_RECEIVED = "MESSAGE_RECEIVED"
+	}
 }

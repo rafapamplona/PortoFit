@@ -87,7 +87,7 @@ class ConversationController(
 			if (key == null) throw ApiErrors.validation(e.errors + keyError) else throw e
 		}
 		if (key == null) throw ApiErrors.validation(listOf(keyError))
-		val result = service.send(id, me, key, content)
+		val result = service.send(id, me, username(jwt), key, content)
 		val location = URI.create("/api/v1/conversations/${result.conversationId}/messages/${result.message.id}")
 		return if (result.replayed) {
 			ResponseEntity.ok().location(location).header("Idempotent-Replayed", "true").body(result.message)

@@ -52,3 +52,28 @@ data class MessagingProperties(
 		const val MAX_TEXT_LENGTH_LIMIT = 2000
 	}
 }
+
+/**
+ * Entrega de eventos ao notifications-service (docs/notifications-api.md §6.1). [internalKey] vem do `.env`
+ * (`NOTIFY_MESSAGING_KEY`, exclusiva deste produtor); vazia = falha de configuração, os eventos esperam na outbox.
+ */
+@ConfigurationProperties("portofit.notifications")
+data class NotificationsProperties(
+	val baseUrl: String,
+	val connectTimeout: Duration,
+	val timeout: Duration,
+	val internalKey: String = "",
+)
+
+/** Outbox (docs/notifications-api.md §7): envio periódico, recuo, falha persistente e limpeza. */
+@ConfigurationProperties("portofit.outbox")
+data class OutboxProperties(
+	val enabled: Boolean = true,
+	val batchSize: Int,
+	val initialBackoff: Duration,
+	val maxBackoff: Duration,
+	val maxAttempts: Int,
+	val maxAge: Duration,
+	val sentRetention: Duration,
+	val failedRetention: Duration,
+)

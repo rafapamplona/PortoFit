@@ -42,6 +42,12 @@ class ConversationRepository(private val jdbc: JdbcClient) {
 		return id
 	}
 
+	/** A outra pessoa da conversa (por ids, nunca pelos usernames copiados). */
+	fun otherParticipant(conversationId: UUID, me: UUID): UUID =
+		jdbc.sql("SELECT CASE WHEN user_low = :me THEN user_high ELSE user_low END FROM conversation WHERE id = :c")
+			.param("me", me).param("c", conversationId)
+			.query(UUID::class.java).single()
+
 	fun isMember(conversationId: UUID, me: UUID): Boolean =
 		jdbc.sql("SELECT EXISTS (SELECT 1 FROM conversation_member WHERE user_id = :me AND conversation_id = :c)")
 			.param("me", me).param("c", conversationId).query(Boolean::class.javaObjectType).single()

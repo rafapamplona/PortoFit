@@ -59,6 +59,23 @@ portofit:
     timeout: 2s
     # Só do .env (MESSAGING_INTERNAL_KEY, exclusiva deste serviço), nunca no Git nem na imagem.
     internal-key: ${MESSAGING_INTERNAL_KEY:}
+  notifications:
+    # POST /api/v1/internal/events, pela rede interna do Compose (docs/notifications-api.md §6.1).
+    base-url: ${NOTIFICATIONS_BASE_URL:http://localhost:8086}
+    connect-timeout: 500ms
+    timeout: 5s
+    # Só do .env (NOTIFY_MESSAGING_KEY, exclusiva deste produtor), nunca no Git nem na imagem.
+    internal-key: ${NOTIFY_MESSAGING_KEY:}
+  outbox:
+    # Envio de 5 em 5 s, recuo de 5 s a 10 min, FAILED ao fim de 20 tentativas ou 24 h (docs/notifications-api.md §7).
+    enabled: true
+    batch-size: 100
+    initial-backoff: 5s
+    max-backoff: 10m
+    max-attempts: 20
+    max-age: 24h
+    sent-retention: 3d
+    failed-retention: 30d
   messaging:
     # Limites (docs/messaging-api.md §10). Os contadores de frequência são em memória, por pessoa.
     max-text-length: 1000
