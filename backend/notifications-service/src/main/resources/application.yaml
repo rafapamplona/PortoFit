@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: notifications-service
+  datasource:
+    # Valores fornecidos por variáveis de ambiente (docker-compose.yml + .env).
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:notifications_db}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 5000
+      validation-timeout: 3000
+      data-source-properties:
+        connectTimeout: 5
+        socketTimeout: 30
+  flyway:
+    locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: 8086
+  shutdown: graceful
+  tomcat:
+    connection-timeout: 10s
+    threads:
+      max: 50
+
+management:
+  endpoints:
+    web:
+      discovery:
+        enabled: false
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
+portofit:
+  security:
+    # Validação local dos access tokens do users-service; só a chave PÚBLICA, montada só de leitura.
+    issuer: portofit-users
+    audience: portofit-api
+    public-key-location: ${JWT_PUBLIC_KEY_PATH:/run/secrets/users-jwt/public.pem}
+  producers:
+    # Uma chave por produtor (docs/notifications-api.md §6.1), só do .env; vazia = esse produtor não entrega.
+    # Primeira parte: só o messaging-service entrega eventos.
+    users-key: ${NOTIFY_USERS_KEY:}
+    experiences-key: ${NOTIFY_EXPERIENCES_KEY:}
+    messaging-key: ${NOTIFY_MESSAGING_KEY:}
+  notifications:
+    # Retenção e limites (docs/notifications-api.md §12).
+    retention: 90d
+    max-per-recipient: 1000
+    # Um evento mais antigo é recusado (EXPIRED); a deduplicação dura mais do que isto (validado no arranque).
+    event-max-age: 30d
+    event-retention: 35d
+    max-future-skew: 5m
+    # Lote de até 100 eventos.
+    max-body-bytes: 262144
