@@ -1141,6 +1141,8 @@ Verificaram-se por HTTP **os pedidos que a app faz** (mesmos caminhos, tamanhos 
 
 Na primeira execução, abrir a conversa deu `503 USERS_UNAVAILABLE`: com o computador quase sem memória, o users-service passou do prazo de 1 s. Nada foi criado, como o contrato prevê. As contas foram apagadas e a verificação repetida, com abertura à primeira (`201`).
 
+**Primeira tentativa do utilizador (2026-10-22):** "Enviar mensagem" no perfil de outra conta mostrou "Não é possível iniciar a conversa agora". O messaging-service não obteve resposta do users-service dentro de 1 s; o prazo passou a 2 s ([messaging-api.md §19](messaging-api.md#19-estado-da-implementação), diagnóstico). Não é um teste bem-sucedido: abrir a conversa, enviar e receber continuam por confirmar.
+
 **Pendente (na interface, no emulador ou num telemóvel, com memória livre):**
 - enviar e receber entre duas contas;
 - histórico e "Carregar mensagens anteriores";

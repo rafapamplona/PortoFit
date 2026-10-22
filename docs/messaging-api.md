@@ -353,7 +353,7 @@ Cliente no messaging-service: ligação 0,5 s, resposta 2 s, sem novas tentativa
 
 Feita **só ao criar uma conversa** (§5.1), com o endpoint público existente `GET /api/v1/users/{userId}` ([users-api.md §3.8](users-api.md#38-get-usersuserid--perfil-público)), sem token: não é preciso endpoint interno nem chave nova.
 
-- Ligação 0,5 s, resposta 1 s, sem novas tentativas.
+- Ligação 0,5 s, resposta 2 s (era 1 s até ao diagnóstico de 2026-10-22, §19), sem novas tentativas.
 - `200` com o mesmo `userId` → existe; usa-se o `username` da resposta.
 - `404` → `USER_NOT_FOUND`.
 - Qualquer outra coisa (timeout, `5xx`, `400`, corpo ilegível ou `userId` diferente) → `USERS_UNAVAILABLE`.
@@ -517,7 +517,7 @@ Mesma estrutura das listas ([app-android.md §18](app-android.md#18-listas-pesso
 - **Abrir conversa:**
   - consigo próprio → `400`;
   - destinatário inexistente → `404 USER_NOT_FOUND`;
-  - users-service com erro, lento (> 1 s) ou com resposta inválida → `503`, nada criado;
+  - users-service com erro, lento (> 2 s) ou com resposta inválida → `503`, nada criado;
   - conversa existente → `200` sem pedidos ao users-service, também com ele parado;
   - 8 pedidos simultâneos, metade A→B e metade B→A → uma só conversa (uma `201`, o resto `200`).
 - **Conteúdo:** vazio, só espaços, 1001 caracteres, caracteres de controlo, campos extra, nem texto nem experiência → `400`; 1000 emojis aceites; `\r\n` normalizado; limite configurável respeitado.
@@ -615,7 +615,7 @@ Etapa 12 (backend), `backend/messaging-service`, mais a chave própria na consul
   - um `DuplicateKeyException` do índice (`sender_id`, `idempotency_key`) quer dizer "a mesma chave noutra conversa" e dá `409`.
 - **Leituras de mensagens:** numa transação só de leitura `REPEATABLE READ`, para `items`, `lastSeq`, `hasMoreBefore` e `hasMoreAfter` virem do mesmo instantâneo.
 - **Limites de frequência:** contadores em memória com reserva atómica (`ConcurrentHashMap.compute`). Uma reserva que não chega a criar nada (repetição, recusa, falha de outro serviço) é devolvida, por isso pedidos simultâneos não ultrapassam o limite e as falhas não o gastam.
-- **Clientes:** `RestClient` sobre o cliente HTTP do JDK, sem novas tentativas nem cache. O users-service tem ligação 0,5 s e resposta 1 s; o experiences-service tem ligação 0,5 s e resposta 2 s. Os registos têm só os tipos de erro, nunca chaves, tokens, texto ou usernames.
+- **Clientes:** `RestClient` sobre o cliente HTTP do JDK, sem novas tentativas nem cache. O users-service tem ligação 0,5 s e resposta 2 s; o experiences-service tem ligação 0,5 s e resposta 2 s. Os registos têm só os tipos de erro, nunca chaves, tokens, texto ou usernames.
 - **Cabeçalhos:** o `Cache-Control: no-store` (com `no-cache` e `must-revalidate`) vem dos cabeçalhos por omissão do Spring Security.
 
 **Testes automáticos:**
@@ -627,7 +627,7 @@ Etapa 12 (backend), `backend/messaging-service`, mais a chave própria na consul
       - consigo próprio → `400`; inexistente → `404 USER_NOT_FOUND`; corpo inválido ou com `senderId` → `400`;
       - `201` com `Location` e o username; depois `200` dos dois lados, sem novos pedidos ao users-service; o perfil é pedido sem token;
       - 8 pedidos simultâneos nos dois sentidos → 1 conversa, 2 participantes;
-    - **users-service** com erro, lento (> 1 s) ou com resposta inválida → `503`, nada criado. Com ele em baixo, as conversas existentes abrem, enviam, aparecem na caixa e marcam como lidas, sem lhe pedir nada. As falhas não gastam o limite;
+    - **users-service** com erro, lento (> 2 s) ou com resposta inválida → `503`, nada criado. Com ele em baixo, as conversas existentes abrem, enviam, aparecem na caixa e marcam como lidas, sem lhe pedir nada. As falhas não gastam o limite;
     - **privacidade:** conversa alheia ≡ inexistente (`404` com o mesmo corpo) em 6 operações, sem texto nem nomes; a intrusa não envia nem marca nada; conversa sem mensagens fora da caixa dos dois;
     - **caixa:** mais recente primeiro; cursor com `nextCursor` null no fim; pré-visualização de 100 caracteres; partilha com `kind: SHARE` e sem conteúdo da experiência; uma mensagem nova sobe a conversa sem repetir na página seguinte; cursor e `limit` inválidos → `400`;
     - **leitura:**
@@ -708,5 +708,21 @@ Executados depois da última alteração ao código.
 - **Não medido:** consumo de bateria e de dados no telemóvel, e o efeito de várias conversas abertas ao mesmo tempo (fica para a etapa da app).
 
 **App Android (etapa 12):** caixa no menu da conta, "Enviar mensagem" no perfil, conversa com histórico, consulta periódica só com o ecrã ativo, leitura das mensagens mostradas e "Partilhar" no detalhe da experiência ([app-android.md §19](app-android.md#19-mensagens-e-partilha-etapa-12)). Verificação na interface por fazer.
+
+**Diagnóstico de 2026-10-22 ("Não é possível iniciar a conversa agora").** O utilizador tocou em "Enviar mensagem" no perfil de outra conta e a abertura falhou:
+
+- **O que aconteceu:** os pedidos chegaram ao messaging-service com o token aceite (não era autenticação). Os dois serviços estavam saudáveis (não era serviço parado). A validação do destinatário (`GET /users/{id}` no users-service) passou do prazo de **1 s** quatro vezes entre as 14:05 e as 14:07 UTC (`HttpTimeoutException`). O messaging-service respondeu `503 USERS_UNAVAILABLE`, que é a mensagem que a app mostrou. Nenhuma conversa foi criada.
+- **O que se mediu:**
+  - **direto:** o users-service respondia ao mesmo pedido em 7–31 ms;
+  - **pelo messaging-service:** a abertura completa variou entre 23 ms e 1,2 s com tudo saudável, e chegou a 1,8–2,3 s com o messaging-service a frio (primeiros pedidos depois de arrancar);
+  - **contexto:** o computador tinha 0,05–0,44 GB de memória livre, com o Docker, o emulador e o Android Studio abertos.
+- **Hipóteses afastadas, com medições:**
+  - **ligações paradas:** aberturas depois de 15, 30 e 60 s parado responderam em 23–41 ms;
+  - **estado do cliente depois de um timeout:** um timeout provocado com `docker pause` foi seguido de respostas em 34–68 ms;
+  - **pedidos simultâneos:** dois ao mesmo tempo funcionaram.
+- **Causa:** o prazo de 1 s era apertado de mais para picos de latência normais neste ambiente; não havia nenhum defeito de implementação.
+- **Correção:** prazo de resposta do users-service passado para **2 s** (como a consulta às experiências; dentro dos 1–2 s da [arquitetura §4.1](arquitetura.md#41-princípios)). Os 15 testes passam.
+- **Verificado depois da correção:** abertura a frio em 1,18 s e, com o users-service atrasado 1,3 s por `docker pause`, abertura com resposta em 1,7 s (com 1 s teria sido `503`). Usaram-se ids inexistentes (`404 USER_NOT_FOUND`), por isso nenhuma conversa foi criada. As contas temporárias foram apagadas; contas, publicações, listas e volumes foram preservados.
+- **Ainda não confirmado na interface:** abrir a conversa, enviar e receber mensagens na app.
 
 **Ainda não implementado:** as notificações (etapa própria) e a contagem de partilhas no dashboard.

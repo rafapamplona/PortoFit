@@ -49,7 +49,9 @@ portofit:
     # GET /api/v1/users/{id} (perfil público, sem token), pela rede interna do Compose (docs/messaging-api.md §8.1).
     base-url: ${USERS_BASE_URL:http://localhost:8082}
     connect-timeout: 500ms
-    timeout: 1s
+    # 2 s, como a consulta às experiências: com 1 s, abrir uma conversa falhava em picos de latência (diagnóstico de
+    # 2026-10-22 no §19 do contrato), com o users-service saudável.
+    timeout: 2s
   experiences:
     # GET /api/v1/internal/experiences?ids=…, pela rede interna do Compose (docs/messaging-api.md §7.4).
     base-url: ${EXPERIENCES_BASE_URL:http://localhost:8083}
