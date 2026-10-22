@@ -1188,3 +1188,119 @@ Feita no emulador, conduzido por ADB/uiautomator, com capturas de ecrã. Usaram-
 **Testes automáticos depois das correções:** 265 testes JVM, 0 falhas (+1: escolha da mensagem consoante haja rascunho). `assembleDebug` e `lintDebug` sem erros.
 
 **Pendente:** o convite para entrar no ecrã "Mensagens" quando a sessão termina com ele aberto (só testes JVM).
+
+## 20. Notificações (etapa 10)
+
+Contrato: [notifications-api.md](notifications-api.md) (§9, §15). Sem *push* (Firebase), sem gostos e sem notificações de eliminação.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `NOTIFICATIONS_BASE_URL` | `app/build.gradle.kts` | Só em debug: `http://10.0.2.2:8086/` (`-Pportofit.notificationsBaseUrl=…` para mudar). Em release fica vazio, e a caixa mostra "não disponível nesta versão" |
+| `NotificationsApi`, `NotificationsRepository` | `data/remote/`, `data/repository/` | Caixa (`before`/`after`/`limit`), contagem, marcar uma e marcar até um `seq`. Access token do `SessionManager` da app, com renovação única depois de um `401`. Tipos desconhecidos são ignorados, mas os limites de `seq` da página contam com eles (os cursores nunca param) |
+| `HttpClients.notifications` | `di/HttpClients.kt` | Pool própria de ligações curtas; leituras e `PUT` idempotentes |
+| `NotificationsViewModel`, `UnreadCountViewModel` | `ui/feature/notifications/` | Caixa e contagem do menu da conta |
+| `NotificationsScreen` | `ui/feature/notifications/` | Lista, "Carregar mais", "Marcar todas como lidas", cartão da permissão, estados de erro, sessão e vazio |
+| `NotificationsCoordinator` | `notifications/` | Segue a sessão: agenda o trabalho só com sessão **e** notificações permitidas; ao terminar sessão ou trocar de conta cancela-o, retira as notificações do sistema e apaga os cursores das outras contas |
+| `NotificationPoller` | `notifications/` | A lógica de cada execução do worker (testada como classe) |
+| `NotificationsWorker`, `WorkManagerScheduler` | `notifications/` | WorkManager 2.11.2: um trabalho periódico por conta (`notifications-poll-<conta>`, `UPDATE`), 15 min, com rede |
+| `AndroidSystemNotifier`, `NotificationIntents` | `notifications/` | Canais, notificações do sistema e o `PendingIntent` com a conta destinatária |
+| `PreferencesCursorStore` | `notifications/` | `shared_prefs/notifications_cursors.xml` (excluído das cópias de segurança): por conta, só o último `seq` tratado e o instante de início |
+| `NotificationTapHandler` | `ui/navigation/PortoFitNavHost.kt` | Toque numa notificação do sistema |
+
+### Percursos
+
+- **Caixa:** "Notificações" no menu da conta (Pesquisar, Descobrir, Estatísticas), com a contagem por ler ("Notificações (5)", até "99+") e um indicador junto ao username.
+  - A contagem é pedida quando o ecrã volta a ficar visível; não há consulta contínua fora da caixa.
+  - Sem sessão, a entrada não existe; a caixa aberta sem sessão mostra o convite para entrar, e o login regressa à caixa.
+- **Lista:** a mais recente primeiro, texto por tipo (§9), hora, e as não lidas destacadas (fundo, negrito e ponto). "Carregar mais" pede as anteriores (`before`).
+- **Abrir:** marca como lida, retira a notificação do sistema correspondente e abre o destino **por cima da caixa** (voltar regressa a ela):
+
+  | Tipo | Destino |
+  |---|---|
+  | mensagem | a conversa |
+  | comentário | a experiência |
+  | novo seguidor | o perfil de quem segue |
+  | nova experiência | a experiência |
+
+  Conteúdo eliminado ou serviço em baixo: o ecrã de destino mostra o seu estado (ex.: "Esta experiência já não existe."), e a caixa continua.
+- **Marcar todas como lidas:** até ao maior `seq` lido; as que chegarem depois continuam por ler.
+- **Permissão (Android 13+):** nunca é pedida ao abrir a app. Na caixa, um cartão explica "Recebe avisos de mensagens e comentários na barra do telemóvel. Podem chegar com atraso." com "Ativar"; só esse toque abre o pedido do sistema. Recusada: o cartão passa a explicar como ativar nas definições ("Abrir definições"), e a caixa continua a funcionar.
+
+### Regras
+
+- **Caixa:** com o ecrã RESUMED, as novas (`after` o maior `seq` lido) de 30 em 30 s, até 60 s com erros (o `Poller` das mensagens), por páginas até ao fim. Mais de 3 páginas de novas: recarrega as mais recentes em vez de deixar um buraco. Lacunas de `seq` nunca são erro.
+- **Trabalho periódico** (§15.3): um por conta, só com sessão e notificações permitidas; agendado de novo ao voltar à app (a permissão pode ter mudado nas definições). Sem execução exata, nem forçada, nem serviço em primeiro plano.
+- **Cada execução:**
+  1. espera que a sessão guardada seja lida e confirma que é a conta do trabalho;
+  2. pede `after=<cursor>&limit=50`, até 3 páginas; o cursor avança para o maior `seq` lido;
+  3. mostra só as **não lidas criadas depois de a conta passar a receber notificações** (o histórico fica só na caixa), no máximo 5 e um resumo "E mais N novidades na caixa";
+  4. guarda o cursor.
+
+  Os passos 3 e 4 correm com o mesmo bloqueio das trocas de conta e só se a conta ainda for a da sessão: uma resposta tardia nunca mostra nada de uma conta que já saiu. Falha de rede ou do servidor → `Result.retry()` sem avançar o cursor nem mostrar nada. Execuções sobrepostas correm uma de cada vez; o id Android deriva do `seq`, por isso uma repetição substitui em vez de duplicar.
+- **Sessão partilhada:** o worker corre no processo da app com o mesmo `AppContainer`, e por isso com o mesmo `SessionManager`. As renovações do worker e dos ecrãs passam pelo mesmo `Mutex` (uma só renovação). Depois de uma renovação ambígua, o worker não renova: não mostra nada e termina, e a sessão fica "por confirmar" até a app a resolver. Não há outro cliente de sessão.
+- **Activity fechada:** se o WorkManager arrancar o processo sem a Activity, a app cria o `AppContainer` e lê a sessão guardada como sempre. O worker espera que essa leitura termine antes de pedir o token, para a renovação de arranque e a do worker nunca correrem em paralelo.
+- **Canais e privacidade:** "Mensagens" e "Comentários" (importância predefinida), "Seguidores" e "Novas experiências" (baixa). Visibilidade privada, com uma versão pública genérica ("PortoFit — Tens novidades") no ecrã bloqueado. Só o texto do §9; nunca o texto de mensagens ou comentários (o servidor nem o tem). Nada de conteúdo, ids de conta nem tokens nos registos.
+- **Toque:** o `PendingIntent` leva a conta destinatária e só ids. A navegação espera que a sessão seja lida. Mesma conta → abre a caixa e, por cima, o destino, e marca como lida. Outra conta ou sem sessão → só a caixa (ou o convite para entrar); depois de entrar, nada abre sozinho. Intents repostos pelo histórico de recentes são ignorados.
+- **Dispensar** uma notificação do sistema não marca nada como lido (não há `deleteIntent`).
+- **Terminar sessão ou trocar de conta:** cancela o trabalho, retira todas as notificações do sistema da app e apaga os cursores das outras contas; a caixa em memória é apagada e respostas tardias ignoradas (geração e conta do pedido).
+
+### Testes automáticos (JVM)
+
+29 testes novos (294 no total):
+
+- **`NotificationPollerTest` (14):**
+  - primeira consulta a partir do início da conta, só as não lidas novas;
+  - repetir não mostra de novo; execuções sobrepostas sem repetir;
+  - falha temporária (também na 2.ª página) → `RETRY` sem cursor nem notificações;
+  - sem sessão, outra conta ou sessão por confirmar → nada; espera que a sessão seja lida;
+  - limite de 5 e resumo; 3 páginas por execução e o resto na seguinte;
+  - lacunas da retenção e tipos desconhecidos;
+  - resposta tardia depois de trocar de conta não mostra nem guarda; outra conta nunca usa o cursor da anterior;
+  - coordenador: só com sessão e permissão, permissão retirada cancela, logout cancela/retira/apaga, reabrir a app mantém o cursor e apaga restos de outras contas.
+- **`NetworkNotificationsRepositoryTest` (4):**
+  - conversão dos quatro tipos, tipos desconhecidos e limites do `seq`;
+  - `401` renova uma vez e repete;
+  - **worker e ecrãs ao mesmo tempo com o `SessionManager` real: uma única renovação**;
+  - **depois de uma renovação ambígua, o worker não volta a tentar.**
+- **`NotificationsViewModelTest` (11):**
+  - visitante sem pedidos;
+  - paginação com lacunas; consulta só com o ecrã ativo, sem saltos;
+  - demasiadas novas → recarrega;
+  - abrir marca, retira a do sistema e repõe se falhar;
+  - "marcar todas" até ao maior `seq` lido;
+  - troca de conta com resposta tardia;
+  - erros com nova tentativa;
+  - contagem do menu por conta;
+  - toque só abre para a conta destinatária;
+  - texto por tipo.
+
+`testDebugUnitTest`, `lintDebug` (sem erros; nenhum aviso novo além de um falso positivo do corretor em "momento", como nos textos existentes) e `installDebug` passaram depois da última alteração.
+
+### Verificação na interface (2026-10-22, pelo assistente)
+
+Emulador Pixel 9 com Android 17, backend no Docker Compose, três contas temporárias (apagadas no fim). A app estava sem sessão; nenhum dado da app foi limpo.
+
+- **Caixa:** depois de entrar, o menu mostrou "Notificações (5)". A caixa listou os quatro tipos com o texto do §9, "5 notificações por ler", "Marcar todas como lidas" e o cartão "Ativar".
+- **Permissão recusada:** "Ativar" abriu o pedido do sistema; com "Don't allow" o cartão passou a "Abrir definições", a caixa continuou a funcionar e nenhum trabalho ficou agendado.
+- **Destinos:**
+  - comentário → a experiência;
+  - mensagem → a conversa;
+  - seguidor → o perfil;
+  - publicação eliminada → "Esta experiência já não existe.";
+  - voltar regressou sempre à caixa. As quatro ficaram lidas no servidor.
+- **Permissão concedida:** ao reabrir a caixa, "Ativar" e "Allow"; o cartão desapareceu e o `NotificationsWorker` ficou agendado no JobScheduler.
+- **Execução periódica real, com a Activity fechada** (fechada com "voltar"; sem `force-stop` nem execução forçada): três notificações do sistema apareceram sozinhas, cerca de 23, 12,5 e 18 minutos depois de cada mensagem nova. O registo do WorkManager mostra `Worker result SUCCESS`. Os atrasos foram os que o Android escolheu, sem promessa de valor.
+- **Notificação do sistema:** canal "Mensagens", visibilidade privada com versão pública genérica; título "Nova mensagem de @…", sem o texto da mensagem.
+- **Toque:** abriu a conversa certa (mesma conta) e marcou-a como lida no servidor; voltar regressou à caixa.
+- **Dispensar** na barra: a notificação desapareceu e continuou por ler no servidor.
+- **Terminar sessão** com uma notificação visível: a notificação desapareceu, o trabalho deixou de estar registado e os cursores foram apagados.
+- **Outra conta:** com a conta C na app, um intent de notificação destinado à conta A (com o id da conversa de A) abriu só a caixa de C, vazia, sem nada de A.
+- **Execução forçada:** `adb shell cmd jobscheduler run -f` foi ignorado pelo WorkManager ("executed before schedule", próprio do trabalho periódico). Por isso, a verificação usou só execuções reais.
+
+**Por verificar à mão:**
+- o ecrã bloqueado com o texto genérico (foi confirmada a configuração `VISIBILITY_PRIVATE` com versão pública, mas não visto com o ecrã bloqueado);
+- o resumo "E mais N" com mais de 5 notificações novas numa execução (coberto só pelos testes JVM);
+- num telemóvel real, o atraso com poupança de bateria, Doze ou restrições do fabricante;
+- parar o notifications-service com a app em uso (coberto no backend e nos testes JVM do erro com nova tentativa).

@@ -1,7 +1,7 @@
 # notifications-service — Contrato da API
 
 > Caixa de notificações privada e notificações do sistema Android (requisito R10, etapa 10). Contexto geral em [arquitetura.md](arquitetura.md) (§3.2 responsabilidades, §3.4 isolamento, §3.8 autenticação, §3.11 notificações e *transactional outbox*, §4 falhas).
-> Estado: **contrato aprovado** (2026-10-22, decisões no [§19](#19-decisões-da-revisão-2026-10-22)). **Backend implementado** em duas partes (serviço, caixa e mensagens; seguidores, comentários e novas experiências); a app está por fazer ([§20](#20-estado-da-implementação)).
+> Estado: **contrato aprovado** (2026-10-22, decisões no [§19](#19-decisões-da-revisão-2026-10-22)). **Implementado:** backend em duas partes (serviço, caixa e mensagens; seguidores, comentários e novas experiências) e app Android ([§20](#20-estado-da-implementação); [app-android.md §20](app-android.md#20-notificações-etapa-10)).
 > Mesmas convenções dos outros contratos ([catalog-api.md](catalog-api.md), [users-api.md](users-api.md), [experiences-api.md](experiences-api.md), [collections-api.md](collections-api.md), [messaging-api.md](messaging-api.md)): JSON UTF-8, campos em inglês (camelCase), textos em português, datas ISO 8601 UTC, erros em Problem Details com `code`.
 
 ## Índice
@@ -411,6 +411,8 @@ O notifications-service arranca sem os outros serviços; só depende do PostgreS
 
 ## 15. App Android (proposta)
 
+> Implementada em 2026-10-22 como aqui descrito; detalhes, testes e verificação em [app-android.md §20](app-android.md#20-notificações-etapa-10).
+
 ### 15.1 Caixa de notificações
 
 - **Acesso:** "Notificações" no menu da conta (Pesquisar, Descobrir, Estatísticas), com a contagem por ler ("99+").
@@ -781,4 +783,16 @@ Os outros dois produtores e a resolução dos seguidores. A outbox é a do messa
 
 **Consumo medido** (sete contentores, sem carga): notifications-service ≈ 215 MiB, users-service ≈ 244 MiB, experiences-service ≈ 235 MiB; total ≈ 1,3 GiB.
 
-**Ainda não implementado:** a app Android (caixa, contagem, WorkManager, canais e permissão; §15). Gostos não geram notificações nesta versão. *Push* com Firebase Cloud Messaging continua a ser um requisito **a confirmar com a docente** ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).
+### App Android (2026-10-22)
+
+Caixa, contagem por ler no menu da conta, leitura, destinos, cartão da permissão, quatro canais, WorkManager de 15 em 15 min por conta (2.11.2) e toque com validação da conta, como no §15. 29 testes JVM novos (294 no total), lint e build.
+
+Verificado no emulador (Android 17), com contas temporárias:
+- caixa, leitura e os quatro destinos (incluindo uma experiência eliminada);
+- permissão recusada e concedida;
+- **três notificações do sistema publicadas por execuções periódicas reais com a Activity fechada** (cerca de 12 a 23 min depois de cada mensagem);
+- toque, dispensar sem marcar como lida, terminar sessão a retirar as notificações e o trabalho, e o toque destinado a outra conta a abrir só a caixa.
+
+Detalhes e o que fica por verificar à mão em [app-android.md §20](app-android.md#20-notificações-etapa-10).
+
+**Fora desta versão:** gostos não geram notificações. *Push* com Firebase Cloud Messaging continua a ser um requisito **a confirmar com a docente** ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).
