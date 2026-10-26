@@ -132,7 +132,7 @@ Pesquisa locais. Todos os parâmetros são opcionais; sem parâmetros devolve to
 - Este é o comportamento pretendido; a forma de o implementar é escolhida na implementação do serviço (ver [arquitetura.md §3.2](arquitetura.md#32-responsabilidades)).
 - `q` e `sport` combinam-se com **E** (ex.: `q=boavista&sport=boxe` → locais de boxe com "boavista" no nome).
 - **Só dados ativos:** a pesquisa devolve apenas locais `ACTIVE`; o filtro `sport`, a pesquisa pelo nome da modalidade ou da atividade e a lista `sports` de cada resultado só consideram atividades `ACTIVE`. Um local retirado continua acessível em `GET /places/{id}` (§3.3).
-- Com `lat`/`lng`, só são devolvidos locais a uma distância ≤ `radiusKm` e cada resultado inclui `distanceKm`.
+- Com `lat`/`lng`, só são devolvidos locais a uma distância ≤ `radiusKm` e cada resultado inclui `distanceKm`. A app (etapa 14) envia as coordenadas com 6 casas decimais, um raio de 1, 3, 5 ou 10 km e `sort=distance`, só depois de o utilizador o pedir ([app-android.md §21](app-android.md#21-pesquisa-por-proximidade-etapa-14)).
 - A distância é em linha reta (fórmula de Haversine), em **quilómetros**, arredondada a 2 casas decimais. Não é distância a pé nem de carro.
 - Os caracteres `%` e `_` em `q` são procurados literalmente (não funcionam como curingas).
 - Parâmetros enviados vazios (ex.: `q=`, `sport=`) são tratados como ausentes.

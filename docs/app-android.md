@@ -1304,3 +1304,89 @@ Emulador Pixel 9 com Android 17, backend no Docker Compose, três contas tempor�
 - o resumo "E mais N" com mais de 5 notificações novas numa execução (coberto só pelos testes JVM);
 - num telemóvel real, o atraso com poupança de bateria, Doze ou restrições do fabricante;
 - parar o notifications-service com a app em uso (coberto no backend e nos testes JVM do erro com nova tentativa).
+
+## 21. Pesquisa por proximidade (etapa 14)
+
+Contrato: [catalog-api.md §3.2](catalog-api.md#32-get-places) (`lat`, `lng`, `radiusKm` de 0,1 a 50, `sort=distance`, `distanceKm`). Sem mapas, sem serviços externos (nem Google Play Services) e sem alterações ao backend.
+
+### Componentes
+
+| Peça | Ficheiro | Função |
+|---|---|---|
+| `NearbyFilter`, `PlaceSummary.distanceKm` | `data/model/CatalogModels.kt` | Coordenadas e raio de uma pesquisa (só em memória); distância de cada resultado |
+| `CatalogApi`, `CatalogRepository` | `data/remote/`, `data/repository/` | `searchPlaces(…, near)` envia `lat`/`lng` (ponto decimal, 6 casas, independente do idioma), `radiusKm` e `sort=distance`; sem `near`, nada disto é enviado |
+| `LocationProvider`, `AndroidLocationProvider` | `data/location/LocationProvider.kt` | Uma posição quando pedida, sobre o `LocationManager` do Android |
+| `SearchViewModel`, `NearbyState` | `ui/feature/search/` | Estado da proximidade (desligada, a localizar, ativa, falhada), raio, validação da idade da posição |
+| `NearbyPanel`, `formatDistance` | `ui/feature/search/NearbyPanel.kt` | Botão, pedido de permissão, raio, avisos e falhas; distância como se lê |
+| Permissões | `AndroidManifest.xml` | `ACCESS_COARSE_LOCATION` e `ACCESS_FINE_LOCATION`; **sem** `ACCESS_BACKGROUND_LOCATION` |
+
+### Percurso
+
+- Na pesquisa de locais, por baixo das modalidades: **"Usar a minha localização"**, com a nota "A localização só é pedida quando tocas aqui, é usada nesta pesquisa e não é guardada."
+- **Permissão:** só depois desse toque. O pedido do Android oferece exata ou aproximada; ambas servem.
+- **A obter:** indicador com "Cancelar"; os resultados atuais continuam visíveis e a interface responde.
+- **Ativa:**
+  - "Perto de ti: locais até N km, do mais próximo para o mais afastado";
+  - raio de 1, 3, 5 ou 10 km (5 por omissão, como no servidor);
+  - "Atualizar localização" e "Desativar proximidade";
+  - cada local mostra "a 850 m" ou "a 1,2 km", e a lista diz "Ordenados por distância em linha reta (não é o caminho a pé nem de carro)".
+  - Texto e modalidade combinam-se com a proximidade.
+- **Sem locais no raio:** "Não há locais a menos de N km. Experimenta um raio maior ou desativa a proximidade."
+
+### Regras
+
+- **Uma posição, com prazo:** pedidos pontuais (`getCurrentLocation`) a todos os fornecedores permitidos **ao mesmo tempo**, durante no máximo 15 s; a primeira posição ganha e os outros pedidos são cancelados.
+  - Os fornecedores são o "fused" (Android 12+), o GPS (só com a localização exata) e a rede.
+  - Pedidos um a um não serviam: no emulador, o "fused" com qualidade equilibrada não liga o GPS e gastava o prazo todo (defeito encontrado na verificação e corrigido).
+- **Posição anterior:** sem resposta no prazo, a mais recente que o Android tenha.
+  - Até **10 min**, é usada, e o ecrã diz a idade a partir de 2 min ("A posição usada é de há N min (não foi possível obter uma atual).").
+  - Mais antiga, não é usada: "Só havia uma localização antiga…".
+- **Aproximada:** o ecrã avisa que as distâncias podem ter um erro de 1 a 3 km.
+- **Falhas:** recusa, recusa definitiva (com "Abrir definições da app"), localização desligada ("Ligar a localização"), prazo esgotado e erro.
+  - Nunca impedem a pesquisa por texto e modalidade.
+  - Se a pesquisa estava por proximidade, volta à normal.
+  - "Fechar" retira o aviso.
+- **Raio:** mudá-lo repete a pesquisa com a mesma posição, sem pedir outra.
+- **Paginação:** "Carregar mais" continua a mesma pesquisa (o mesmo filtro), também durante uma nova localização.
+- **Privacidade:**
+  - nunca em segundo plano nem em acompanhamento contínuo;
+  - as coordenadas só existem em memória, no ViewModel: não vão para o `SavedStateHandle`, para registos, para o perfil nem para outros serviços além do catálogo;
+  - o OkHttp da app não regista pedidos.
+- **Rotação e recriação:** o ViewModel mantém a pesquisa, a modalidade, o raio e a proximidade, sem nova captura.
+  - Depois da morte do processo, voltam o texto, a modalidade e o raio, mas a proximidade fica desligada até novo toque: as coordenadas não foram guardadas e nunca são pedidas sozinhas.
+
+### Testes automáticos (JVM)
+
+12 testes novos em `NearbySearchTest` (306 no total):
+
+- **Arranque:** nada é pedido ao abrir.
+- **Pesquisa:** o filtro (raio 5) junta-se ao texto e à modalidade, e a distância chega aos resultados.
+- **Idade da posição:** aproximada e anterior assinaladas; acima de 10 min recusada e pesquisa normal.
+- **Falhas:** as quatro falhas de localização com a pesquisa por texto intacta; permissão recusada e bloqueada sem pedir posição.
+- **Raio:** mudar o raio sem nova posição; valor fora das opções ignorado.
+- **Desativar:** desligar e cancelar uma localização em curso.
+- **Paginação:** "Carregar mais" com o mesmo filtro durante uma nova localização, e uma falha que volta ao normal.
+- **Erros:** um erro da pesquisa por proximidade e nova tentativa com o mesmo filtro.
+- **Morte do processo:** guarda o raio, mas não as coordenadas, e não volta a pedir.
+- **Formato:** formato da distância.
+- **Repositório:** envia `lat`, `lng`, `radiusKm` e `sort` como o contrato, e nada sem proximidade.
+
+`testDebugUnitTest`, `lintDebug` (sem avisos novos) e `assembleDebug` passaram depois da última alteração.
+
+### Verificação no emulador (2026-10-26, pelo assistente)
+
+Pixel 9, Android 17; posição simulada nos Aliados (41.1496, −8.6109) com `adb emu geo fix` (com 8 satélites: sem satélites, o GPS do emulador não dá posição). Não havia posição anterior registada no aparelho (`last location=null`), por isso não havia nada a repor. As definições de rotação e de localização foram repostas, e as permissões de localização da app foram retiradas no fim (estado inicial).
+
+- **Recusa:** o toque abriu o pedido do sistema. Com "Don't allow", apareceu o aviso, e a pesquisa "boxe" deu 4 locais.
+- **Exata, 5 km:** 9 locais, do mais próximo para o mais afastado. Aliados a 110 m, Cedofeita a 800 m, Ribeira e Bonfim a 1,0 km, Boavista a 1,8 km…, iguais à API para os mesmos parâmetros (0,11; 0,80; 1,02; 1,04; 1,78).
+- **Raio:** 1 km → 2 locais (como a API); 10 km → 10.
+- **Texto e proximidade:** "natacao" a 10 km → Piscina Campanhã a 2,2 km e Foz a 5,37 km, como a API.
+- **Rotação** para paisagem e de volta: o estado manteve-se, sem nova localização.
+- **Localização desligada:** aviso e "Ligar a localização"; os resultados voltaram à pesquisa normal e a pesquisa por texto continuou.
+- **Desativar proximidade:** pesquisa normal, sem distâncias.
+- **Aproximada:** aviso de 1 a 3 km, com as distâncias deslocadas (Cedofeita a 400 m). Sem rede no emulador não houve posição atual, e a app usou a anterior, de há 2 min, e disse-o.
+- **Posição antiga:** antes do `geo fix` chegar ao GPS, a app usou a última posição do emulador (Califórnia, com 2 a 6 minutos) e indicou a idade; o resultado foi "Não há locais a menos de 5 km".
+
+**Por verificar à mão:**
+- GPS real num telemóvel (prazo, precisão e a posição aproximada no exterior e no interior);
+- o percurso de recusa definitiva até "Abrir definições da app".
