@@ -14,6 +14,11 @@ interface CatalogApi {
     suspend fun searchPlaces(
         @Query("q") query: String?,
         @Query("sport") sportId: String?,
+        // Proximidade (docs/catalog-api.md §3.2): as três em conjunto, ou nenhuma.
+        @Query("lat") latitude: String?,
+        @Query("lng") longitude: String?,
+        @Query("radiusKm") radiusKm: String?,
+        @Query("sort") sort: String?,
         @Query("page") page: Int,
         @Query("size") size: Int,
     ): PageDto<PlaceSummaryDto>

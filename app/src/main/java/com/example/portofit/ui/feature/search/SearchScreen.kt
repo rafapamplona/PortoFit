@@ -39,6 +39,8 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -82,6 +84,12 @@ fun SearchScreen(
         onRetrySearch = viewModel::retrySearch,
         onLoadMore = viewModel::loadMore,
         onPlaceClick = onPlaceClick,
+        nearbyActions = NearbyActions(
+            onUseLocation = viewModel::onUseLocation,
+            onPermissionDenied = viewModel::onLocationPermissionDenied,
+            onRadiusSelected = viewModel::onRadiusSelected,
+            onDisable = viewModel::onDisableNearby,
+        ),
         accountActions = { AccountAction(session, onLoginClick, onProfileClick, accountViewModel::logout, onCollectionsClick, onMessagesClick, onNotificationsClick) },
         sessionBanner = { SessionBanner(session, onLoginClick, accountViewModel::retry, accountViewModel::dismissNotice) },
         onModeChange = viewModel::onModeChange,
@@ -98,6 +106,14 @@ fun SearchScreen(
     )
 }
 
+/** Ações da proximidade (o painel trata o pedido de permissão). */
+data class NearbyActions(
+    val onUseLocation: () -> Unit = {},
+    val onPermissionDenied: (blocked: Boolean) -> Unit = {},
+    val onRadiusSelected: (Int) -> Unit = {},
+    val onDisable: () -> Unit = {},
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchContent(
@@ -109,6 +125,7 @@ fun SearchContent(
     onRetrySearch: () -> Unit,
     onLoadMore: () -> Unit,
     onPlaceClick: (String) -> Unit,
+    nearbyActions: NearbyActions = NearbyActions(),
     accountActions: @Composable RowScope.() -> Unit = {},
     sessionBanner: @Composable () -> Unit = {},
     onModeChange: (SearchMode) -> Unit = {},
@@ -154,12 +171,22 @@ fun SearchContent(
             item(key = "sports") {
                 SportFilter(state.sports, state.selectedSportId, onSportSelected, onRetrySports)
             }
+            item(key = "nearby") {
+                NearbyPanel(
+                    nearby = state.nearby,
+                    radiusKm = state.radiusKm,
+                    onUseLocation = nearbyActions.onUseLocation,
+                    onPermissionDenied = nearbyActions.onPermissionDenied,
+                    onRadiusSelected = nearbyActions.onRadiusSelected,
+                    onDisable = nearbyActions.onDisable,
+                )
+            }
             when (val results = state.results) {
                 ResultsState.Loading -> item(key = "loading") { LoadingIndicator() }
                 is ResultsState.Error -> item(key = "error") {
                     ErrorMessage(stringResource(errorMessageRes(results.error)), onRetrySearch)
                 }
-                is ResultsState.Loaded -> loadedResults(results, onPlaceClick, onLoadMore)
+                is ResultsState.Loaded -> loadedResults(results, (state.nearby as? NearbyState.Active)?.filter?.radiusKm, onPlaceClick, onLoadMore)
             }
         }
     }
@@ -256,8 +283,10 @@ private fun SportFilter(
     }
 }
 
+/** [nearbyRadiusKm]: raio da pesquisa por proximidade em curso (null sem proximidade). */
 private fun androidx.compose.foundation.lazy.LazyListScope.loadedResults(
     results: ResultsState.Loaded,
+    nearbyRadiusKm: Int?,
     onPlaceClick: (String) -> Unit,
     onLoadMore: () -> Unit,
 ) {
@@ -266,7 +295,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.loadedResults(
             Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(stringResource(R.string.results_empty), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    stringResource(R.string.results_empty_hint),
+                    if (nearbyRadiusKm != null) stringResource(R.string.nearby_empty_hint, nearbyRadiusKm) else stringResource(R.string.results_empty_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -277,10 +306,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.loadedResults(
 
     item(key = "count") {
         val count = results.totalItems.toInt()
-        Text(
-            pluralStringResource(R.plurals.results_count, count, count),
-            style = MaterialTheme.typography.labelLarge,
-        )
+        Column {
+            Text(
+                pluralStringResource(R.plurals.results_count, count, count),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            if (nearbyRadiusKm != null) {
+                Text(
+                    stringResource(R.string.nearby_sorted),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
     // Um único aviso para a lista; os nomes dos locais fictícios já trazem "(fictício)".
     if (results.places.any { it.isDemo }) {
@@ -317,6 +355,16 @@ private fun PlaceCard(place: PlaceSummary, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(place.name, style = MaterialTheme.typography.titleMedium)
+            place.distanceKm?.let { km ->
+                val distance = formatDistance(km)
+                val description = stringResource(R.string.nearby_distance_description, distance)
+                Text(
+                    stringResource(R.string.nearby_distance, distance),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.semantics { contentDescription = description },
+                )
+            }
             Text(
                 place.parish ?: place.city,
                 style = MaterialTheme.typography.bodyMedium,

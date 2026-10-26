@@ -1,5 +1,8 @@
 package com.example.portofit.testing
 
+import com.example.portofit.data.location.LocationProvider
+import com.example.portofit.data.location.LocationResult
+import com.example.portofit.data.model.NearbyFilter
 import com.example.portofit.data.model.OfferingSummary
 import com.example.portofit.data.model.Page
 import com.example.portofit.data.model.PlaceDetail
@@ -11,7 +14,7 @@ import com.example.portofit.data.repository.DataError
 import com.example.portofit.data.repository.DataResult
 
 /** Pedido de pesquisa recebido pelo repositório falso. */
-data class SearchCall(val query: String?, val sportId: String?, val page: Int, val pageSize: Int)
+data class SearchCall(val query: String?, val sportId: String?, val page: Int, val pageSize: Int, val near: NearbyFilter? = null)
 
 /**
  * Repositório controlado pelos testes: cada resposta é decidida por uma função, que pode
@@ -31,8 +34,8 @@ class FakeCatalogRepository : CatalogRepository {
         return sportsResult()
     }
 
-    override suspend fun searchPlaces(query: String?, sportId: String?, page: Int, pageSize: Int): DataResult<Page<PlaceSummary>> {
-        val call = SearchCall(query, sportId, page, pageSize)
+    override suspend fun searchPlaces(query: String?, sportId: String?, page: Int, pageSize: Int, near: NearbyFilter?): DataResult<Page<PlaceSummary>> {
+        val call = SearchCall(query, sportId, page, pageSize, near)
         searchCalls += call
         return searchResult(call)
     }
@@ -64,5 +67,15 @@ class FakeCatalogRepository : CatalogRepository {
             totalItems = (totalPages * perPage).toLong(),
             totalPages = totalPages,
         )
+    }
+}
+
+/** Localização controlada pelos testes: cada pedido devolve [result] (que pode suspender) e fica contado. */
+class FakeLocationProvider(var result: suspend () -> LocationResult = { LocationResult.Timeout }) : LocationProvider {
+    var calls = 0
+
+    override suspend fun current(): LocationResult {
+        calls++
+        return result()
     }
 }

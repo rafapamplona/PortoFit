@@ -597,4 +597,29 @@
     <string name="notification_channel_comments">Comentários</string>
     <string name="notification_channel_followers">Seguidores</string>
     <string name="notification_channel_experiences">Novas experiências</string>
+
+    <!-- Pesquisa por proximidade (docs/catalog-api.md §3.2): nunca em segundo plano; as coordenadas não são guardadas. -->
+    <string name="nearby_use_location">Usar a minha localização</string>
+    <string name="nearby_privacy">Mostra os locais mais perto de ti. A localização só é pedida quando tocas aqui, é usada nesta pesquisa e não é guardada.</string>
+    <string name="nearby_locating">A obter a tua localização…</string>
+    <string name="nearby_cancel">Cancelar</string>
+    <string name="nearby_active">Perto de ti: locais até %1$d km, do mais próximo para o mais afastado.</string>
+    <string name="nearby_approximate">Localização aproximada: as distâncias podem ter um erro de 1 a 3 km. Para mais precisão, permite a localização exata.</string>
+    <string name="nearby_old_fix">A posição usada é de há %1$d min (não foi possível obter uma atual).</string>
+    <string name="nearby_refresh">Atualizar localização</string>
+    <string name="nearby_disable">Desativar proximidade</string>
+    <string name="nearby_dismiss">Fechar</string>
+    <string name="nearby_radius_option">%1$d km</string>
+    <string name="nearby_sorted">Ordenados por distância em linha reta (não é o caminho a pé nem de carro).</string>
+    <string name="nearby_distance">a %1$s</string>
+    <string name="nearby_distance_description">A %1$s em linha reta</string>
+    <string name="nearby_empty_hint">Não há locais a menos de %1$d km. Experimenta um raio maior ou desativa a proximidade.</string>
+    <string name="nearby_error_denied">Sem permissão de localização. A pesquisa por texto e modalidade continua a funcionar.</string>
+    <string name="nearby_error_blocked">A localização está bloqueada para a PortoFit. Podes permiti-la nas definições da app; a pesquisa normal continua.</string>
+    <string name="nearby_error_disabled">A localização do telemóvel está desligada. Liga-a para pesquisar por proximidade; a pesquisa normal continua.</string>
+    <string name="nearby_error_timeout">Não foi possível obter a tua localização a tempo. Tenta novamente num sítio com melhor sinal.</string>
+    <string name="nearby_error_too_old">Só havia uma localização antiga, que pode já não estar certa. Tenta novamente.</string>
+    <string name="nearby_error_unavailable">Não foi possível obter a tua localização. A pesquisa normal continua a funcionar.</string>
+    <string name="nearby_open_app_settings">Abrir definições da app</string>
+    <string name="nearby_open_location_settings">Ligar a localização</string>
 </resources>

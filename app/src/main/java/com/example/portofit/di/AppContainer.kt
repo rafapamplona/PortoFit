@@ -7,6 +7,8 @@ import com.example.portofit.data.auth.KeystoreSecretCipher
 import com.example.portofit.data.auth.RetrofitAuthGateway
 import com.example.portofit.data.auth.SessionManager
 import com.example.portofit.data.auth.UnconfiguredAuthGateway
+import com.example.portofit.data.location.AndroidLocationProvider
+import com.example.portofit.data.location.LocationProvider
 import com.example.portofit.data.photo.AndroidPhotoDrafts
 import com.example.portofit.data.photo.PhotoDrafts
 import com.example.portofit.data.remote.CatalogApi
@@ -197,6 +199,9 @@ class AppContainer(
     fun markNotificationOpened(notificationId: String) {
         appScope.launch { notificationsRepository.markRead(notificationId) }
     }
+
+    /** Localização para a pesquisa por proximidade: uma posição quando pedida, nunca em segundo plano. */
+    val locationProvider: LocationProvider = AndroidLocationProvider(context)
 
     /** Avisos de alterações nas listas (contagens e nomes noutros ecrãs). */
     val collectionChanges = CollectionChanges()

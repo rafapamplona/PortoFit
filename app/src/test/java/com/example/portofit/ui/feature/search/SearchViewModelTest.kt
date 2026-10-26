@@ -7,6 +7,7 @@ import com.example.portofit.data.repository.DataError
 import com.example.portofit.data.repository.DataResult
 import com.example.portofit.testing.FakeCatalogRepository
 import com.example.portofit.testing.FakeCatalogRepository.Companion.pageOf
+import com.example.portofit.testing.FakeLocationProvider
 import com.example.portofit.testing.MainDispatcherRule
 import com.example.portofit.testing.SearchCall
 import kotlinx.coroutines.CompletableDeferred
@@ -23,8 +24,9 @@ class SearchViewModelTest {
     val mainDispatcher = MainDispatcherRule()
 
     private val repository = FakeCatalogRepository()
+    private val location = FakeLocationProvider()
 
-    private fun createViewModel(savedState: SavedStateHandle = SavedStateHandle()) = SearchViewModel(repository, savedState)
+    private fun createViewModel(savedState: SavedStateHandle = SavedStateHandle()) = SearchViewModel(repository, savedState, location)
 
     private val SearchViewModel.loaded get() = uiState.value.results as ResultsState.Loaded
 

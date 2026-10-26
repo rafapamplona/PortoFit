@@ -34,7 +34,15 @@ data class PlaceSummary(
     val sports: List<Sport>,
     val rating: Rating,
     val isDemo: Boolean,
+    /** Distância em linha reta (km, 2 casas decimais), só numa pesquisa por proximidade. */
+    val distanceKm: Double? = null,
 )
+
+/**
+ * Pesquisa por proximidade (docs/catalog-api.md §3.2): coordenadas do utilizador e raio em km (0,1 a 50). Só existe em
+ * memória, enquanto a pesquisa está ativa: nunca é guardada nem registada.
+ */
+data class NearbyFilter(val latitude: Double, val longitude: Double, val radiusKm: Int)
 
 data class Address(
     val street: String,

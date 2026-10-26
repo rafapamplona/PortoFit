@@ -48,6 +48,7 @@ fun PlaceSummaryDto.toModel() = PlaceSummary(
     sports = sports.map { it.toModel() },
     rating = rating.toModel(),
     isDemo = demo,
+    distanceKm = distanceKm,
 )
 
 fun OfferingDto.toModel() = Offering(

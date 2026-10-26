@@ -8,6 +8,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.portofit.PortoFitApplication
+import com.example.portofit.data.location.LocationProvider
+import com.example.portofit.data.location.LocationResult
+import com.example.portofit.data.model.NearbyFilter
 import com.example.portofit.data.repository.CatalogRepository
 import com.example.portofit.data.repository.DataResult
 import kotlinx.coroutines.Job
@@ -18,15 +21,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Pesquisa de locais com filtro de modalidade e paginação "Carregar mais".
+ * Pesquisa de locais com filtro de modalidade, proximidade opcional e paginação "Carregar mais".
  *
- * O texto, a pesquisa aplicada e a modalidade ficam no [SavedStateHandle], por isso sobrevivem
+ * O texto, a pesquisa aplicada, a modalidade e o raio ficam no [SavedStateHandle], por isso sobrevivem
  * à recriação da Activity e à morte do processo. Cada nova pesquisa recebe um número de geração:
  * respostas que chegam de pedidos anteriores são ignoradas.
+ *
+ * Proximidade (docs/catalog-api.md §3.2): a posição só é pedida por [onUseLocation] (depois do toque e da permissão),
+ * uma vez e com prazo; nunca em segundo plano nem continuamente. As coordenadas ficam só em memória (nunca no
+ * SavedStateHandle nem em registos): depois da morte do processo a proximidade volta desligada e não é pedida sozinha.
  */
 class SearchViewModel(
     private val repository: CatalogRepository,
     private val savedState: SavedStateHandle,
+    private val location: LocationProvider,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -35,6 +43,7 @@ class SearchViewModel(
             queryInput = savedState[KEY_INPUT] ?: "",
             activeQuery = savedState[KEY_QUERY],
             selectedSportId = savedState[KEY_SPORT],
+            radiusKm = savedState.get<Int>(KEY_RADIUS)?.takeIf { it in RADIUS_OPTIONS } ?: DEFAULT_RADIUS_KM,
         ),
     )
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
@@ -42,6 +51,10 @@ class SearchViewModel(
     private var searchJob: Job? = null
     private var searchGeneration = 0
     private var sportsJob: Job? = null
+    private var locateJob: Job? = null
+
+    /** A proximidade da pesquisa que produziu os resultados atuais ("Carregar mais" continua essa, e não outra). */
+    private var resultsNear: NearbyFilter? = null
 
     init {
         loadSports()
@@ -83,6 +96,68 @@ class SearchViewModel(
 
     fun retrySearch() = startSearch()
 
+    /** Depois do toque em "Usar a minha localização" e com a permissão concedida: uma posição, com prazo. */
+    fun onUseLocation() {
+        if (_uiState.value.nearby == NearbyState.Locating) return
+        val wasActive = _uiState.value.nearby is NearbyState.Active
+        _uiState.update { it.copy(nearby = NearbyState.Locating) }
+        locateJob = viewModelScope.launch {
+            val nearby = when (val result = location.current()) {
+                is LocationResult.Found -> {
+                    val fix = result.fix
+                    if (fix.ageMillis > MAX_FIX_AGE_MILLIS) {
+                        NearbyState.Failed(LocationFailure.TOO_OLD)
+                    } else {
+                        NearbyState.Active(
+                            NearbyFilter(fix.latitude, fix.longitude, _uiState.value.radiusKm),
+                            approximate = fix.approximate,
+                            ageMinutes = if (fix.ageMillis > FRESH_FIX_MILLIS) (fix.ageMillis / 60_000).toInt() else null,
+                        )
+                    }
+                }
+                LocationResult.PermissionMissing -> NearbyState.Failed(LocationFailure.PERMISSION_DENIED)
+                LocationResult.Disabled -> NearbyState.Failed(LocationFailure.DISABLED)
+                LocationResult.Timeout -> NearbyState.Failed(LocationFailure.TIMEOUT)
+                LocationResult.Unavailable -> NearbyState.Failed(LocationFailure.UNAVAILABLE)
+            }
+            _uiState.update { it.copy(nearby = nearby) }
+            // Uma falha volta à pesquisa normal (se os resultados eram por proximidade, deixam de o ser).
+            if (nearby is NearbyState.Active || wasActive) startSearch()
+        }
+    }
+
+    /** A permissão foi recusada no pedido do sistema ([blocked]: já não é possível voltar a perguntar). */
+    fun onLocationPermissionDenied(blocked: Boolean) {
+        val wasActive = _uiState.value.nearby is NearbyState.Active
+        locateJob?.cancel()
+        _uiState.update {
+            it.copy(nearby = NearbyState.Failed(if (blocked) LocationFailure.PERMISSION_BLOCKED else LocationFailure.PERMISSION_DENIED))
+        }
+        if (wasActive) startSearch()
+    }
+
+    /** Mudar o raio não pede outra posição: repete a pesquisa com a mesma. */
+    fun onRadiusSelected(radiusKm: Int) {
+        if (radiusKm !in RADIUS_OPTIONS || radiusKm == _uiState.value.radiusKm) return
+        savedState[KEY_RADIUS] = radiusKm
+        val nearby = _uiState.value.nearby
+        _uiState.update {
+            it.copy(
+                radiusKm = radiusKm,
+                nearby = if (nearby is NearbyState.Active) nearby.copy(filter = nearby.filter.copy(radiusKm = radiusKm)) else nearby,
+            )
+        }
+        if (nearby is NearbyState.Active) startSearch()
+    }
+
+    /** Volta à pesquisa normal (também cancela uma localização em curso e fecha um aviso de falha). */
+    fun onDisableNearby() {
+        val wasActive = _uiState.value.nearby is NearbyState.Active
+        locateJob?.cancel()
+        _uiState.update { it.copy(nearby = NearbyState.Off) }
+        if (wasActive) startSearch()
+    }
+
     fun retrySports() = loadSports()
 
     fun loadMore() {
@@ -94,7 +169,7 @@ class SearchViewModel(
         _uiState.update { it.copy(results = current.copy(isLoadingMore = true, loadMoreError = null)) }
 
         searchJob = viewModelScope.launch {
-            val result = repository.searchPlaces(state.activeQuery, state.selectedSportId, current.page + 1, PAGE_SIZE)
+            val result = repository.searchPlaces(state.activeQuery, state.selectedSportId, current.page + 1, PAGE_SIZE, resultsNear)
             if (generation != searchGeneration) return@launch
             _uiState.update { latest ->
                 val loaded = latest.results as? ResultsState.Loaded ?: return@update latest
@@ -118,10 +193,11 @@ class SearchViewModel(
         searchJob?.cancel()
         val generation = ++searchGeneration
         val state = _uiState.value
+        resultsNear = state.nearFilter()
         _uiState.update { it.copy(results = ResultsState.Loading) }
 
         searchJob = viewModelScope.launch {
-            val result = repository.searchPlaces(state.activeQuery, state.selectedSportId, 0, PAGE_SIZE)
+            val result = repository.searchPlaces(state.activeQuery, state.selectedSportId, 0, PAGE_SIZE, resultsNear)
             if (generation != searchGeneration) return@launch
             _uiState.update {
                 it.copy(
@@ -155,9 +231,19 @@ class SearchViewModel(
         }
     }
 
+    private fun SearchUiState.nearFilter() = (nearby as? NearbyState.Active)?.filter
+
     companion object {
         /** Tamanho de página pedido ao servidor (o contrato aceita até 50). */
         const val PAGE_SIZE = 20
+
+        /** Raios oferecidos (km), dentro do intervalo do contrato (0,1 a 50); 5 é o valor por omissão do servidor. */
+        val RADIUS_OPTIONS = listOf(1, 3, 5, 10)
+        const val DEFAULT_RADIUS_KM = 5
+
+        /** Uma posição anterior só é usada até esta idade; acima de [FRESH_FIX_MILLIS] o ecrã diz a idade. */
+        const val MAX_FIX_AGE_MILLIS = 10 * 60_000L
+        const val FRESH_FIX_MILLIS = 2 * 60_000L
         const val MIN_QUERY_LENGTH = 2
         const val MAX_QUERY_LENGTH = 100
 
@@ -165,11 +251,12 @@ class SearchViewModel(
         private const val KEY_QUERY = "search.query"
         private const val KEY_SPORT = "search.sport"
         private const val KEY_MODE = "search.mode"
+        private const val KEY_RADIUS = "search.radiusKm"
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as PortoFitApplication
-                SearchViewModel(app.container.catalogRepository, createSavedStateHandle())
+                SearchViewModel(app.container.catalogRepository, createSavedStateHandle(), app.container.locationProvider)
             }
         }
     }

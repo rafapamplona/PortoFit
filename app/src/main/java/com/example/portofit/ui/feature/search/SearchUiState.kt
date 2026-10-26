@@ -1,5 +1,6 @@
 package com.example.portofit.ui.feature.search
 
+import com.example.portofit.data.model.NearbyFilter
 import com.example.portofit.data.model.PlaceSummary
 import com.example.portofit.data.model.Sport
 import com.example.portofit.data.repository.DataError
@@ -17,7 +18,42 @@ data class SearchUiState(
     val sports: SportsState = SportsState.Loading,
     val selectedSportId: String? = null,
     val results: ResultsState = ResultsState.Loading,
+    /** Pesquisa por proximidade (opcional); desligada, a pesquisa é a normal. */
+    val nearby: NearbyState = NearbyState.Off,
+    /** Raio escolhido (km), de [SearchViewModel.RADIUS_OPTIONS]. */
+    val radiusKm: Int = SearchViewModel.DEFAULT_RADIUS_KM,
 )
+
+/** Porque não foi possível usar a localização. A pesquisa por texto e modalidade continua sempre. */
+enum class LocationFailure {
+    PERMISSION_DENIED,
+
+    /** Recusada com "não voltar a perguntar": só nas definições da app. */
+    PERMISSION_BLOCKED,
+
+    /** Localização do aparelho desligada. */
+    DISABLED,
+    TIMEOUT,
+
+    /** Só havia uma posição demasiado antiga. */
+    TOO_OLD,
+    UNAVAILABLE,
+}
+
+sealed interface NearbyState {
+    data object Off : NearbyState
+
+    /** A obter uma posição (com prazo); os resultados atuais continuam visíveis. */
+    data object Locating : NearbyState
+
+    /**
+     * Resultados por proximidade. [approximate]: localização aproximada (erro de 1 a 3 km); [ageMinutes]: a posição
+     * não é atual (anterior, ainda dentro do limite), para o ecrã o dizer.
+     */
+    data class Active(val filter: NearbyFilter, val approximate: Boolean, val ageMinutes: Int? = null) : NearbyState
+
+    data class Failed(val reason: LocationFailure) : NearbyState
+}
 
 /** Estado do filtro de modalidades; independente dos resultados (uma falha aqui não bloqueia a pesquisa). */
 sealed interface SportsState {
