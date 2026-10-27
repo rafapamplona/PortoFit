@@ -107,4 +107,11 @@ class CatalogMappersTest {
         assertFalse(old.isRetired)
         assertTrue(old.offerings.first().acceptsExperiences)
     }
+
+    @Test
+    fun `nivel nao indicado dos locais reais aparece como Nivel nao indicado`() {
+        assertEquals(ActivityLevel.UNKNOWN, levelFrom("UNSPECIFIED"))
+        assertEquals(com.example.portofit.R.string.level_unknown, com.example.portofit.ui.components.levelLabelRes(levelFrom("UNSPECIFIED")))
+        assertEquals(ActivityLevel.ALL_LEVELS, levelFrom("ALL_LEVELS"))
+    }
 }

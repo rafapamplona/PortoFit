@@ -32,6 +32,10 @@ fun RatingDto.toModel(): Rating = when (status) {
     else -> Rating.Unavailable
 }
 
+/**
+ * `UNSPECIFIED` (locais reais que não publicam níveis, docs/catalog-api.md §2.3) e qualquer valor desconhecido →
+ * UNKNOWN, apresentado como "Nível não indicado"; nunca se mostra um nível que a fonte não indica.
+ */
 fun levelFrom(value: String): ActivityLevel =
     ActivityLevel.entries.firstOrNull { it.name == value && it != ActivityLevel.UNKNOWN } ?: ActivityLevel.UNKNOWN
 
