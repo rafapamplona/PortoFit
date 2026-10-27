@@ -1390,3 +1390,65 @@ Pixel 9, Android 17; posição simulada nos Aliados (41.1496, −8.6109) com `ad
 **Por verificar à mão:**
 - GPS real num telemóvel (prazo, precisão e a posição aproximada no exterior e no interior);
 - o percurso de recusa definitiva até "Abrir definições da app".
+
+
+## 22. Revisão de fecho (2026-10-27)
+
+Revisão dirigida a seis tipos de problema:
+- crashes ou ações que não funcionam;
+- campos escondidos pelo teclado ou pelas barras do sistema;
+- navegação e perda de dados;
+- dados de uma conta mostrados noutra;
+- campos opcionais e locais reais ou retirados;
+- requisitos obrigatórios sem implementação.
+
+A revisão aproveita as verificações das secções anteriores e incide no que mudou desde então: o catálogo com locais reais ([locais-reais.md §10–§11](locais-reais.md#11-revisão-das-metas-em-falta-2026-10-27)), o nível `UNSPECIFIED` e o código postal opcional.
+
+**Emulador não usado:** havia 0,37 GB de memória livre.
+
+### Revisão do código
+
+- **Teclado e barras do sistema:**
+  - Os ecrãs com campos de texto (entrar, criar conta, publicar ou editar, detalhe da experiência com comentários, perfil, conversa e partilha) usam `imePadding` numa coluna deslocável, ou são diálogos.
+  - A pesquisa e a pesquisa de pessoas têm o campo no topo.
+  - A `MainActivity` usa `enableEdgeToEdge`, e o `Scaffold` principal consome os insets da barra inferior.
+  - Nenhum campo ou botão fica sem acesso.
+- **Contas:** os ecrãs com dados privados (Estatísticas, Descobrir, Mensagens, conversa, listas, guardar numa lista, notificações, perfil, detalhe da experiência e perfis públicos) reagem à mudança de sessão pela chave da conta. Apagam logo o estado e cancelam os pedidos da conta anterior, também nos separadores que guardam o estado.
+- **Lint:** sem erros. Os avisos são versões de dependências, recursos sem uso, falsos erros ortográficos ("autor", "momento"), contadores "x/N caracteres" e `android.media.ExifInterface`. Nenhum é um defeito comprovado; o `ExifInterface` da plataforma serve a `minSdk` 26.
+- **Requisitos (R1–R14 de [arquitetura.md §2](arquitetura.md#2-requisitos-funcionalidades-serviços-e-demonstração)):** todos têm implementação, **exceto "vezes guardada" no dashboard (R11)**, ver abaixo. A câmara e a galeria (R4), as ordenações `recent`, `likes`, `interactions` e `stars` (R6), o perfil (R2), a notificação do sistema (R10) e a proximidade (R12) existem no código.
+
+### Verificação por HTTP, com contas temporárias, sobre locais reais
+
+As contas foram `verifclose…` (4). Todos os passos responderam como o contrato define.
+
+| Percurso | Resultado |
+|---|---|
+| **Locais reais (visitante)** | Pesquisa "crossfit" com 5 locais reais. Ponto de encontro com `postalCode: null` e nível `UNSPECIFIED`. Local fictício `RETIRED` pelo id e fora da pesquisa |
+| **Experiência com fotografia** no CrossFit Durius | Publicar `201`, consultar sem sessão `200`, fotografia `image/jpeg`. Editar texto e estrelas mantém a fotografia; outra conta não edita (`403`). Aparece no local e no perfil. Avaliação do local 4,0 (1) |
+| **Guardar, comentar, gostar e partilhar** | Lista `201`, guardar `204`; a lista de B é `404` para A. Comentário `201`, gosto `204`; os contadores sobem sem mudar a avaliação do local. Conversa e partilha `201`; A tem 1 por ler e vê a experiência partilhada (`AVAILABLE`, com conteúdo). Conversa sem sessão `401` |
+| **Feed, estatísticas e notificações** | O feed popular de visitante inclui a experiência, sem fictícios; o feed de B passa a incluí-la depois de seguir A. Estatísticas `received`: gostos 1, comentários 1, visualizações 1. A caixa de A recebe comentário, seguidor e mensagem; B não vê as de A. "Marcar todas como lidas" deixa 0 |
+| **Sessão** | Login `200` e renovação `200`. Um token reutilizado é recusado (`401`). Logout `204`, e a renovação depois falha (`401`). Pesquisa, experiência e pessoas continuam públicas |
+| **Serviços parados** (collections, messaging e notifications) | Pesquisa, consulta, publicar sem fotografia, comentar e feed responderam `200`, `200`, `201`, `201` e `200`. Depois de arrancar, o comentário feito com o notifications parado chegou à caixa (outbox) |
+| **Eliminar** a experiência com fotografia | `204`; a consulta e a fotografia dão `404`. A partilha passa a `DELETED`, sem conteúdo, e o item da lista também. A avaliação do local passa para a experiência que restava |
+
+**Limpeza:** os dados das contas temporárias foram removidos de todas as bases, incluindo as outboxes e as notificações. No fim, todas as tabelas de todas as bases e os ficheiros do volume tinham as **mesmas contagens que antes**: `pamplona`, `usuarioteste`, 4 experiências (3 ativas), 1 comentário, 1 lista com 1 item, 1 seguidor, 0 ficheiros.
+
+### Testes e build
+
+- Testes JVM da app: **308, em 32 classes, 0 falhas**.
+- `assembleDebug` e `lintDebug` sem erros.
+- Não houve correções de código nesta revisão, por isso nenhum serviço do backend voltou a correr testes; os do catálogo correram na revisão anterior (35, a passar).
+
+### Requisito em falta: "vezes guardada" (R11)
+
+- **O que falta:** o critério do R11 é "Dashboard mostra visualizações, gostos, comentários e **vezes guardada**". O contrato adiou esta métrica para uma "etapa 13", com `GET /stats/saves?experienceIds=…` no collections-service ([arquitetura.md §3.12](arquitetura.md#312-dashboard), [collections-api.md](collections-api.md)). Não existe esse endpoint nem a secção correspondente nas Estatísticas da app.
+- **Não foi implementado nesta revisão:** é uma funcionalidade nova em dois componentes (collections-service e app), não a correção de um defeito. Fica a aguardar decisão.
+
+### Pendências não bloqueantes (já registadas)
+
+- Orientação de uma fotografia tirada numa câmara física (§15).
+- Convite para entrar no ecrã "Mensagens" quando a sessão termina com ele aberto (só testes JVM, §19).
+- Ecrã bloqueado com o texto genérico, resumo "E mais N", atrasos com Doze ou poupança de bateria num telemóvel real (§20).
+- GPS real e recusa definitiva da permissão de localização (§21).
+- Confirmação visual no emulador da apresentação "só a cidade" e "Nível não indicado" com os locais reais. Está coberta pelos testes JVM, mas não foi vista no ecrã.
+- *Push* com Firebase continua a confirmar com a docente ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).
