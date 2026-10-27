@@ -1,0 +1,583 @@
+{
+  "format": "portofit-real-places/1",
+  "description": "Locais desportivos REAIS do município do Porto (docs/locais-reais.md), importados pelo RealPlacesImporter do catalog-service (perfil 'real-places'). Só entram locais com 'status': 'ready' e, deles, só as atividades com 'publicAccess': 'CONFIRMED'; um local sem nenhuma atividade confirmada fica de fora. Cada valor tem a sua fonte.",
+  "consultedOn": "2026-10-27",
+  "levelPolicy": "Nenhuma fonte indica níveis: todas as atividades usam UNSPECIFIED ('Nível não indicado'); nunca se escolhe um nível por omissão.",
+  "sources": {
+    "agora-piscinas": "https://www.agoraporto.pt/desporto/rmid",
+    "agora-constituicao": "https://www.agoraporto.pt/desporto/rmid/piscinas-municipais/piscina-municipal-da-constituicao",
+    "agora-cartes": "https://www.agoraporto.pt/desporto/rmid/piscinas-municipais/piscina-municipal-de-cartes",
+    "agora-armando-pimentel": "https://www.agoraporto.pt/desporto/rmid/piscinas-municipais/piscina-municipal-eng-o-armando-pimentel",
+    "visitporto-campanha": "https://visitporto.travel/poi/5cd04b57f979e000010a3401",
+    "agendaporto-campanha": "https://agenda-porto.pt/en/local/complexo-de-piscinas-de-campanha",
+    "fluvial-instalacoes": "https://fluvial.pt/clube/instalacoes/",
+    "fluvial-precario-2025": "https://fluvial.pt/wp-content/uploads/2025/06/HORARIOS-PRECARIO-2025-2026.pdf",
+    "crossfit-durius-affiliate": "https://crossfit.com/gym/9054/crossfit-durius",
+    "crossfit-durius-site": "http://crossfitdurius.com/",
+    "desporto365-saorock": "https://desporto365.porto.pt/clubs/262?locale=pt",
+    "skills-site": "https://academia-skills.com",
+    "skills-contactos": "https://academia-skills.com/contactos",
+    "academia-marcial-site": "https://academiamarcial.com/",
+    "boavista-kickboxing-site": "https://www.boavistakickboxing.pt/",
+    "cdup-estadio": "https://cdup.up.pt/en/instalacoes/estadio-universitario-do-porto/",
+    "osm-constituicao": "https://www.openstreetmap.org/way/305711614",
+    "osm-cartes": "https://www.openstreetmap.org/way/542445803",
+    "osm-campanha": "https://www.openstreetmap.org/way/504052276",
+    "osm-fluvial": "https://www.openstreetmap.org/way/132865132",
+    "osm-bessa": "https://www.openstreetmap.org/way/1152784750",
+    "osm-reverse": "https://nominatim.openstreetmap.org (geocodificação inversa das coordenadas, para freguesia e município)",
+    "agora-regulamento-constituicao": "https://www.agoraporto.pt/files/uploads/cms/regulamento-2026-2027-RMID-CONSTITUICAO.pdf",
+    "agora-regulamento-cartes": "https://www.agoraporto.pt/files/uploads/cms/regulamento-2026-2027-RMID-CARTES.pdf",
+    "visitporto-campanha-pt": "https://visitporto.travel/pt-PT/poi/5cd04b57f979e000010a3401",
+    "cdup-estadio-pt": "https://cdup.up.pt/instalacoes/estadio-universitario-do-porto/",
+    "osm-durius-230": "https://www.openstreetmap.org/node/5494272407"
+  },
+  "places": [
+    {
+      "id": "5d3604be-1a4b-404e-bc2e-0f5a5a683781",
+      "status": "ready",
+      "name": "Piscina Municipal da Constituição",
+      "description": "Piscina municipal do Porto gerida pela Ágora – Cultura e Desporto do Porto.",
+      "address": {
+        "street": "Rua do Almirante Leote do Rego, 236",
+        "postalCode": "4250-322",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.165142,
+        "longitude": -8.613906
+      },
+      "contacts": {
+        "phone": "225073300",
+        "website": "https://www.agoraporto.pt/desporto/rmid/piscinas-municipais/piscina-municipal-da-constituicao"
+      },
+      "fieldSources": {
+        "name": "agora-constituicao",
+        "address": "agora-regulamento-constituicao",
+        "location": "osm-constituicao",
+        "phone": "agora-constituicao"
+      },
+      "offerings": [
+        {
+          "id": "5873ecc2-b49a-46b2-8ab3-90d4df81a502",
+          "sportId": "natacao",
+          "name": "Natação",
+          "description": "Aulas para bebés (6 a 48 meses), crianças (4 a 15 anos) e adultos (a partir dos 16 anos).",
+          "level": "UNSPECIFIED",
+          "source": "agora-constituicao",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-regulamento-constituicao (art.º 6.º: admissão mediante inscrição prévia, documento de identificação e taxa)"
+        },
+        {
+          "id": "759aa561-ccd6-476c-9e16-ded43e8b2650",
+          "sportId": "ioga",
+          "name": "Ioga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-constituicao",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-regulamento-constituicao (art.º 6.º: admissão mediante inscrição prévia, documento de identificação e taxa)"
+        },
+        {
+          "id": "207fc8b4-a8fd-4c88-85df-8757d05c61c8",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-constituicao",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-regulamento-constituicao (art.º 6.º: admissão mediante inscrição prévia, documento de identificação e taxa)"
+        }
+      ],
+      "pending": [
+        "parish: o OSM coloca a zona umas vezes em Paranhos, outras na União de Freguesias do Centro; fica vazia",
+        "location: objeto OSM com o nome da piscina (não oficial); confirmar no mapa"
+      ],
+      "notes": [
+        "A página da Ágora indica 'Rua do Almirante Leote do Rêgo, 4200-260'; o regulamento de funcionamento 2026-2027 (Ágora, art.º 2.º) indica 'Rua Almirante Leote do Rego, n.º 236, 4250-322 Porto'. Prevalece o regulamento: é mais específico e o prefixo 4250 é coerente com a zona (o OSM dá 4250-161 para a rua)."
+      ]
+    },
+    {
+      "id": "a25eebae-8a97-4715-9ef7-b18f3ff466dd",
+      "status": "ready",
+      "name": "Piscina Municipal de Cartes",
+      "description": "Piscina municipal do Porto gerida pela Ágora – Cultura e Desporto do Porto, com um tanque de 25 × 10 m.",
+      "address": {
+        "street": "Alameda de Cartes",
+        "postalCode": "4300-008",
+        "parish": "Campanhã",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.159795,
+        "longitude": -8.573329
+      },
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/piscinas-municipais/piscina-municipal-de-cartes"
+      },
+      "fieldSources": {
+        "name": "agora-cartes",
+        "address": "agora-cartes, agora-regulamento-cartes",
+        "parish": "osm-cartes",
+        "location": "osm-cartes",
+        "phone": "agora-cartes"
+      },
+      "offerings": [
+        {
+          "id": "26bad613-55be-48d3-9211-6bf893409352",
+          "sportId": "natacao",
+          "name": "Natação",
+          "description": "Aulas para bebés (6 a 48 meses), crianças (três níveis de aprendizagem) e adultos (iniciação ou aperfeiçoamento).",
+          "level": "UNSPECIFIED",
+          "source": "agora-cartes",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-regulamento-cartes (art.º 6.º: admissão mediante inscrição prévia, documento de identificação e taxa)"
+        }
+      ],
+      "pending": [
+        "location: fonte OSM (não oficial); confirmar no mapa",
+        "address.street: sem número de porta na fonte"
+      ],
+      "notes": [
+        "O OSM indica o código postal 4300-538; prevalece o da fonte oficial (4300-008).",
+        "Hidroginástica não é uma modalidade do projeto: não incluída."
+      ]
+    },
+    {
+      "id": "38a05ecc-ccdd-4cec-81c1-2d6eb254f345",
+      "status": "pending",
+      "name": "Piscina Municipal Eng.º Armando Pimentel",
+      "description": "Piscina municipal do Porto gerida pela Ágora – Cultura e Desporto do Porto, com um tanque de mergulho.",
+      "address": {
+        "street": "Rua de Diogo Botelho",
+        "postalCode": "4150-262",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": "226179598",
+        "website": "https://www.agoraporto.pt/desporto/rmid/piscinas-municipais/piscina-municipal-eng-o-armando-pimentel"
+      },
+      "fieldSources": {
+        "name": "agora-armando-pimentel",
+        "address": "agora-armando-pimentel",
+        "phone": "agora-armando-pimentel"
+      },
+      "offerings": [
+        {
+          "id": "6ef7d1e0-3bce-495f-b471-f986812cdb22",
+          "sportId": "natacao",
+          "name": "Natação",
+          "description": "Aulas para bebés (6 a 36 meses), crianças (3 a 15 anos) e adultos (a partir dos 16 anos) e utilização livre.",
+          "level": "UNSPECIFIED",
+          "source": "agora-armando-pimentel",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": null
+        },
+        {
+          "id": "40ef11f4-a826-4378-b110-5bf8ccfcd7fc",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-armando-pimentel",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": null
+        }
+      ],
+      "pending": [
+        "location: sem coordenadas verificáveis (não encontrada no OSM pelo nome nem pela rua); obrigatório",
+        "parish: por confirmar",
+        "address.street: sem número de porta na fonte"
+      ],
+      "notes": [
+        "Um diretório de terceiros indica 'Rua Gazeta Literária, 109'; a fonte oficial indica Rua de Diogo Botelho — prevalece a oficial."
+      ]
+    },
+    {
+      "id": "79102cf3-5dd2-4d29-8b5f-e795049898db",
+      "status": "ready",
+      "name": "Piscinas de Campanhã",
+      "description": "Complexo de piscinas municipal cedido pela Câmara do Porto ao FC Porto.",
+      "address": {
+        "street": "Rua Doutor Sousa Avides",
+        "postalCode": "4300-487",
+        "parish": "Campanhã",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.150709,
+        "longitude": -8.589498
+      },
+      "contacts": {
+        "phone": null,
+        "website": "https://www.fcporto.pt/pt/clube/instalacoes"
+      },
+      "fieldSources": {
+        "name": "visitporto-campanha",
+        "address": "visitporto-campanha",
+        "parish": "osm-campanha",
+        "location": "osm-campanha",
+        "offerings": "visitporto-campanha, agendaporto-campanha"
+      },
+      "offerings": [
+        {
+          "id": "40c3c972-4269-4340-8f97-6b2b0bacf5f5",
+          "sportId": "natacao",
+          "name": "Natação",
+          "description": "Escola de natação para bebés, crianças e adultos.",
+          "level": "UNSPECIFIED",
+          "source": "visitporto-campanha",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "visitporto-campanha-pt ('A instalação está aberta a toda a população', através da Escola de Natação, 'não sendo exclusiva a sócios')"
+        },
+        {
+          "id": "93244402-de39-4e6e-80be-6431e834a45c",
+          "sportId": "boxe",
+          "name": "Boxe (secção do FC Porto)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "visitporto-campanha",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": "visitporto-campanha-pt (só refere 'as secções de boxe e desporto adaptado' do clube)"
+        }
+      ],
+      "pending": [
+        "location: objeto OSM com o nome do complexo (não oficial); confirmar no mapa",
+        "address.street: sem número de porta na fonte"
+      ],
+      "notes": [
+        "A página de instalações do FC Porto não mostra o conteúdo sem JavaScript; a morada vem do Visit Porto (Câmara do Porto).",
+        "Um guia antigo de terceiros indica Rua de São Rosendo, 291 — desatualizado/inconsistente; não usado.",
+        "O OSM tem também uma paragem de autocarro com o mesmo nome (Bonfim); não confundir."
+      ]
+    },
+    {
+      "id": "a682d3b2-95f9-45ba-ab5b-6a6c6cba5594",
+      "status": "ready",
+      "name": "Clube Fluvial Portuense — Complexo de Piscinas",
+      "description": "Complexo de piscinas do Clube Fluvial Portuense.",
+      "address": {
+        "street": "Rua Aleixo Mota, s/n",
+        "postalCode": "4150-044",
+        "parish": "Lordelo do Ouro e Massarelos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.150512,
+        "longitude": -8.654918
+      },
+      "contacts": {
+        "phone": "226198460",
+        "website": "https://fluvial.pt"
+      },
+      "fieldSources": {
+        "name": "fluvial-instalacoes",
+        "address": "fluvial-instalacoes",
+        "parish": "osm-fluvial",
+        "location": "osm-fluvial",
+        "phone": "fluvial-instalacoes",
+        "offerings": "fluvial-precario-2025",
+        "parishMapping": "União das Freguesias de Lordelo do Ouro e Massarelos → 'Lordelo do Ouro e Massarelos'"
+      },
+      "offerings": [
+        {
+          "id": "0e2669a0-d6a7-4a78-939a-c018652b0830",
+          "sportId": "natacao",
+          "name": "Natação",
+          "description": "Escola aquática para bebés, crianças e adultos e frequência livre.",
+          "level": "UNSPECIFIED",
+          "source": "fluvial-precario-2025",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fluvial-precario-2025 (escola aquática com tabela para 'sócio' e 'não sócio')"
+        }
+      ],
+      "pending": [
+        "location: fonte OSM (não oficial); confirmar no mapa"
+      ],
+      "notes": [
+        "O Posto Náutico do mesmo clube fica em Vila Nova de Gaia (Avenida de Diogo Leite): fora do município, excluído."
+      ]
+    },
+    {
+      "id": "a2f7f3f3-3229-4116-857b-d545799ed27e",
+      "status": "ready",
+      "name": "CrossFit Durius",
+      "description": "Ginásio afiliado da CrossFit.",
+      "address": {
+        "street": "Rua de Agramonte, 230",
+        "postalCode": "4150-030",
+        "parish": "Lordelo do Ouro e Massarelos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.157699,
+        "longitude": -8.63225
+      },
+      "contacts": {
+        "phone": null,
+        "website": "http://crossfitdurius.com/"
+      },
+      "fieldSources": {
+        "name": "crossfit-durius-affiliate",
+        "address": "crossfit-durius-affiliate, crossfit-durius-site",
+        "location": "crossfit-durius-affiliate (a ~6 m do endereço n.º 230 no OSM: osm-durius-230)",
+        "parish": "osm-reverse",
+        "parishMapping": "União das Freguesias de Lordelo do Ouro e Massarelos → 'Lordelo do Ouro e Massarelos'"
+      },
+      "offerings": [
+        {
+          "id": "ab0f3fd1-d67b-4a6f-ba0b-88439d943dd7",
+          "sportId": "crossfit",
+          "name": "CrossFit",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "crossfit-durius-affiliate",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "crossfit-durius-affiliate (ginásio afiliado; contacto para aulas, incluindo 'Dropping in')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Coordenadas da ligação de mapa do diretório oficial de afiliados (crossfit.com).",
+        "A geocodificação inversa do OSM devolve o código postal 4100-359 para a rua; prevalece o oficial (4150-030), igual no diretório e no site do ginásio."
+      ]
+    },
+    {
+      "id": "b53107d6-69a7-42bc-854b-e83f2e78dac4",
+      "status": "pending",
+      "name": "São Rock Indoor Climbing",
+      "description": "Ginásio de escalada indoor.",
+      "address": {
+        "street": "Rua de Godim, 312",
+        "postalCode": null,
+        "parish": "Campanhã",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.154387,
+        "longitude": -8.587209
+      },
+      "contacts": {
+        "phone": "220924810",
+        "website": "https://saorockclimbing.com/"
+      },
+      "fieldSources": {
+        "name": "desporto365-saorock",
+        "address": "desporto365-saorock",
+        "location": "desporto365-saorock",
+        "parish": "osm-reverse",
+        "phone": "desporto365-saorock"
+      },
+      "offerings": [
+        {
+          "id": "cafdeb1f-dfa1-41f8-8089-a71a76af72bc",
+          "sportId": "escalada",
+          "name": "Escalada indoor",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "desporto365-saorock",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": null
+        }
+      ],
+      "pending": [
+        "address.postalCode: obrigatório; fontes de terceiros divergem (4300-236, 4300-277, 4300-394); confirmar nos CTT ou junto do espaço",
+        "parish: Campanhã pelo OSM, Bonfim numa listagem de terceiros; a Rua de Godim fica junto ao limite",
+        "offerings: o site oficial recusa pedidos automáticos (403); a modalidade vem do nome no Desporto365 (plataforma municipal); confirmar se é bloco, corda ou ambos"
+      ],
+      "notes": [
+        "Coordenadas do Desporto365 (desporto365.porto.pt, com a marca Desporto Porto/Câmara do Porto); o OSM tem um objeto 'São Rock Climbing' no n.º 312 da mesma rua."
+      ]
+    },
+    {
+      "id": "147e1507-5d27-4c69-b512-329291e1c271",
+      "status": "pending",
+      "name": "Skills Academy",
+      "description": "Escola de boxe com treinos de grupo.",
+      "address": {
+        "street": "Rua do Zambeze, 282",
+        "postalCode": null,
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": "+351917376884",
+        "website": "https://academia-skills.com"
+      },
+      "fieldSources": {
+        "name": "skills-site",
+        "address": "skills-contactos",
+        "phone": "skills-contactos",
+        "offerings": "skills-site"
+      },
+      "offerings": [
+        {
+          "id": "5d612a6c-db21-49b7-a37b-4c422ef190e0",
+          "sportId": "boxe",
+          "name": "Boxe",
+          "description": "Treinos de grupo (Escola de Boxe).",
+          "level": "UNSPECIFIED",
+          "source": "skills-site",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": null
+        }
+      ],
+      "pending": [
+        "address.postalCode: obrigatório; só uma listagem de terceiros (4250-505), que também indica Cedofeita, incoerente com 4250; o OSM dá 4250-162 para a rua",
+        "location: obrigatório; o OSM só tem a rua (sem o n.º 282)",
+        "parish: por confirmar"
+      ],
+      "notes": []
+    },
+    {
+      "id": "de06bcab-e0e4-4c66-a2c9-744c5e948d4a",
+      "status": "pending",
+      "name": "Academia Marcial",
+      "description": "Academia de artes marciais com aulas de striking (MMA, kickboxing e boxe), defesa pessoal e taekwondo.",
+      "address": {
+        "street": "Rua do Monte Alegre, 275",
+        "postalCode": "4250-302",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": "220174414",
+        "website": "https://academiamarcial.com"
+      },
+      "fieldSources": {
+        "name": "academia-marcial-site",
+        "address": "academia-marcial-site",
+        "phone": "academia-marcial-site",
+        "offerings": "academia-marcial-site"
+      },
+      "offerings": [
+        {
+          "id": "eefe04c2-1ba7-42c0-b891-320fb95af3e6",
+          "sportId": "kickboxing",
+          "name": "Kickboxing (striking)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "academia-marcial-site",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": null
+        },
+        {
+          "id": "a80f6597-f251-4572-b139-afd417213139",
+          "sportId": "boxe",
+          "name": "Boxe (striking)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "academia-marcial-site",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": null
+        }
+      ],
+      "pending": [
+        "location: obrigatório; o OSM só tem a rua (sem o n.º 275)",
+        "parish: por confirmar (o OSM associa a rua a Paranhos e à União de Freguesias do Centro)",
+        "offerings: confirmar se o boxe e o kickboxing são aulas próprias ou parte de uma aula conjunta de striking"
+      ],
+      "notes": []
+    },
+    {
+      "id": "c29fcda3-c288-47dd-ad1a-89deb689acf7",
+      "status": "pending",
+      "name": "Academia de Kickboxing Boavista F.C.",
+      "description": "Academia de kickboxing do Boavista Futebol Clube, no Estádio do Bessa Século XXI.",
+      "address": {
+        "street": "Rua O Primeiro de Janeiro (Estádio do Bessa Século XXI)",
+        "postalCode": null,
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.162198,
+        "longitude": -8.642601
+      },
+      "contacts": {
+        "phone": "+351932214271",
+        "website": "https://www.boavistakickboxing.pt"
+      },
+      "fieldSources": {
+        "name": "boavista-kickboxing-site",
+        "address": "boavista-kickboxing-site",
+        "location": "osm-bessa",
+        "parish": "osm-bessa",
+        "phone": "boavista-kickboxing-site"
+      },
+      "offerings": [
+        {
+          "id": "2d033f93-e542-444e-92d0-9dc94a48c86c",
+          "sportId": "kickboxing",
+          "name": "Kickboxing",
+          "description": "Aulas de grupo (incluindo Kick Kids, dos 6 aos 10 anos) e de competição.",
+          "level": "UNSPECIFIED",
+          "source": "boavista-kickboxing-site",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": null
+        }
+      ],
+      "pending": [
+        "address.postalCode: obrigatório; o site só indica '4100' (o OSM dá 4100-365 para o estádio)",
+        "location: aproximada (centro do estádio; a academia funciona lá dentro)"
+      ],
+      "notes": [
+        "Muay Thai também é anunciado, mas não é uma modalidade do projeto."
+      ]
+    },
+    {
+      "id": "89c39b8b-b466-4201-a0c4-79f146783924",
+      "status": "ready",
+      "name": "Estádio Universitário do Porto",
+      "description": "Estádio do Centro de Desporto da Universidade do Porto (CDUP), no Campo Alegre, junto à Ponte da Arrábida, com área de atletismo e pista.",
+      "address": {
+        "street": "Rua das Estrelas, s/n",
+        "postalCode": "4150-762",
+        "parish": "Lordelo do Ouro e Massarelos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.150636,
+        "longitude": -8.643849
+      },
+      "contacts": {
+        "phone": "220408656",
+        "website": "https://cdup.up.pt/en/instalacoes/estadio-universitario-do-porto/"
+      },
+      "fieldSources": {
+        "name": "cdup-estadio",
+        "address": "cdup-estadio",
+        "location": "cdup-estadio",
+        "parish": "osm-reverse",
+        "phone": "cdup-estadio",
+        "parishMapping": "União das Freguesias de Lordelo do Ouro e Massarelos → 'Lordelo do Ouro e Massarelos'"
+      },
+      "offerings": [
+        {
+          "id": "f8f4488b-5f15-4887-89bc-8f7e70ca9f87",
+          "sportId": "corrida",
+          "name": "Atletismo (pista)",
+          "description": "Área de prática de atletismo com pista.",
+          "level": "UNSPECIFIED",
+          "source": "cdup-estadio",
+          "publicAccess": "UNCONFIRMED",
+          "publicAccessSource": "cdup-estadio-pt (pista 'Gratuito' numa tabela 'Comunidade UP'/'Externos', sem indicar a coluna nem condições)"
+        }
+      ],
+      "pending": [
+        "offerings.corrida: acesso de quem não é da U.Porto à pista por confirmar — sem atividade confirmada, o local não é importado"
+      ],
+      "notes": [
+        "Coordenadas da ligação Google Maps da página oficial do CDUP."
+      ]
+    }
+  ],
+  "reviewedOn": "2026-10-27",
+  "publicAccessPolicy": "CONFIRMED: a fonte indica que o público em geral pode inscrever-se ou aderir (sem prometer vagas, horários nem preços). UNCONFIRMED: a atividade é praticada no local, mas o acesso do público não está confirmado — não é importada."
+}
