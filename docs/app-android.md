@@ -1457,4 +1457,5 @@ As contas foram `verifclose…` (4). Todos os passos responderam como o contrato
 - Ecrã bloqueado com o texto genérico, resumo "E mais N", atrasos com Doze ou poupança de bateria num telemóvel real (§20).
 - GPS real e recusa definitiva da permissão de localização (§21).
 - Confirmação visual no emulador da apresentação "só a cidade" e "Nível não indicado" com os locais reais. Está coberta pelos testes JVM, mas não foi vista no ecrã.
-- *Push* com Firebase continua a confirmar com a docente ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).
+- *Push* com Firebase: não exigido pelo enunciado, que só pede notificações ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)); extensão opcional.
+- PostgreSQL num contentor partilhado por todos os serviços face a "a set of independent Docker containers" por serviço: a confirmar ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto), ponto 4).

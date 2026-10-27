@@ -41,7 +41,7 @@ O notifications-service é o dono das **notificações** de cada pessoa e do seu
 
 **Sem garantia de entrega imediata.** Com a app fechada, o Android só corre a consulta periodicamente (no mínimo de 15 em 15 min) e pode adiá-la bastante mais (Doze, *App Standby Buckets*, poupança de bateria, restrições do fabricante, falta de rede). Com a app aberta, a caixa e a contagem são consultadas enquanto o ecrã está visível. O atraso não tem limite garantido. Ver §15.
 
-**Fora desta etapa:** gostos (para limitar o ruído), *push* (Firebase Cloud Messaging; se é exigido está por confirmar com a docente, §19), e-mail, preferências por tipo (silenciar), agrupar várias mensagens numa só notificação no servidor, notificações de listas e de visualizações.
+**Fora desta etapa:** gostos (para limitar o ruído), *push* (Firebase Cloud Messaging; não exigido pelo enunciado, §19), e-mail, preferências por tipo (silenciar), agrupar várias mensagens numa só notificação no servidor, notificações de listas e de visualizações.
 
 ## 2. Entidades
 
@@ -576,7 +576,7 @@ São coisas diferentes:
 
 | # | Decisão | Alternativa afastada |
 |---|---|---|
-| 1 | Sem Firebase nesta versão (requisito **por confirmar com a docente**); WorkManager periódico, sem garantia de atraso | FCM já nesta versão (projeto Firebase, tokens de dispositivo) |
+| 1 | Sem Firebase nesta versão: o enunciado só exige notificações, não *push* ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto), ponto 1); WorkManager periódico, sem garantia de atraso | FCM já nesta versão (projeto Firebase, tokens de dispositivo) |
 | 2 | Gostos fora desta versão | notificar gostos (ruído) |
 | 3 | Transactional outbox nos três produtores, entrega em lote com resultado por evento | pedido direto na ação ("dispara e esquece") |
 | 4 | Uma chave por produtor, com tipos permitidos por chave | uma chave partilhada |
@@ -617,7 +617,7 @@ O peso desta etapa está mais na infraestrutura de eventos do que nos ecrãs.
 - **Seguidores:** mantém-se a regra do §8.4 e o limite configurável de 10 000 destinatários, com `TRUNCATED` registado explicitamente.
 - **WorkManager:** de 15 em 15 min, sem garantia de execução exata (§15.3).
 - **Preferências:** os canais do Android são as preferências iniciais; sem preferências adicionais por tipo na app.
-- ***Push* com Firebase:** continua **por confirmar com a docente** ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto), ponto 1). Esta versão não o implementa; isso não significa que o enunciado o dispense.
+- ***Push* com Firebase:** não exigido. O enunciado pede só "notifications for notifying users of, for example, availability of new contents" ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto), ponto 1). Fica como extensão opcional.
 - **Ajustes:**
   - deduplicação que cobre o reenvio e não deixa recriar notificações apagadas (§6.3–§6.4);
   - limites do reenvio manual (§6.4);
@@ -795,4 +795,4 @@ Verificado no emulador (Android 17), com contas temporárias:
 
 Detalhes e o que fica por verificar à mão em [app-android.md §20](app-android.md#20-notificações-etapa-10).
 
-**Fora desta versão:** gostos não geram notificações. *Push* com Firebase Cloud Messaging continua a ser um requisito **a confirmar com a docente** ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)).
+**Fora desta versão:** gostos não geram notificações. *Push* com Firebase Cloud Messaging não é exigido pelo enunciado ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)); fica como extensão opcional.

@@ -141,6 +141,17 @@ Legenda dos serviços: **USR** users · **CAT** catalog · **EXP** experiences �
 | R15 | Offline e adaptação de imagens (opcionais) | Cache local; miniaturas para ligações lentas | App, EXP | Só se implementado: modo de avião mostra conteúdos já vistos |
 | R16 | Sem reservas, pagamentos ou gestão de ginásios | — | — | O catálogo só tem informação descritiva (horários como texto informativo) |
 
+**Origem no enunciado** ("Practical assignment", V1.0 de 6 de outubro; comparado a 2026-10-27):
+- **Obrigatórios ("must", lista da p. 1–2):** R1, R2, R3, R5, R6, R7, R8, R9, R10, R11 e R13; também o uso de hardware do dispositivo na captura (R4); e "Services must be designed and developed with gracefull degration in mind" (p. 2, infraestrutura), que é a parte de serviços do R14.
+- **Opcionais, marcados "(optional)" no enunciado (p. 2):** conteúdos offline, adaptação à ligação e fidelidade (R15), e "Application must gracefully degrade based on service availability" do lado da app (o R14 vai além disso).
+- **Decisões do projeto, não exigidas pelo enunciado:**
+  - **R4:** a câmara é um dos exemplos dados ("eg., GPS, accelerometer data, camera"); o enunciado não fixa qual usar.
+  - **R11:** os critérios concretos são exemplos ("eg., number of visualizations, number of comments, histogram of ratings").
+  - **R12:** GPS e pesquisa por proximidade.
+  - **R16:** sem reservas, pagamentos ou gestão de ginásios.
+  - **Push:** as notificações *push* (FCM) também não são exigidas.
+- **Sugestões, não exigências ("Tasks & Timeline (suggestions)", p. 2):** MVVM e um módulo da app por funcionalidade (a app é um único módulo, organizado por funcionalidade).
+
 ---
 
 ## 3. Divisão dos serviços e responsabilidade pelos dados
@@ -543,6 +554,7 @@ O contrato detalhado de cada serviço (como [catalog-api.md](catalog-api.md)) é
 
 | # | Questão | Proposta atual | A confirmar com |
 |---|---|---|---|
-| 1 | São exigidas notificações *push* reais (FCM)? | Primeira versão sem push (WorkManager com atraso + consulta com a app aberta); FCM como extensão | Docente |
-| 2 | A tecnologia escolhida (Spring Boot, PostgreSQL) é aceite? | Sim, por ser escolha do grupo | Docente |
-| 3 | É necessário API gateway? | Não nesta fase | Docente |
+| 1 | ~~São exigidas notificações *push* reais (FCM)?~~ **Respondido pelo enunciado:** não. Só "The app must use notifications for notifying users of, for example, availability of new contents" (p. 2). A caixa na app e as notificações do sistema por WorkManager cumprem-no; FCM fica como extensão opcional | — | — |
+| 2 | A tecnologia escolhida (Spring Boot, PostgreSQL) é aceite? | Sim: o enunciado não impõe tecnologias, só REST, Docker e Docker Compose (p. 2) | — |
+| 3 | ~~É necessário API gateway?~~ **Respondido pelo enunciado:** não é pedido | — | — |
+| 4 | Uma instância PostgreSQL partilhada cumpre "Each service must be supported by a set of independent Docker containers" (p. 2)? | Cada serviço tem o seu contentor, a sua base e as suas credenciais, mas a base de dados corre num contentor comum (§3.4). Alternativa sem mudar código: um contentor PostgreSQL por serviço, só com configuração do Compose e mais memória | Docente (ou decisão do grupo) |
