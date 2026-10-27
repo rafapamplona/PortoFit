@@ -52,6 +52,23 @@ class CatalogMappersTest {
     }
 
     @Test
+    fun `detalhe de um ponto de encontro sem codigo postal`() {
+        val body = """
+            {"id":"p2","name":"Centro Municipal de Marcha e Corrida — Parque da Cidade",
+            "address":{"street":"Parque da Cidade (ponto de encontro)","postalCode":null,"city":"Porto"},
+            "location":{"latitude":41.17,"longitude":-8.69},"contacts":{"phone":null,"website":null},
+            "rating":{"status":"NO_RATINGS","average":null,"ratingsCount":0},"offerings":[],"demo":false}
+        """
+        val place = json.decodeFromString<PlaceDetailDto>(body).toModel()
+
+        assertNull(place.address.postalCode)
+        assertEquals("Porto", place.address.city)
+        // Também sem o campo (resposta que omite os nulos).
+        val omitted = body.replace("\"postalCode\":null,", "")
+        assertNull(json.decodeFromString<PlaceDetailDto>(omitted).toModel().address.postalCode)
+    }
+
+    @Test
     fun `detalhe com atividades, niveis e modalidades sem repeticoes`() {
         val body = """
             {"id":"p1","name":"Local","description":null,

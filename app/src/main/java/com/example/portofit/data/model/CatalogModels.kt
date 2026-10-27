@@ -46,7 +46,7 @@ data class NearbyFilter(val latitude: Double, val longitude: Double, val radiusK
 
 data class Address(
     val street: String,
-    val postalCode: String,
+    val postalCode: String?,
     val parish: String?,
     val city: String,
 )

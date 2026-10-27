@@ -56,7 +56,8 @@ data class PlaceDetailDto(
 @Serializable
 data class AddressDto(
     val street: String,
-    val postalCode: String,
+    /** Opcional (pontos de encontro de treino, docs/catalog-api.md §2.1). */
+    val postalCode: String? = null,
     val parish: String? = null,
     val city: String,
 )

@@ -166,7 +166,8 @@ private fun PlaceDetailBody(
         item(key = "address") {
             Section(stringResource(R.string.section_address)) {
                 Text(place.address.street)
-                Text(stringResource(R.string.postal_code_city, place.address.postalCode, place.address.city))
+                // Sem código postal (ponto de encontro de treino), só a cidade.
+                Text(place.address.postalCode?.let { stringResource(R.string.postal_code_city, it, place.address.city) } ?: place.address.city)
                 place.address.parish?.let { Text(stringResource(R.string.parish, it)) }
             }
         }
