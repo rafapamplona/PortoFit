@@ -70,7 +70,15 @@
     "foxgym-site": "https://foxgym.pt/",
     "foxgym-aulas": "https://foxgym.pt/mapa-de-aulas/",
     "osm-foxgym": "https://www.openstreetmap.org/node/11059019047",
-    "academia-marcial-experimental": "https://academiamarcial.com/"
+    "academia-marcial-experimental": "https://academiamarcial.com/",
+    "boavistafc-contactos": "https://www.boavistafc.pt/contactos",
+    "boavista-kickboxing-aulas": "https://www.boavistakickboxing.pt/aulas/",
+    "boavista-kickboxing-contactos": "https://www.boavistakickboxing.pt/contactos/",
+    "visitporto-transparente": "https://visitporto.travel/poi/5cd04b56f979e000012c5df8",
+    "osm-transparente": "https://www.openstreetmap.org/way/108391028",
+    "portorunners-treinos": "https://www.portorunners.net/divulgacao/treinos",
+    "portorunners-inicio": "https://www.portorunners.net/",
+    "osm-parque-cidade": "https://www.openstreetmap.org/way/559610396"
   },
   "places": [
     {
@@ -425,9 +433,9 @@
         }
       ],
       "pending": [
-        "address.postalCode: obrigatório; fontes de terceiros divergem (4300-236, 4300-277, 4300-394); confirmar nos CTT ou junto do espaço",
-        "parish: Campanhã pelo OSM, Bonfim numa listagem de terceiros; a Rua de Godim fica junto ao limite",
-        "offerings: o site oficial recusa pedidos automáticos (403); a modalidade vem do nome no Desporto365 (plataforma municipal); confirmar se é bloco, corda ou ambos"
+        "address.postalCode: confirmar no site oficial (https://saorockclimbing.com/, rodapé ou página de contactos) ou nos CTT; fontes de terceiros dão 4300-236, 4300-277 e 4300-394. Pode ficar null se nenhuma fonte oficial o indicar",
+        "offerings[escalada].publicAccess: confirmar no site oficial se há entrada avulsa (day pass) ou aulas para o público e o tipo (bloco, corda ou ambos); o site recusa pedidos automáticos (403)",
+        "parish: Campanhã pelo OSM; a Rua de Godim fica junto ao limite com o Bonfim"
       ],
       "notes": [
         "Coordenadas do Desporto365 (desporto365.porto.pt, com a marca Desporto Porto/Câmara do Porto); o OSM tem um objeto 'São Rock Climbing' no n.º 312 da mesma rua."
@@ -519,7 +527,7 @@
         }
       ],
       "pending": [
-        "location: obrigatório; o OSM só tem a rua (sem o n.º 275)",
+        "location: obrigatório; confirmar num mapa a posição do n.º 275 da Rua do Monte Alegre (o OSM só tem a rua e o n.º 261, com outro código postal, 4250-255; o site não tem mapa)",
         "parish: por confirmar (o OSM associa a rua a Paranhos e à União de Freguesias do Centro)"
       ],
       "notes": [
@@ -528,18 +536,18 @@
     },
     {
       "id": "c29fcda3-c288-47dd-ad1a-89deb689acf7",
-      "status": "pending",
+      "status": "ready",
       "name": "Academia de Kickboxing Boavista F.C.",
       "description": "Academia de kickboxing do Boavista Futebol Clube, no Estádio do Bessa Século XXI.",
       "address": {
         "street": "Rua O Primeiro de Janeiro (Estádio do Bessa Século XXI)",
-        "postalCode": null,
+        "postalCode": "4100-365",
         "parish": "Ramalde",
         "city": "Porto"
       },
       "location": {
-        "latitude": 41.162198,
-        "longitude": -8.642601
+        "latitude": 41.1625,
+        "longitude": -8.643056
       },
       "contacts": {
         "phone": "+351932214271",
@@ -547,29 +555,29 @@
       },
       "fieldSources": {
         "name": "boavista-kickboxing-site",
-        "address": "boavista-kickboxing-site",
-        "location": "osm-bessa",
+        "address": "boavista-kickboxing-contactos, boavistafc-contactos",
+        "location": "boavistafc-contactos (GPS 41°09'45.0\"N 8°38'35.0\"W do estádio; a ~45 m do centro do estádio no OSM: osm-bessa)",
         "parish": "osm-bessa",
-        "phone": "boavista-kickboxing-site"
+        "phone": "boavista-kickboxing-site",
+        "postalCode": "boavistafc-contactos"
       },
       "offerings": [
         {
           "id": "2d033f93-e542-444e-92d0-9dc94a48c86c",
           "sportId": "kickboxing",
           "name": "Kickboxing",
-          "description": "Aulas de grupo (incluindo Kick Kids, dos 6 aos 10 anos) e de competição.",
+          "description": "Aulas coletivas de manutenção e Kick Kids (6 a 10 anos); a aula de competição é só para atletas em regime de competição (não incluída).",
           "level": "UNSPECIFIED",
-          "source": "boavista-kickboxing-site",
-          "publicAccess": "UNCONFIRMED",
-          "publicAccessSource": null
+          "source": "boavista-kickboxing-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "boavista-kickboxing-contactos ('Inscreve-te na aula experimental grátis de Kickboxing'); boavista-kickboxing-aulas (aula de manutenção)"
         }
       ],
-      "pending": [
-        "address.postalCode: obrigatório; o site só indica '4100' (o OSM dá 4100-365 para o estádio)",
-        "location: aproximada (centro do estádio; a academia funciona lá dentro)"
-      ],
+      "pending": [],
       "notes": [
-        "Muay Thai também é anunciado, mas não é uma modalidade do projeto."
+        "Muay Thai também é anunciado, mas não é uma modalidade do projeto.",
+        "O site da academia só indica '4100'; o código postal completo é o da morada do estádio no site oficial do Boavista FC, onde a academia funciona.",
+        "Coordenadas aproximadas: as do estádio (a academia funciona lá dentro)."
       ]
     },
     {
@@ -1638,6 +1646,90 @@
       "pending": [],
       "notes": [
         "O mapa de aulas oficial não tem data; consultado a 2026-10-27."
+      ]
+    },
+    {
+      "id": "5f8cd7dd-a446-48b2-8f0d-2ecce28b48e3",
+      "status": "ready",
+      "name": "Centro Municipal de Marcha e Corrida — Parque da Cidade",
+      "description": "Ponto de encontro de treino, não uma instalação: caminhada e corrida em grupo orientadas por especialistas, do município com a Federação Portuguesa de Atletismo.",
+      "address": {
+        "street": "Parque da Cidade, junto ao viaduto do Edifício Transparente (ponto de encontro)",
+        "postalCode": null,
+        "parish": "Aldoar, Foz do Douro e Nevogilde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.17144,
+        "longitude": -8.687816
+      },
+      "contacts": {
+        "phone": null,
+        "website": "https://www.agoraporto.pt/desporto/programas-de-atividade-fisica"
+      },
+      "fieldSources": {
+        "name": "agora-programas",
+        "address": "agora-programas, portorunners-treinos",
+        "location": "visitporto-transparente (morada oficial do Edifício Transparente: Via do Castelo do Queijo, 395, 4100-429) e osm-transparente (edifício com essa morada)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "c1daaeef-8a55-451b-9c19-08e6e209931c",
+          "sportId": "corrida",
+          "name": "Treino orientado de marcha e corrida",
+          "description": "Em grupo, num ponto de encontro.",
+          "level": "UNSPECIFIED",
+          "source": "agora-programas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-programas (a cidade 'proporciona, neste momento, um centro municipal de marcha e corrida'; 'é possível realizar caminhadas ou corrida em grupo no Parque da Cidade'); portorunners-treinos (treino feito com o centro)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Ponto de encontro de treino: sem código postal (não é uma morada postal) e com coordenadas aproximadas (~100 m), as do Edifício Transparente; o ponto é 'junto ao viaduto'.",
+        "A página oficial não indica condições de inscrição nem custo (remete para a Federação Portuguesa de Atletismo); o catálogo não as guarda.",
+        "O código postal 4100-429 é o do edifício, não do ponto de encontro: não é usado."
+      ]
+    },
+    {
+      "id": "a0d05a99-5aaa-4217-8bb0-2692bd705022",
+      "status": "pending",
+      "name": "Porto Runners — treino de fim de semana (Parque da Cidade)",
+      "description": "Ponto de encontro de treino do clube de corrida Porto Runners, aberto a quem queira participar.",
+      "address": {
+        "street": "Parque da Cidade, entrada sul (Avenida da Boavista) (ponto de encontro)",
+        "postalCode": null,
+        "parish": "Aldoar, Foz do Douro e Nevogilde",
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": null,
+        "website": "https://www.portorunners.net/"
+      },
+      "fieldSources": {
+        "name": "portorunners-treinos",
+        "address": "portorunners-treinos"
+      },
+      "offerings": [
+        {
+          "id": "54a91ace-3484-4372-bbc3-f50fc97e05b5",
+          "sportId": "corrida",
+          "name": "Treino de corrida em grupo",
+          "description": "Sábados e domingos, num ponto de encontro.",
+          "level": "UNSPECIFIED",
+          "source": "portorunners-treinos",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "portorunners-treinos ('abertos a todos aqueles que queiram participar')"
+        }
+      ],
+      "pending": [
+        "location: obrigatório; 'entrada sul (Av. da Boavista)' corresponde a duas entradas do contorno do parque no OSM (osm-parque-cidade): a 'Entrada das Colunas / Entrada Nascente / da Boavista' (41.165687, -8.672167) e uma entrada sem nome (41.166512, -8.67958), a ~640 m uma da outra; confirmar qual com o clube",
+        "evidência atual: a página de treinos não tem data; o clube tem atividade publicada em 2026-07-18 (portorunners-inicio)"
+      ],
+      "notes": [
+        "Os treinos de terça e quinta da Porto Runners são os do Centro Municipal de Marcha e Corrida (outro local do catálogo): não se duplicam."
       ]
     }
   ],

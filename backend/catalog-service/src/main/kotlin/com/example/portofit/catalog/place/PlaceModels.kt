@@ -6,7 +6,8 @@ import java.util.UUID
 
 data class Address(
 	val street: String,
-	val postalCode: String,
+	/** Opcional: um ponto de encontro de treino não tem código postal. */
+	val postalCode: String?,
 	val parish: String?,
 	val city: String,
 )

@@ -29,7 +29,7 @@ data class RealPlace(
 	val name: String,
 	val description: String?,
 	val street: String,
-	val postalCode: String,
+	val postalCode: String?,
 	val parish: String?,
 	val city: String,
 	val latitude: BigDecimal,
@@ -87,7 +87,7 @@ object RealPlacesFile {
 			val street = address?.let { text(it, "street") }
 			check(street != null && street.isNotBlank() && street.length <= 200, "rua obrigatória, até 200 caracteres")
 			val postalCode = address?.let { text(it, "postalCode") }
-			check(postalCode != null && POSTAL_CODE.matches(postalCode), "código postal no formato 0000-000")
+			check(postalCode == null || POSTAL_CODE.matches(postalCode), "código postal no formato 0000-000 (ou null, se a fonte não o indicar)")
 			val parish = address?.let { text(it, "parish") }
 			check(parish == null || parish.length <= 80, "freguesia até 80 caracteres")
 			val city = address?.let { text(it, "city") }
@@ -125,7 +125,7 @@ object RealPlacesFile {
 			}
 			if (e.isEmpty()) {
 				places += RealPlace(
-					id!!, name!!.trim(), description, street!!, postalCode!!, parish, city!!, latitude!!, longitude!!, phone, website, offerings,
+					id!!, name!!.trim(), description, street!!, postalCode, parish, city!!, latitude!!, longitude!!, phone, website, offerings,
 				)
 			}
 			errors += e

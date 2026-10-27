@@ -43,6 +43,7 @@ class RealPlacesImportIntegrationTest {
 	private val constituicao = "5d3604be-1a4b-404e-bc2e-0f5a5a683781"
 	private val campanha = "79102cf3-5dd2-4d29-8b5f-e795049898db"
 	private val estadio = "89c39b8b-b466-4201-a0c4-79f146783924"
+	private val marchaCorrida = "5f8cd7dd-a446-48b2-8f0d-2ecce28b48e3"
 	private val ribeira = "3f1c9a2e-6b0d-4c55-9a7e-1d2b3c4d5e01"
 
 	@BeforeEach
@@ -53,19 +54,23 @@ class RealPlacesImportIntegrationTest {
 	@Test
 	fun `importa so os locais e atividades com acesso do publico confirmado, com nivel nao indicado`() {
 		val report = importer.import()
-		assertEquals(22, report.places)
-		assertEquals(43, report.offerings)
+		assertEquals(24, report.places)
+		assertEquals(45, report.offerings)
 		assertTrue(report.skippedPlaces.any { it.startsWith("Estádio Universitário do Porto") }, report.skippedPlaces.toString())
 		assertEquals(8, report.skippedPlaces.size) // 7 pendentes + o estádio sem atividade confirmada
 
-		assertEquals(22L, count("SELECT count(*) FROM place WHERE NOT is_demo"))
-		assertEquals(43L, count("SELECT count(*) FROM activity_offering o JOIN place p ON p.id = o.place_id WHERE NOT p.is_demo"))
+		assertEquals(24L, count("SELECT count(*) FROM place WHERE NOT is_demo"))
+		assertEquals(45L, count("SELECT count(*) FROM activity_offering o JOIN place p ON p.id = o.place_id WHERE NOT p.is_demo"))
 		assertEquals(setOf("UNSPECIFIED"), jdbc.sql("SELECT DISTINCT o.level FROM activity_offering o JOIN place p ON p.id = o.place_id WHERE NOT p.is_demo").query(String::class.java).set())
 		// Atividades não confirmadas ficam fora, mesmo num local importado (o boxe da secção do clube).
 		assertEquals(0L, count("SELECT count(*) FROM activity_offering o JOIN place p ON p.id = o.place_id WHERE p.id = '$campanha' AND o.sport_id = 'boxe'"))
 		assertEquals(0L, count("SELECT count(*) FROM place WHERE id = '$estadio'"))
 		// Morada do regulamento oficial (prevalece sobre a página).
 		assertEquals("4250-322", jdbc.sql("SELECT postal_code FROM place WHERE id = '$constituicao'").query(String::class.java).single())
+		// Ponto de encontro de treino sem código postal (V7): fica null, sem inventar.
+		assertEquals(1L, count("SELECT count(*) FROM place WHERE id = '$marchaCorrida' AND postal_code IS NULL"))
+		val meeting = json("/api/v1/places/$marchaCorrida")
+		assertTrue(meeting["address"]["postalCode"]?.isNull ?: true, meeting["address"].toString())
 		// O detalhe devolve o nível tal como está.
 		val detail = json("/api/v1/places/$constituicao")
 		assertEquals(false, detail["demo"].asBoolean())
@@ -114,7 +119,7 @@ class RealPlacesImportIntegrationTest {
 		val all = json("/api/v1/places?size=50")["items"].elements
 		assertTrue(all.isNotEmpty() && all.none { it["demo"].asBoolean() })
 		// Locais com cada modalidade (docs/locais-reais.md §10); corrida e kickboxing abaixo de 5, escalada sem nenhum.
-		val perSport = mapOf("natacao" to 5, "ioga" to 12, "pilates" to 11, "crossfit" to 5, "boxe" to 6, "corrida" to 1, "escalada" to 0, "kickboxing" to 3)
+		val perSport = mapOf("natacao" to 5, "ioga" to 12, "pilates" to 11, "crossfit" to 5, "boxe" to 6, "corrida" to 2, "escalada" to 0, "kickboxing" to 4)
 		perSport.forEach { (sport, expected) -> assertEquals(expected, json("/api/v1/places?sport=$sport&size=50")["totalItems"].asInt(), sport) }
 		// Sem avaliações inventadas: NO_RATINGS com o experiences-service a responder.
 		assertTrue(all.all { it["rating"]["status"].asString() == "NO_RATINGS" })
