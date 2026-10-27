@@ -1,6 +1,6 @@
 # Locais reais do Porto (preparação)
 
-> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. Pesquisa e preparação consultadas a 2026-10-27.
+> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10): 22 locais e 43 atividades; corrida, escalada e kickboxing abaixo de 5. Pesquisa e preparação consultadas a 2026-10-27.
 > Dados: [`backend/catalog-service/src/main/resources/real/locais-reais-porto.json`](../backend/catalog-service/src/main/resources/real/locais-reais-porto.json), separados dos dados de demonstração.
 > Modelo e regras do catálogo: [catalog-api.md §2](catalog-api.md#2-entidades-e-relações); estratégia de substituição: [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração).
 
@@ -275,3 +275,108 @@ docker compose -p portofit-demo -f docker-compose.yml -f docker-compose.demo.yml
 - **Freguesia da Constituição.**
 - **Coordenadas a confirmar num mapa:** as quatro piscinas importadas vieram do OSM.
 - **Verificação visual na app**, quando houver memória para o emulador.
+
+## 10. Ampliação: 5 locais por modalidade (2026-10-27)
+
+Objetivo: pelo menos 5 locais reais ativos em cada uma das 8 modalidades, contando os já importados, só no município do Porto e com as mesmas regras (§2, §9). Fontes consultadas e dados revistos a 2026-10-27. Sem modalidades novas, horários, preços, níveis, fotografias nem avaliações.
+
+### 10.1 Resultado por modalidade
+
+| Modalidade | Locais ativos | Meta | Locais |
+|---|---|---|---|
+| Natação | 5 | cumprida | Constituição, Cartes, Campanhã, Fluvial, **Piscina da FADEUP** |
+| Ioga | 12 | cumprida | Constituição, **Pavilhões Fontes Pereira de Melo e Lagarteiro**, **8 Fitness UP**, **Fox Gym** |
+| Pilates | 11 | cumprida | Constituição, **Pavilhão Fontes Pereira de Melo**, **8 Fitness UP**, **Fox Gym** |
+| CrossFit | 5 | cumprida | Durius, **OPO**, **Drop In**, **Foz**, **Nortada** |
+| Boxe | 6 | cumprida | **Fitness UP Bessa, Constituição, Alegria, Praça Galiza e São João**, **Fox Gym** |
+| Corrida | **1** | **não cumprida** | **Pista de Atletismo do Parque Desportivo de Ramalde/INATEL** |
+| Escalada | **0** | **não cumprida** | — |
+| Kickboxing | **3** | **não cumprida** | **Fitness UP Foz, São João e Ramalde Z.Ind.** |
+
+Os 8 Fitness UP com ioga e pilates são Antas, Foz, Bessa, Constituição, Alegria, Praça Galiza, São João e Ramalde Z.Ind.
+
+**22 locais e 43 atividades** (eram 5 e 7). Ficam de fora 8 locais: os 5 pendentes do §7, os pavilhões do Viso e Pêro Vaz de Caminha e o Estádio Universitário. Todas as atividades têm `level: UNSPECIFIED`.
+
+### 10.2 Locais novos e fontes
+
+| Local | Morada | Atividades | Acesso do público | Coordenadas |
+|---|---|---|---|---|
+| CrossFit OPO | Rua Silva Porto, 630, 4250-471 (Paranhos) | CrossFit | [Diretório de afiliados](https://www.crossfit.com/gym/7027/crossfit-opo): aulas, "Dropping in" | Do diretório; a ~100 m da rua, porque o OSM não tem o n.º 630 |
+| CrossFit Drop In | Rua da Ranha, 320, 4350-273 (Campanhã) | CrossFit | [Diretório](https://www.crossfit.com/gym/16130/crossfit-drop-in) | Do diretório; a inversa dá a Rua da Ranha, no concelho do Porto |
+| CrossFit Foz | Rua Aleixo da Mota (Edifício do Clube Fluvial Portuense), s/n, 4150-044 | CrossFit | [Diretório](https://www.crossfit.com/gym/14773/crossfit-foz) | Do diretório |
+| Nortada CrossFit | Rua António Silva Marinho, 53, 4100-064 (Ramalde) | CrossFit | [Diretório](https://www.crossfit.com/gym/21500/nortada-crossfit) | Do diretório; mesma rua na inversa |
+| Piscina da Faculdade de Desporto da U.Porto | Rua Dr. Plácido da Costa, 91, 4200-450 (Paranhos) | Natação | [CDUP](https://cdup.up.pt/portfolio/natacao/): categoria "Comunidade U.Porto e Externos (público)" | **Aproximadas:** centro do campus no [OSM](https://www.openstreetmap.org/way/36979229) |
+| Pavilhão Municipal Fontes Pereira de Melo | Rua do Professor Damião Peres, 44, 4100-198 (Ramalde) | Ioga, Pilates | Programa municipal "Dias com Energia" ([Ágora](https://www.agoraporto.pt/desporto/programas-de-atividade-fisica)): gratuito, "abertas a pessoas de qualquer idade", com inscrição no Portal de Desporto | **Aproximadas:** a [escola](https://www.openstreetmap.org/relation/5610792) onde fica o pavilhão |
+| Pavilhão Municipal do Lagarteiro | Avenida de Francisco Esteves, 4300-005 (Campanhã) | Ioga | "Dias com Energia" | [Objeto OSM](https://www.openstreetmap.org/way/381422373) com o nome do pavilhão |
+| Pista de Atletismo do Parque Desportivo de Ramalde/INATEL | Rua do Dr. Aarão Lacerda, 4100-015 (Ramalde) | Corrida (pista, utilização individual) | [Preçário oficial 2026–2027](https://www.agoraporto.pt/files/uploads/cms/Parque-Desp-Ramalde-Horario-Precos-2026-2027_v2.pdf) (16.10.2026): pista com "Utilização Individual", de segunda a domingo | Da [ligação de mapa da Ágora](https://www.agoraporto.pt/desporto/rmid/grandes-campos-municipais/parque-desportivo-de-ramalde); a ~65 m do centro da pista no OSM |
+| Fitness UP Porto - Antas | Rua Professor Bento de Jesus Caraça, 314, 4200-132 (Paranhos) | Pilates, Yoga | [Adesão online](https://www.fitnessup.pt/adesao-online/plano&source=menu) e treino experimental; modalidades no [mapa de aulas](https://www.fitnessup.pt/mapa-de-aulas/antas) | [Objeto OSM](https://www.openstreetmap.org/node/12474468236) com o mesmo nome, número e código postal |
+| Fitness UP Porto - Foz | Rua Marta Mesquita da Câmara, 114, 4150-485 | Pilates, Yoga, Kickboxing | Idem ([aulas](https://www.fitnessup.pt/mapa-de-aulas/porto-foz)) | Marcador do mapa oficial, que coincide com o objeto do OSM |
+| Fitness UP Porto - Bessa | Rua O Primeiro de Janeiro, 314, 4100-365 (Ramalde) | Boxe, Pilates, Yoga | Idem ([aulas](https://www.fitnessup.pt/mapa-de-aulas/porto-bessa)) | Marcador do mapa oficial |
+| Fitness UP Porto - Constituição | Rua do Seixal, 130, 4000-521 (Bonfim) | Boxe, Pilates, Yoga | Idem ([aulas](https://www.fitnessup.pt/mapa-de-aulas/porto-constituicao)) | Marcador oficial; o OSM tem um centro desportivo no mesmo n.º |
+| Fitness UP Porto - Alegria | Rua da Alegria, 819, 4000-038 (Bonfim) | Boxe, Pilates, Yoga | Idem ([aulas](https://www.fitnessup.pt/mapa-de-aulas/porto-alegria)) | Marcador oficial; a inversa dá o n.º 847 |
+| Fitness UP Porto - Praça Galiza | Praça da Galiza, 96, 4150-344 | Boxe, Pilates, Yoga | Idem ([aulas](https://www.fitnessup.pt/mapa-de-aulas/praca-galiza)) | Marcador oficial; mesmo código postal na inversa |
+| Fitness UP Porto - São João | Estrada da Circunvalação, 7316, 4200-287 (Paranhos) | Boxe, Kickboxing, Pilates, Yoga | Idem ([aulas](https://www.fitnessup.pt/mapa-de-aulas/sao-joao)) | Marcador oficial; a inversa dá a Rua da Arroteia, junto à Circunvalação |
+| Fitness UP Porto - Ramalde Z.Ind. | Rua Manuel Pinto de Azevedo, 2, 4100-320 (Ramalde) | Kickboxing, Pilates, Yoga | Idem ([aulas](https://www.fitnessup.pt/mapa-de-aulas/porto-zona-industrial)) | Marcador oficial; mesma rua e código postal |
+| Fox Gym | Travessa de Santo Isidro, 122, 4000-099 (Bonfim) | Boxe, Pilates, Yoga | [Adesão pelo site](https://foxgym.pt/); [mapa de aulas](https://foxgym.pt/mapa-de-aulas/), sem data | [Objeto OSM](https://www.openstreetmap.org/node/11059019047) com o mesmo nome, número e código postal |
+
+**Notas:**
+- **Fitness UP:** as moradas, os telefones e o marcador do mapa vêm da página de cada ginásio; as modalidades vêm do mapa de aulas lido a 2026-10-27. O clube avisa que pode mudar atividades e horários, por isso convém rever estas atividades se a importação for refeita mais tarde. O boxe e o kickboxing são aulas de grupo do ginásio, não secções de competição.
+- **Dias com Energia:** as aulas são aos sábados, nos pavilhões, de outubro a abril. De maio a setembro passam para parques e jardins, que não foram importados por não terem morada de instalação.
+- **Mesmo edifício, estabelecimentos distintos:** a CrossFit Foz fica no edifício do Clube Fluvial Portuense, a 113 m do ponto da piscina. O Fitness UP Constituição não é a Piscina Municipal da Constituição. Nenhum foi fundido.
+- **Freguesias:** vêm da geocodificação inversa, na forma curta do §9.1. Também "Aldoar, Foz do Douro e Nevogilde" e "Bonfim".
+- **Academia Marcial:** o acesso do público fica confirmado, porque o site oferece "1 aula grátis para poderes experimentar a modalidade antes do ato de inscrição". O boxe e o kickboxing são dados na mesma aula de "Striking (MMA, Kickboxing e Boxe)". Continua **pendente pelas coordenadas**.
+- **Mudanças face ao §6:** o CrossFit OPO e o CrossFit Drop In entram agora com o diretório oficial. A morada do Drop In fica no Porto (Campanhã), não em Rio Tinto. Os pavilhões municipais entram pelo programa "Dias com Energia".
+
+### 10.3 Metas não cumpridas
+
+- **Corrida (1):**
+  - O **Centro Municipal de Marcha e Corrida**, no Parque da Cidade, tem treinos orientados (terças e quintas às 19 h, sábados às 10 h), mas a [página da Ágora](https://www.agoraporto.pt/desporto/programas-de-atividade-fisica) não diz quem pode participar, como se faz a inscrição nem o custo. Só remete para a Federação Portuguesa de Atletismo, cuja última informação legível sobre a inscrição no programa nacional é de 2024. Também não tem morada de instalação: o ponto de encontro é "junto ao viaduto do Edifício Transparente".
+  - Os treinos da **Porto Runners** são pontos de encontro no Parque da Cidade, sem morada nem data da informação.
+  - O **atletismo do CDUP** (pista da FADEUP) não diz se aceita externos.
+  - A pista do **Estádio Universitário** continua não confirmada (§9.1).
+  - A Ágora não indica outra pista com utilização pelo público.
+  - Nenhum parque foi apresentado como local de corrida.
+- **Escalada (0):** o único ginásio de escalada encontrado no concelho é o **São Rock**, que continua pendente. O site oficial recusa pedidos automáticos (403), as fontes de terceiros dão três códigos postais diferentes e o acesso do público não está confirmado. Os outros ginásios de escalada da zona ficam em Matosinhos, Gaia ou Maia (§6).
+- **Kickboxing (3):**
+  - O **Boavista** continua sem código postal completo (o site só diz "4100").
+  - A **Academia Marcial** tem acesso confirmado, mas não tem coordenadas: o OSM só conhece a rua.
+  - O **Fitness UP Monte dos Burgos** tem kickboxing, mas fica em São Mamede de Infesta, Matosinhos (4465-021).
+  - O **Invicta Martial Arts** não refere kickboxing.
+
+### 10.4 Também excluídos ou pendentes nesta revisão
+
+| Candidato | Motivo |
+|---|---|
+| Pavilhão Municipal do Viso (ioga) | Pendente: o único objeto próximo no OSM, "Gimnodesportivo do Viso", fica noutra rua e tem outro código postal; não se confirma que seja o mesmo |
+| Pavilhão Municipal Pêro Vaz de Caminha (ioga, pilates) | Pendente: nem o pavilhão nem a rua estão no OSM, e a página oficial não tem mapa |
+| Fitness UP Monte dos Burgos | São Mamede de Infesta, Matosinhos |
+| Fitness UP Bolhão (ioga, pilates) | Não preciso para as metas; não verificado |
+| Programa "No Porto a Vida é Longa" | Só para maiores de 60 anos residentes no Porto; não é acesso do público em geral |
+| BHOUT Club Porto-Bessa | O site não indica morada nem modalidades |
+| Climb UP | O site não indica a localização; não se confirma que seja no Porto |
+
+### 10.5 Importação e verificação
+
+- **Cópia de segurança** antes de importar: `C:\Users\rafap\AndroidStudioProjects\PortoFit-backups\catalog_db-2026-10-27-antes-ampliacao.dump`, fora do repositório, feita pelo método do §9.5.
+  - SHA-256 `68cec4b11e77f8e8c8f378523a6e8a356a51d9c209cee11fce73f70ada9b5e1e`, igual dentro e fora do contentor.
+  - O `pg_restore --list` lista as 4 tabelas com dados.
+- **Importação:** a imagem do catálogo foi reconstruída com o ficheiro novo, e o arranque importou **22 locais e 43 atividades, com 8 de fora**.
+  - **Ids novos fixos**, guardados no ficheiro.
+  - Os 5 locais anteriores mantêm os ids e os dados.
+- **Verificação por HTTP:**
+  - **Repetição:** depois de reiniciar (nova importação), as mesmas contagens. Ficam 32 locais na base (22 reais ativos e 10 fictícios, todos `RETIRED`) e 62 atividades, sem nomes de local repetidos.
+  - **Contagens por modalidade** (`/api/v1/places?sport=…`): as do §10.1.
+  - **Detalhe:** os 22 locais, com morada, código postal, freguesia e atividades `UNSPECIFIED`, e sem fictícios na pesquisa.
+  - **Coordenadas:** todas dentro do concelho, confirmadas pela geocodificação inversa. Há só 3 pares a menos de 200 m, todos estabelecimentos distintos com moradas próprias: Fluvial e CrossFit Foz (113 m), Fitness UP Alegria e Fox Gym (113 m), Fitness UP Bessa e Pavilhão Fontes Pereira de Melo (148 m).
+  - **Proximidade:** boxe a 3 km dos Aliados devolve 4 locais, com distância.
+- **Experiências antigas:** continuam a responder `200` pelo id, com o local fictício. O feed popular não mostra locais fictícios.
+- **Outras bases:** a importação só escreve no `catalog_db`. Contagens atuais: 2 contas, 1 seguidor, 4 experiências, 1 comentário, 1 lista com 1 item, 0 mensagens e 0 registos de media. O volume das fotografias tem 9 pastas e **0 ficheiros**. A frase "as 9 fotografias do volume" do §9.6 não corresponde a isto; o mais provável é que contasse as 9 pastas, mas não ficou confirmado.
+- **Testes:** `RealPlacesImportIntegrationTest`, com as contagens novas (22/43/8 e os totais por modalidade): 4 testes, todos a passar. A app e os outros serviços não mudaram, por isso não voltaram a correr. Emulador não aberto.
+
+### 10.6 Pendências
+
+- **Corrida, escalada e kickboxing abaixo de 5** (§10.3).
+- **Pavilhões do Viso e Pêro Vaz de Caminha:** coordenadas.
+- **Academia Marcial:** coordenadas.
+- **Coordenadas aproximadas** (FADEUP e Fontes Pereira de Melo) e as do OSM: confirmar num mapa.
+- **Aulas dos ginásios:** os mapas de aulas mudam. Rever as atividades dos Fitness UP e do Fox Gym antes de uma nova importação.
