@@ -8,7 +8,7 @@
 | Componente | Função | Acesso |
 |---|---|---|
 | `postgres` | PostgreSQL com as bases `catalog_db`, `users_db`, `experiences_db`, `collections_db`, `messaging_db` e `notifications_db`, cada uma com o seu utilizador | Só na rede interna do Compose (sem porta no computador) |
-| `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, dados fictícios do perfil `demo` e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
+| `catalog-service` | API do catálogo ([catalog-api.md](catalog-api.md)) sobre `catalog_db`, com migrações Flyway, locais reais importados pelo perfil `real-places` (fictícios retirados) e verificação de saúde | `http://localhost:8081` (no emulador Android: `http://10.0.2.2:8081`) |
 | `users-service` | Contas, sessões (JWT + refresh tokens), perfis e seguir ([users-api.md](users-api.md)) sobre `users_db`; valida interesses no catalog-service | `http://localhost:8082` |
 | `experiences-service` | Experiências, fotografias e avaliações agregadas ([experiences-api.md](experiences-api.md)) sobre `experiences_db` e o volume `experiences-media`; valida atividades no catalog-service; valida os JWT só com a chave pública | `http://localhost:8083` |
 | `collections-service` | Listas pessoais e experiências guardadas ([collections-api.md](collections-api.md)) sobre `collections_db`; consulta as experiências no experiences-service em lote; valida os JWT só com a chave pública | `http://localhost:8084` |
@@ -180,12 +180,17 @@ GET /places/0000…0000         → 404 application/problem+json, "title": "Não
 
 As avaliações vêm do experiences-service num único pedido por resposta, com prazo de ~1 s. Com ele parado, lento ou em erro, vêm `UNAVAILABLE` (`average` e `ratingsCount` a `null`) e o resto da resposta é igual; não significam zero estrelas. Logo depois de reiniciar o catálogo, as primeiras uma ou duas respostas podem vir `UNAVAILABLE` por excederem o prazo (arranque a frio; medido: 2,4 s e 1,0 s, depois 0,14 s).
 
-### Dados de demonstração (perfil `demo`)
+### Locais reais (perfil `real-places`)
 
-- O `docker-compose.yml` ativa o perfil com `SPRING_PROFILES_ACTIVE: demo`. Com ele, em cada arranque, o serviço carrega **10 locais e 19 atividades fictícios** (`is_demo = true`, "(fictício)" no nome). Os nomes e moradas são inventados; as coordenadas ficam em zonas do Porto só para a proximidade ser realista e **não assinalam estabelecimentos reais**.
+- Desde 2026-10-27, o `docker-compose.yml` ativa `SPRING_PROFILES_ACTIVE: real-places`. Em cada arranque, o catálogo importa de forma repetível os locais reais aprovados (5 locais e 7 atividades; [locais-reais.md §9](locais-reais.md#9-primeira-importação-2026-10-27)), e os fictícios ficam retirados (`V6`), sem ser apagados nem recarregados.
+- Cópia de segurança e reposição de `catalog_db`: [locais-reais.md §9.5](locais-reais.md#95-cópia-de-segurança-e-reposição).
+
+### Dados de demonstração (perfil `demo`, ambiente separado)
+
+- Só num ambiente de demonstração com volume próprio: `docker compose -p portofit-demo -f docker-compose.yml -f docker-compose.demo.yml up -d --wait` (perfil `demo` e `FEED_INCLUDE_DEMO_PLACES=true`; parar primeiro o ambiente normal, porque as portas são as mesmas). Com ele, em cada arranque, o serviço carrega **10 locais e 19 atividades fictícios** (`is_demo = true`, "(fictício)" no nome). Os nomes e moradas são inventados; as coordenadas ficam em zonas do Porto só para a proximidade ser realista e **não assinalam estabelecimentos reais**.
 - O carregamento é repetível: ids fixos e `INSERT ... ON CONFLICT DO UPDATE`; reiniciar não cria duplicados.
 - As 8 modalidades vêm de uma migração normal (dados de referência), com ou sem o perfil.
-- Para arrancar sem dados fictícios, retirar a linha `SPRING_PROFILES_ACTIVE` do Compose. Dados já carregados mantêm-se até serem apagados (por `is_demo = true`) ou até o volume ser removido.
+- No volume normal, os fictícios carregados antes de 2026-10-27 continuam lá, `RETIRED` (`is_demo = true`), porque há experiências que os referem.
 
 ### Testes automáticos
 
@@ -194,7 +199,7 @@ cd backend\catalog-service
 .\gradlew.bat test
 ```
 
-- 30 testes de integração (`CatalogApiIntegrationTest`) contra **PostgreSQL 18.6 real**, arrancado pelo Testcontainers (exige o Docker Desktop a correr). Aplicam as migrações Flyway e os dados do perfil `demo`.
+- 35 testes de integração (`CatalogApiIntegrationTest` e `RealPlacesImportIntegrationTest`, cada um com a sua base) contra **PostgreSQL 18.6 real**, arrancado pelo Testcontainers (exige o Docker Desktop a correr). Aplicam as migrações Flyway e os dados do perfil `demo`.
 - Cobrem: modalidades; pesquisa por modalidade, nome do local e atividade; maiúsculas e acentos; `%`/`_` literais; filtro por modalidade e combinação com texto; paginação estável e página para além do fim; ordenação por nome e por distância; raio e distância em km; parâmetros inválidos; local inexistente e id mal formado; avaliações `UNAVAILABLE`; repetição do carregamento de demonstração sem duplicados. Desde a etapa 6, com um falso experiences-service: `GET /offerings/{id}` (estado, `includeRating=false` sem pedidos, 404/400, atividade ou local retirados), avaliações num só pedido por resposta, e `UNAVAILABLE` com erro, lentidão ou resposta inválida.
 - Precisam de um JDK 25 completo (ex.: Temurin 25 no `PATH`). O build da imagem Docker não corre os testes.
 

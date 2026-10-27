@@ -60,7 +60,7 @@ O id é um *slug* (e não um UUID) porque é usado como filtro em URLs (`sport=b
 | `sportId` | string | sim | Modalidade existente |
 | `name` | string | sim | 2–120 caracteres; único dentro do mesmo local |
 | `description` | string | não | até 1000 caracteres |
-| `level` | enum | sim | `BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `ALL_LEVELS` |
+| `level` | enum | sim | `BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `ALL_LEVELS`, `UNSPECIFIED` ("Nível não indicado": a fonte não indica níveis; usado nos locais reais) |
 | `scheduleNotes` | string | não | até 300 caracteres. **Texto informativo** (ex.: "Seg. e qua., 19h–20h"); não é um horário reservável |
 | `status` | enum | sim | `ACTIVE` (por omissão) ou `RETIRED`, como no local. Nas respostas é sempre o estado **efetivo**: `RETIRED` se a atividade ou o seu local estiverem retirados. Atividades retiradas não contam para a pesquisa pública |
 
@@ -501,7 +501,8 @@ Comportamento do catálogo:
 ## 6. Dados de demonstração
 
 - **Modalidades** (8: Boxe, Corrida, CrossFit, Escalada, Ioga, Kickboxing, Natação, Pilates): dados de referência reais, criados pela migração `V3__reference_sports.sql` em qualquer ambiente.
-- **Locais e atividades fictícios** (10 locais, 19 atividades): ficheiro `src/main/resources/demo/catalog-demo-data.sql`, carregado **só com o perfil Spring `demo`**, que o `docker-compose.yml` local ativa explicitamente. Não fazem parte das migrações normais.
+- **Locais e atividades fictícios** (10 locais, 19 atividades): ficheiro `src/main/resources/demo/catalog-demo-data.sql`, carregado **só com o perfil Spring `demo`**, hoje usado só no ambiente de demonstração separado (`docker-compose.demo.yml`). Não fazem parte das migrações normais.
+- **Desde 2026-10-27, o ambiente normal usa locais reais** (perfil `real-places`, [locais-reais.md §9](locais-reais.md#9-primeira-importação-2026-10-27)): 5 locais e 7 atividades. A migração `V6__retire_demo_places.sql` passou os fictícios a `RETIRED`, sem os apagar.
 - O carregamento corre em cada arranque, depois das migrações, numa transação; usa ids fixos e `INSERT ... ON CONFLICT DO UPDATE`, pelo que reiniciar não cria duplicados e alterações ao ficheiro são aplicadas.
 - Desativar o perfil não apaga dados já carregados; podem ser identificados por `is_demo = true`. **Só podem ser removidos enquanto não houver experiências sobre eles**: as experiências referem-se aos locais e atividades pelo id, sem chaves estrangeiras entre serviços. A estratégia para substituir os dados fictícios por locais reais (retirar em vez de apagar, ids novos, sem passar experiências automaticamente) está em [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração).
 - Todos os locais têm `demo: true`, "(fictício)" no nome e uma descrição que os identifica como dados de demonstração.
@@ -531,5 +532,6 @@ Ajustes feitos na implementação da etapa 3 (backend do catálogo), por ordem d
 | 8 | A modalidade mantém-se "Ioga" (id `ioga`), como no contrato. Pesquisar "yoga" não encontra resultados. | Grafia em português europeu; sinónimos na pesquisa ficam como melhoria possível. |
 | 9 | Etapa 6: `GET /offerings/{id}` com `includeRating` e `status`; migração `V4__catalog_status.sql` com `status` em locais e atividades (todos `ACTIVE`); o detalhe do local pede local e atividades num só pedido (antes eram duas chamadas ao fornecedor de avaliações). | Validação de publicações sem chamada de volta; retirar em vez de apagar ([experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração)). |
 | 10 | Etapa 6 (integração na app): a pesquisa pública só mostra locais `ACTIVE` e só considera atividades `ACTIVE`; `GET /places/{id}` acrescenta `status` ao local e a cada atividade (efetivo) e continua a responder para locais retirados. | Não apresentar dados retirados como disponíveis, mantendo legível o conteúdo histórico. |
+| 11 | Locais reais (2026-10-27): `level` aceita `UNSPECIFIED` (migração `V5__level_unspecified.sql`); importação repetível dos locais reais aprovados (perfil `real-places`); fictícios retirados (`V6__retire_demo_places.sql`), nunca apagados. | Não inventar níveis; substituir os dados fictícios sem quebrar as referências das experiências ([locais-reais.md §9](locais-reais.md#9-primeira-importação-2026-10-27)). |
 
 **Implementação da pesquisa sem maiúsculas/acentos:** função SQL `portofit_normalize(text)` (minúsculas + substituição dos caracteres acentuados), aplicada ao texto pesquisado e aos nomes. Usa só funções nativas do PostgreSQL, sem extensões nem privilégios adicionais, e é `IMMUTABLE`, por isso também serve nos índices únicos.

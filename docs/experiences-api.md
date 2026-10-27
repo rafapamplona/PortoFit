@@ -863,7 +863,7 @@ Os dois feeds e a lista por publicação usam o envelope de paginação comum (�
 - **Determinismo:** a ordem é total (termina no `id`) e só depende dos dados e do dia UTC do pedido. Gostos e comentários novos mudam a ordem entre pedidos; a app remove repetições pelo `id`, como nas outras listas (§9).
 - **Filtro opcional:** `sportId` (uma modalidade, com o formato e a validação de `GET /experiences`). Não há outros filtros: as listas por local, por autor e a pesquisa continuam em `GET /experiences`.
 - **Inclui as do próprio utilizador:** é uma lista pública, igual para todos; `likedByMe` só aparece com o token de outra pessoa.
-- **Modo de demonstração** (§14.6): com `portofit.feed.include-demo-places=true` (valor atual), entram as experiências de locais de demonstração.
+- **Modo de demonstração** (§14.6): com `portofit.feed.include-demo-places=true` (só no ambiente de demonstração), entram as experiências de locais de demonstração; desde 2026-10-27 o valor por omissão é `false`.
 - **Autenticação:** pedido sem token ou com token válido → `200`; token inválido → `401`, como em todas as leituras (§3).
 
 Resposta (os mesmos campos de modo da §14.2, para a app tratar os dois feeds da mesma forma):
@@ -1023,8 +1023,8 @@ O objeto `received` separa o que as publicações **receberam** (gostos, coment�
 
 ### 14.6 Modo de demonstração e catálogo real
 
-- **Hoje** só existe o catálogo fictício ([arquitetura.md §1.4](arquitetura.md#14-dados-de-demonstração)): todas as experiências são de locais `demo`. O experiences-service corre em **modo de demonstração**, com `portofit.feed.include-demo-places=true`, e os feeds incluem essas experiências (identificadas com `place.demo`).
-- **Quando o catálogo real entrar** (§15, decisão explícita do grupo), a propriedade passa a `false`: as publicações de locais de demonstração **ficam fora dos dois feeds**. Continuam acessíveis no perfil do autor, por referência direta (`GET /experiences/{id}`), nas listas do próprio local e no dashboard do autor. Nada é apagado nem migrado.
+- **Até 2026-10-27** só existia o catálogo fictício, e o experiences-service corria em **modo de demonstração** (`portofit.feed.include-demo-places=true`).
+- **Desde 2026-10-27 o catálogo real entrou** ([locais-reais.md §9](locais-reais.md#9-primeira-importação-2026-10-27)), e a propriedade é `false` por omissão (`FEED_INCLUDE_DEMO_PLACES`; `true` só no ambiente de demonstração separado): as publicações de locais de demonstração **ficam fora dos dois feeds**. Continuam acessíveis no perfil do autor, por referência direta (`GET /experiences/{id}`), nas listas do próprio local e no dashboard do autor. Nada é apagado nem migrado.
 - A importação de locais reais **não** faz parte da E4.
 
 ### 14.7 App Android: "Descobrir" e "Estatísticas" (proposta para a etapa da app)
@@ -1089,7 +1089,7 @@ As experiências referem-se ao catálogo por ids. Para os ids das publicações 
 2. **As experiências não dependem do catálogo para serem mostradas.** As cópias de nomes (§2.1) mantêm-nas legíveis mesmo que o catálogo deixe de conhecer o id.
 3. **Nada é apagado em silêncio.** Não há chaves estrangeiras entre serviços nem eliminações em cascata. O catálogo não deve apagar locais ou atividades referenciados por experiências: remover linhas `is_demo = true` ([catalog-api.md §6](catalog-api.md#6-dados-de-demonstração)) só é aceitável enquanto não houver experiências sobre elas.
 
-**Substituição futura dos dados de demonstração por locais reais** (fora das etapas E1–E4; exige uma decisão explícita do grupo):
+**Substituição dos dados de demonstração por locais reais** (decidida pelo grupo e feita a 2026-10-27, [locais-reais.md §9](locais-reais.md#9-primeira-importação-2026-10-27); a remoção de experiências de contas `demo_` e o relatório de ids não resolvidos continuam por fazer):
 
 | Passo | Regra |
 |---|---|
@@ -1421,7 +1421,7 @@ Total do serviço: **40 testes, 0 falhas** (17 da E1, 13 da E2 e 10 da E3); o te
   - **Publicações e histograma:** contam pela data de criação.
   - **Período:** calculado com o relógio do serviço; "Sempre" usa a época como limite. Não há limite superior: nada existe depois do pedido.
 - **Limite de seguidos:** no users-service, `SELECT … FOR UPDATE` na linha do seguidor, verificação de "já segue", contagem e inserção na mesma transação.
-- **Modo de demonstração:** `portofit.feed.include-demo-places` (hoje `true`) acrescenta `NOT place_demo` às duas consultas de feed quando passa a `false`.
+- **Modo de demonstração:** `portofit.feed.include-demo-places` (`false` por omissão desde 2026-10-27) acrescenta `NOT place_demo` às duas consultas de feed quando é `false`.
 
 **Testes automáticos da E4**
 

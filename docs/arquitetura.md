@@ -85,6 +85,8 @@ Na primeira demonstração, todos os dados pré-carregados (locais, atividades, 
 
 Isto evita atribuir avaliações inventadas a negócios reais. Usar espaços reais (ex.: parques públicos) pode ser reconsiderado depois da primeira demonstração.
 
+**Desde 2026-10-27**, o catálogo do ambiente normal tem **locais reais** com fontes verificadas ([locais-reais.md](locais-reais.md)). Os fictícios estão retirados, não apagados, e as experiências antigas continuam ligadas a eles, identificadas como de demonstração. Os fictícios só ficam ativos num ambiente de demonstração separado.
+
 ### 1.5 Percursos principais
 
 **P1 — Visitante descobre uma atividade (sem conta)**
