@@ -41,7 +41,7 @@ O id é um *slug* (e não um UUID) porque é usado como filtro em URLs (`sport=b
 | `name` | string | sim | 2–120 caracteres |
 | `description` | string | não | até 1000 caracteres |
 | `address.street` | string | sim | até 200 caracteres |
-| `address.postalCode` | string | sim | formato português `^\d{4}-\d{3}$` |
+| `address.postalCode` | string | não | formato português `^\d{4}-\d{3}$`; `null` num ponto de encontro de treino, que não tem morada postal (nunca inventado) |
 | `address.parish` | string | não | freguesia, até 80 caracteres |
 | `address.city` | string | sim | até 80 caracteres (nesta fase sempre "Porto") |
 | `location.latitude` | número | sim | −90 a 90, até 6 casas decimais |
@@ -533,5 +533,6 @@ Ajustes feitos na implementação da etapa 3 (backend do catálogo), por ordem d
 | 9 | Etapa 6: `GET /offerings/{id}` com `includeRating` e `status`; migração `V4__catalog_status.sql` com `status` em locais e atividades (todos `ACTIVE`); o detalhe do local pede local e atividades num só pedido (antes eram duas chamadas ao fornecedor de avaliações). | Validação de publicações sem chamada de volta; retirar em vez de apagar ([experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração)). |
 | 10 | Etapa 6 (integração na app): a pesquisa pública só mostra locais `ACTIVE` e só considera atividades `ACTIVE`; `GET /places/{id}` acrescenta `status` ao local e a cada atividade (efetivo) e continua a responder para locais retirados. | Não apresentar dados retirados como disponíveis, mantendo legível o conteúdo histórico. |
 | 11 | Locais reais (2026-10-27): `level` aceita `UNSPECIFIED` (migração `V5__level_unspecified.sql`); importação repetível dos locais reais aprovados (perfil `real-places`); fictícios retirados (`V6__retire_demo_places.sql`), nunca apagados. | Não inventar níveis; substituir os dados fictícios sem quebrar as referências das experiências ([locais-reais.md §9](locais-reais.md#9-primeira-importação-2026-10-27)). |
+| 12 | Locais reais (2026-10-27): `address.postalCode` passa a opcional (migração `V7__place_postal_code_optional.sql`); o formato continua verificado quando existe. A app mostra só a cidade quando falta. | Um ponto de encontro de treino não tem código postal, e inventá-lo não é aceitável ([locais-reais.md §11](locais-reais.md#11-revisão-das-metas-em-falta-2026-10-27)). |
 
 **Implementação da pesquisa sem maiúsculas/acentos:** função SQL `portofit_normalize(text)` (minúsculas + substituição dos caracteres acentuados), aplicada ao texto pesquisado e aos nomes. Usa só funções nativas do PostgreSQL, sem extensões nem privilégios adicionais, e é `IMMUTABLE`, por isso também serve nos índices únicos.

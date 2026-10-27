@@ -1,6 +1,6 @@
 # Locais reais do Porto (preparação)
 
-> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10): 22 locais e 43 atividades; corrida, escalada e kickboxing abaixo de 5. Pesquisa e preparação consultadas a 2026-10-27.
+> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10, §11): 24 locais e 45 atividades; corrida (2), escalada (0) e kickboxing (4) abaixo de 5. Pesquisa e preparação consultadas a 2026-10-27.
 > Dados: [`backend/catalog-service/src/main/resources/real/locais-reais-porto.json`](../backend/catalog-service/src/main/resources/real/locais-reais-porto.json), separados dos dados de demonstração.
 > Modelo e regras do catálogo: [catalog-api.md §2](catalog-api.md#2-entidades-e-relações); estratégia de substituição: [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração).
 
@@ -70,7 +70,7 @@ As fontes de cada campo estão no JSON (`fieldSources` e `sources`); aqui ficam 
    - **Proposta:** uma migração nova do catálogo acrescenta o valor `UNSPECIFIED` à restrição, e o contrato passa a dizer "não indicado".
    - A app já trata valores desconhecidos como `UNKNOWN` (`levelFrom`), por isso não precisa de mudar para continuar a funcionar; só um texto "Nível não indicado" seria um acrescento opcional.
    - Alternativa: tornar `level` opcional (`NULL`), o que muda o formato da resposta (mais impacto).
-2. **`postalCode` obrigatório.**
+2. **`postalCode` obrigatório.** *(Revisto no §11: passou a opcional, só para quem não tem morada postal.)*
    - Não se propõe torná-lo opcional: é confirmável.
    - Os 3 locais em falta ficam de fora da importação até o código ser confirmado na pesquisa oficial dos CTT ou junto do próprio espaço.
 3. **`latitude`/`longitude` obrigatórias.** Os 3 locais sem coordenadas ficam de fora até alguém as confirmar num mapa, com a fonte registada no JSON.
@@ -263,7 +263,7 @@ docker compose -p portofit-demo -f docker-compose.yml -f docker-compose.demo.yml
     - real: morada do regulamento, atividades `UNSPECIFIED` e `ACTIVE`, sem avaliações;
     - fictício pelo id: `200`, `demo: true`, `RETIRED`.
   - **Experiências antigas** (as 3 ativas, todas de locais fictícios): `200` pelo id, com `place.demo: true`; aparecem no perfil do autor; o feed popular não as inclui.
-  - **Dados preservados:** contas, experiências (4, 3 ativas), comentário, lista e item, mensagens, seguidores, as 9 fotografias do volume e os volumes.
+  - **Dados preservados:** contas, experiências (4, 3 ativas), comentário, lista e item, seguidores e os volumes. *(Corrigido no §11.1: dizia também "mensagens" e "as 9 fotografias do volume". Nessa altura havia 0 mensagens, 0 fotografias na base e 0 ficheiros no volume; o "9" eram as 9 entradas da pasta.)*
 - **Emulador:** não aberto (0,75 GB livres). A apresentação na app ("Nível não indicado", "Sem avaliações", local fictício retirado) fica coberta pelos testes JVM e pelos textos que já existiam, mas falta a confirmação visual.
 
 ### 9.7 Pendências
@@ -380,3 +380,105 @@ Os 8 Fitness UP com ioga e pilates são Antas, Foz, Bessa, Constituição, Alegr
 - **Academia Marcial:** coordenadas.
 - **Coordenadas aproximadas** (FADEUP e Fontes Pereira de Melo) e as do OSM: confirmar num mapa.
 - **Aulas dos ginásios:** os mapas de aulas mudam. Rever as atividades dos Fitness UP e do Fox Gym antes de uma nova importação.
+
+## 11. Revisão das metas em falta (2026-10-27)
+
+Revisão de corrida, escalada e kickboxing com critérios menos restritivos.
+- Preço e inscrição online não são obrigatórios.
+- Valem pontos de encontro de treino com evidência atual de funcionamento e de participação pública.
+- As coordenadas podem ser aproximadas, com a precisão explícita, e o OSM não é a única fonte aceite.
+- Nunca se inventam códigos postais.
+
+Sempre só no município do Porto, sem duplicar estabelecimentos.
+
+### 11.1 Discrepância das fotografias e das mensagens (só leitura)
+
+- **Ambiente:** há um único projeto Compose (`portofit`, `docker-compose.yml`), com 7 serviços. Há dois volumes: `portofit_postgres-data`, montado no PostgreSQL, e `portofit_experiences-media`, montado em `/data/media` no experiences-service. Não existe hoje nenhum volume nem projeto `portofit-demo`, por isso os dados não estão noutro ambiente desta máquina.
+- **Estado atual:**
+
+  | O quê | Volume (ficheiros) | Base (referências) |
+  |---|---|---|
+  | Fotografias | 0 ficheiros, em 9 entradas de primeiro nível (8 pastas de prefixo e `tmp`, criadas a 2026-10-19) | 0 linhas em `media` |
+  | Mensagens | — | 0 em `message`, 0 em `conversation` |
+
+- **Registos históricos** (do registo das sessões de trabalho, e não da documentação):
+  - **2026-10-19 14:24 e 15:16:** depois da verificação das fotografias, a limpeza das contas temporárias deixou "ficheiros no volume: 0". A limpeza automática do serviço também registou `rowsRemoved=2`.
+  - **2026-10-20 a 2026-10-22:** as verificações das mensagens usaram contas temporárias (`verifmsg…`). A limpeza, limitada a essas contas, registou sempre "restantes (conversas/mensagens): 0/0".
+  - **2026-10-27, antes da primeira importação:** a linha de base registou `media` 0, `message` 0, 1 comentário, 1 seguidor e `ls /data/media | wc -l` = **9**.
+- **Conclusão:**
+  - **Não houve eliminação:** não há fotografias nem mensagens permanentes desde 2026-10-19 e 2026-10-20. As que existiram eram dados temporários de verificação, removidos de propósito nessas datas.
+  - **O "9" do §9.6 contava as entradas da pasta**, não fotografias, e a frase listava "mensagens" sem as haver. Foi um erro de redação da documentação, corrigido no §9.6.
+  - **A importação não está envolvida:** só escreve no `catalog_db`.
+  - Nada foi reposto nem alterado nesta investigação.
+
+### 11.2 Alteração mínima: código postal opcional
+
+- **Porquê:** o Centro Municipal de Marcha e Corrida é válido, mas é um ponto de encontro e não tem morada postal. O código postal do Edifício Transparente (4100-429) é do edifício, não do ponto de encontro, por isso não foi usado.
+- **Alteração:**
+  - `V7__place_postal_code_optional.sql` só tira o `NOT NULL`. A restrição de formato continua a valer quando há valor.
+  - No catálogo, `Address.postalCode` e o importador aceitam `null` (um valor mal formatado continua a rejeitar o ficheiro).
+  - Na app, o DTO aceita o campo nulo ou ausente, e o detalhe mostra só a cidade.
+  - O contrato está em [catalog-api.md](catalog-api.md) (§2.2 e ajuste 12).
+- **Os locais que já tinham código postal não mudam.** Só o ponto de encontro fica sem ele.
+
+### 11.3 Resultado
+
+| Modalidade | Antes | Agora | Novos |
+|---|---|---|---|
+| Corrida | 1 | **2** | **Centro Municipal de Marcha e Corrida — Parque da Cidade** |
+| Escalada | 0 | **0** | — |
+| Kickboxing | 3 | **4** | **Academia de Kickboxing Boavista F.C.** |
+
+As outras modalidades não mudam: natação 5, ioga 12, pilates 11, CrossFit 5, boxe 6. No total ficam **24 locais e 45 atividades**, com 8 de fora.
+
+- **Centro Municipal de Marcha e Corrida:**
+  - Entra como **"ponto de encontro de treino"**, não como instalação: o nome, a descrição e a rua dizem-no.
+  - **Evidência atual:** a [Ágora](https://www.agoraporto.pt/desporto/programas-de-atividade-fisica) diz que a cidade "proporciona, neste momento, um centro municipal de marcha e corrida" e que "é possível realizar caminhadas ou corrida em grupo no Parque da Cidade", às terças e quintas às 19 h e aos sábados às 10 h. A [Porto Runners](https://www.portorunners.net/divulgacao/treinos) descreve o mesmo ponto de encontro e treina lá com o centro.
+  - **Coordenadas aproximadas (~100 m):** as do Edifício Transparente. Batem com a morada oficial do edifício ([Visit Porto](https://visitporto.travel/poi/5cd04b56f979e000012c5df8): Via do Castelo do Queijo, 395) e com o [edifício no OSM](https://www.openstreetmap.org/way/108391028).
+  - **Inscrição e custo:** a página oficial não os indica (remete para a Federação Portuguesa de Atletismo), e o catálogo não os guarda.
+- **Academia de Kickboxing Boavista F.C.:**
+  - **Acesso do público:** o site oferece uma "aula experimental grátis" e tem aulas coletivas de manutenção e Kick Kids ([aulas](https://www.boavistakickboxing.pt/aulas/)). A aula de competição é só para atletas do clube e não foi incluída.
+  - **Código postal e coordenadas:** os do estádio onde a academia funciona, tirados dos [contactos do Boavista FC](https://www.boavistafc.pt/contactos) (4100-365; GPS 41°09'45.0"N 8°38'35.0"W). Ficam a ~45 m do centro do estádio no OSM e estão assinalados como aproximados.
+  - **Não é o Fitness UP Bessa** (a 125 m, na mesma rua): são estabelecimentos diferentes.
+
+### 11.4 Porque é que não se chega a 5
+
+- **Corrida (2):**
+  - **Treinos de fim de semana da Porto Runners:** entraram no ficheiro como **pendentes**. São "abertos a todos aqueles que queiram participar", mas a "entrada sul (Av. da Boavista)" corresponde a duas entradas do parque no OSM, a ~640 m uma da outra. A página de treinos também não tem data; o clube tem atividade publicada em 2026-07-18.
+  - **Os treinos da Porto Runners à semana são os do Centro Municipal** e não se duplicam.
+  - **Atletismo do CDUP e pista do Estádio Universitário:** continuam sem confirmar se aceitam externos.
+  - **Corridas e eventos pontuais** (Corrida do Dragão, Corrida IPO, Can Run Club, ESN Run Club): não são treinos regulares, ou já passaram, ou são só para estudantes.
+- **Escalada (0):**
+  - **São Rock:** continua pendente (§11.5).
+  - **Escalada do CDUP:** é uma equipa de competição universitária, com "treinos para o ano letivo 2026/2027 ainda por agendar".
+  - **Porto Bridge Climb:** é uma subida guiada por escadas ao arco da Ponte da Arrábida, com arnês, e não escalada. Não entra.
+  - Os outros ginásios de escalada ficam fora do município (§6).
+- **Kickboxing (4):**
+  - **Academia Marcial:** continua pendente pelas coordenadas. O OSM só tem o n.º 261 da rua, com outro código postal, e não se sabe o sentido da numeração; uma coordenada a partir daí seria um palpite.
+  - **NFK Training Center (Rua de Aleixo da Mota, 306):** só aparece no Urban Sports Club, sem site oficial encontrado.
+  - **Solinca Dragão:** só tem Body Combat.
+  - **Fitness UP Monte dos Burgos:** fica em Matosinhos.
+
+### 11.5 A confirmar manualmente no navegador
+
+| Local | Campo | Onde confirmar | Valor a pôr no JSON |
+|---|---|---|---|
+| São Rock Indoor Climbing | Acesso do público e tipo de escalada | <https://saorockclimbing.com/>: entrada avulsa, *day pass* ou aulas para o público; bloco, corda ou ambos | `offerings[0].publicAccess: "CONFIRMED"`, `publicAccessSource` com a página e a frase; nome da atividade, se mudar |
+| São Rock Indoor Climbing | Código postal | Rodapé ou contactos do site, ou a pesquisa dos [CTT](https://www.ctt.pt/feapl_2/app/open/postalCodeSearch/postalCodeSearch.jspx) para "Rua de Godim" (n.º 312) | `address.postalCode`, ou `null` se nenhuma fonte oficial o indicar |
+| São Rock Indoor Climbing | Estado | Depois das linhas acima | `status: "ready"` (as coordenadas e a morada já vêm do [Desporto365](https://desporto365.porto.pt/clubs/262?locale=pt)) |
+| Academia Marcial | Coordenadas | Num mapa, o n.º 275 da Rua do Monte Alegre, 4250-302 | `location`, a fonte em `fieldSources.location` e `status: "ready"` |
+| Porto Runners (fim de semana) | Entrada exata | Com o clube (Facebook ou contactos em <https://www.portorunners.net/>): a "Entrada das Colunas" (41.165687, −8.672167) ou a entrada sem nome (41.166512, −8.67958) | `location` e `status: "ready"` |
+| NFK Training Center | Fonte oficial | Site ou página própria do ginásio (Rua de Aleixo da Mota, 306): kickboxing e acesso do público | Local novo, se houver fonte oficial |
+
+Depois de editar o ficheiro, basta reiniciar o catálogo com a imagem reconstruída (`docker compose up -d --build --wait catalog-service`). A importação é repetível: atualiza pelos ids e não duplica.
+
+### 11.6 Cópia, importação e verificação
+
+- **Cópia antes desta revisão:** `C:\Users\rafap\AndroidStudioProjects\PortoFit-backups\catalog_db-2026-10-27-antes-revisao-metas.dump`, com SHA-256 `5ac45772f8371f5e216949dc206015bbcc866c6f558496e3a174f1a02b647b1a` igual dentro e fora do contentor, e 4 tabelas com dados.
+- **Arranque:** V7 aplicada e importação de **24 locais e 45 atividades, com 8 de fora**. Depois de reiniciar (nova importação), as mesmas contagens: 34 locais na base, 64 atividades, 0 fictícios ativos e 0 nomes repetidos.
+- **API:**
+  - contagens por modalidade iguais às do §11.3;
+  - o detalhe do ponto de encontro devolve `postalCode: null`;
+  - a corrida a 1 km do Castelo do Queijo devolve o ponto de encontro a 0,28 km;
+  - as coordenadas estão todas no concelho.
+- **Testes:** catálogo, 35 de 35, incluindo a migração V7 e o ponto de encontro sem código postal. Na app, `CatalogMappersTest` 7, com um teste novo sem código postal, e `PlaceDetailViewModelTest` 10. Emulador não aberto, por isso a apresentação "só a cidade" no detalhe não foi vista no ecrã.
