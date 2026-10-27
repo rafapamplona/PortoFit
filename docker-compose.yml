@@ -54,9 +54,10 @@ services:
       DB_NAME: catalog_db
       DB_USER: ${CATALOG_DB_USER:?defina CATALOG_DB_USER no .env}
       DB_PASSWORD: ${CATALOG_DB_PASSWORD:?defina CATALOG_DB_PASSWORD no .env}
-      # Ambiente local: carrega os locais FICTÍCIOS de demonstração (ver docs/infraestrutura.md).
-      # Retirar "demo" para arrancar só com o esquema e as modalidades de referência.
-      SPRING_PROFILES_ACTIVE: demo
+      # Ambiente normal: importa os locais REAIS aprovados (docs/locais-reais.md), de forma repetível; os fictícios
+      # ficam retirados (migração V6) e não são recarregados. Para um ambiente de demonstração separado, com os
+      # fictícios ativos, ver docker-compose.demo.yml (nunca neste volume).
+      SPRING_PROFILES_ACTIVE: real-places
       # Avaliações agregadas (timeout ~1 s; se falhar, as avaliações vêm UNAVAILABLE e o resto responde).
       EXPERIENCES_BASE_URL: http://experiences-service:8083
     ports:

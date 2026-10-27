@@ -1,0 +1,15 @@
+# Ambiente de DEMONSTRAÇÃO separado, com os locais fictícios ativos (docs/locais-reais.md §6).
+# Usar sempre com outro nome de projeto, para ter volumes próprios e nunca tocar nos dados do ambiente normal:
+#   docker compose -p portofit-demo -f docker-compose.yml -f docker-compose.demo.yml up -d --wait
+# Usa as mesmas portas (127.0.0.1:8081…): parar primeiro o ambiente normal (docker compose stop).
+# Num volume novo, a migração que retira os fictícios corre antes de eles existirem, por isso ficam ativos.
+
+services:
+  catalog-service:
+    environment:
+      # Carrega os locais fictícios (em vez de importar os reais).
+      SPRING_PROFILES_ACTIVE: demo
+  experiences-service:
+    environment:
+      # Os feeds incluem as publicações de locais fictícios.
+      FEED_INCLUDE_DEMO_PLACES: "true"
