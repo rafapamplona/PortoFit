@@ -1415,7 +1415,7 @@ A revisão aproveita as verificações das secções anteriores e incide no que 
   - Nenhum campo ou botão fica sem acesso.
 - **Contas:** os ecrãs com dados privados (Estatísticas, Descobrir, Mensagens, conversa, listas, guardar numa lista, notificações, perfil, detalhe da experiência e perfis públicos) reagem à mudança de sessão pela chave da conta. Apagam logo o estado e cancelam os pedidos da conta anterior, também nos separadores que guardam o estado.
 - **Lint:** sem erros. Os avisos são versões de dependências, recursos sem uso, falsos erros ortográficos ("autor", "momento"), contadores "x/N caracteres" e `android.media.ExifInterface`. Nenhum é um defeito comprovado; o `ExifInterface` da plataforma serve a `minSdk` 26.
-- **Requisitos (R1–R14 de [arquitetura.md §2](arquitetura.md#2-requisitos-funcionalidades-serviços-e-demonstração)):** todos têm implementação, **exceto "vezes guardada" no dashboard (R11)**, ver abaixo. A câmara e a galeria (R4), as ordenações `recent`, `likes`, `interactions` e `stars` (R6), o perfil (R2), a notificação do sistema (R10) e a proximidade (R12) existem no código.
+- **Requisitos (R1–R14 de [arquitetura.md §2](arquitetura.md#2-requisitos-funcionalidades-serviços-e-demonstração)):** todos têm implementação. "Vezes guardada" no dashboard era um acrescento nosso ao critério do R11 e é uma melhoria adiada, não um requisito (ver abaixo). A câmara e a galeria (R4), as ordenações `recent`, `likes`, `interactions` e `stars` (R6), o perfil (R2), a notificação do sistema (R10) e a proximidade (R12) existem no código.
 
 ### Verificação por HTTP, com contas temporárias, sobre locais reais
 
@@ -1439,10 +1439,16 @@ As contas foram `verifclose…` (4). Todos os passos responderam como o contrato
 - `assembleDebug` e `lintDebug` sem erros.
 - Não houve correções de código nesta revisão, por isso nenhum serviço do backend voltou a correr testes; os do catálogo correram na revisão anterior (35, a passar).
 
-### Requisito em falta: "vezes guardada" (R11)
+### "Vezes guardada": melhoria adiada, não requisito (revisto a 2026-10-27)
 
-- **O que falta:** o critério do R11 é "Dashboard mostra visualizações, gostos, comentários e **vezes guardada**". O contrato adiou esta métrica para uma "etapa 13", com `GET /stats/saves?experienceIds=…` no collections-service ([arquitetura.md §3.12](arquitetura.md#312-dashboard), [collections-api.md](collections-api.md)). Não existe esse endpoint nem a secção correspondente nas Estatísticas da app.
-- **Não foi implementado nesta revisão:** é uma funcionalidade nova em dois componentes (collections-service e app), não a correção de um defeito. Fica a aguardar decisão.
+- **Corrige uma afirmação desta mesma secção:** a primeira versão dizia que faltava um requisito obrigatório e que isso impedia considerar a versão pronta. Não é assim.
+- **Origem:**
+  - **Enunciado:** o original da disciplina não está no repositório nem nas sessões de trabalho, por isso não foi consultado.
+  - **Lista de requisitos do trabalho:** a fonte disponível é a lista fornecida no início do projeto (2026-10-15), que diz só "dashboard com estatísticas das próprias publicações".
+  - **Enunciado, segundo o grupo:** a lista de exemplos (visualizações, comentários e histograma de avaliações) não inclui "vezes guardada".
+  - **Quem acrescentou "vezes guardada":** fomos nós, no critério de demonstração do R11 do [arquitetura.md](arquitetura.md#2-requisitos-funcionalidades-serviços-e-demonstração) (commit `117fed8`, 2026-10-15), e o desenho remeteu-a para a etapa 13.
+- **O que está implementado:** visualizações, gostos e comentários, totais e por publicação, por período, e o histograma das estrelas dadas pelo autor (§17).
+- **Estado:** melhoria adiada (etapa 13, `GET /stats/saves` no collections-service). Não bloqueia a conclusão.
 
 ### Pendências não bloqueantes (já registadas)
 

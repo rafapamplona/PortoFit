@@ -306,4 +306,4 @@ Executados depois da última alteração ao código.
 **App Android (etapa 11):** "As minhas listas" no menu da conta, criar/mudar o nome/eliminar, "Guardar numa lista" no detalhe da experiência e itens com os três estados ([app-android.md §18](app-android.md#18-listas-pessoais-etapa-11)).
 
 **Ainda não implementado:**
-- "vezes guardada" no dashboard (etapa 13), que exigirá uma contagem agregada (proposta em [arquitetura.md §3.12](arquitetura.md#312-dashboard)).
+- "vezes guardada" no dashboard (etapa 13, melhoria adiada e não obrigatória), que exigirá uma contagem agregada (proposta em [arquitetura.md §3.12](arquitetura.md#312-dashboard)).
