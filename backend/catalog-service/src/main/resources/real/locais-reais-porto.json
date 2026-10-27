@@ -30,7 +30,47 @@
     "agora-regulamento-cartes": "https://www.agoraporto.pt/files/uploads/cms/regulamento-2026-2027-RMID-CARTES.pdf",
     "visitporto-campanha-pt": "https://visitporto.travel/pt-PT/poi/5cd04b57f979e000010a3401",
     "cdup-estadio-pt": "https://cdup.up.pt/instalacoes/estadio-universitario-do-porto/",
-    "osm-durius-230": "https://www.openstreetmap.org/node/5494272407"
+    "osm-durius-230": "https://www.openstreetmap.org/node/5494272407",
+    "crossfit-opo-affiliate": "https://www.crossfit.com/gym/7027/crossfit-opo",
+    "crossfit-dropin-affiliate": "https://www.crossfit.com/gym/16130/crossfit-drop-in",
+    "crossfit-foz-affiliate": "https://www.crossfit.com/gym/14773/crossfit-foz",
+    "nortada-affiliate": "https://www.crossfit.com/gym/21500/nortada-crossfit",
+    "cdup-natacao": "https://cdup.up.pt/portfolio/natacao/",
+    "sigarra-fadeup": "https://sigarra.up.pt/fadeup/pt/",
+    "osm-fadeup": "https://www.openstreetmap.org/way/36979229",
+    "agora-programas": "https://www.agoraporto.pt/desporto/programas-de-atividade-fisica",
+    "agora-pav-fontes-pereira-de-melo": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-fontes-pereira-de-melo",
+    "agora-pav-lagarteiro": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-do-lagarteiro",
+    "agora-pav-viso": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-do-viso",
+    "agora-pav-pero-vaz-de-caminha": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-pero-vaz-de-caminha",
+    "osm-fontes-pereira-de-melo": "https://www.openstreetmap.org/relation/5610792",
+    "osm-lagarteiro": "https://www.openstreetmap.org/way/381422373",
+    "osm-gimnodesportivo-viso": "https://www.openstreetmap.org/way/334849499",
+    "agora-ramalde": "https://www.agoraporto.pt/desporto/rmid/grandes-campos-municipais/parque-desportivo-de-ramalde",
+    "agora-ramalde-precario": "https://www.agoraporto.pt/files/uploads/cms/Parque-Desp-Ramalde-Horario-Precos-2026-2027_v2.pdf",
+    "osm-pista-inatel": "https://www.openstreetmap.org/relation/6693364",
+    "fitnessup-adesao": "https://www.fitnessup.pt/adesao-online/plano&source=menu",
+    "fitnessup-antas": "https://www.fitnessup.pt/ginasio/antas",
+    "fitnessup-antas-aulas": "https://www.fitnessup.pt/mapa-de-aulas/antas",
+    "osm-fitnessup-antas": "https://www.openstreetmap.org/node/12474468236",
+    "fitnessup-foz": "https://www.fitnessup.pt/ginasio/porto-foz",
+    "fitnessup-foz-aulas": "https://www.fitnessup.pt/mapa-de-aulas/porto-foz",
+    "fitnessup-bessa": "https://www.fitnessup.pt/ginasio/porto-bessa",
+    "fitnessup-bessa-aulas": "https://www.fitnessup.pt/mapa-de-aulas/porto-bessa",
+    "fitnessup-constituicao": "https://www.fitnessup.pt/ginasio/porto-constituicao",
+    "fitnessup-constituicao-aulas": "https://www.fitnessup.pt/mapa-de-aulas/porto-constituicao",
+    "fitnessup-alegria": "https://www.fitnessup.pt/ginasio/porto-alegria",
+    "fitnessup-alegria-aulas": "https://www.fitnessup.pt/mapa-de-aulas/porto-alegria",
+    "fitnessup-galiza": "https://www.fitnessup.pt/ginasio/praca-galiza",
+    "fitnessup-galiza-aulas": "https://www.fitnessup.pt/mapa-de-aulas/praca-galiza",
+    "fitnessup-sao-joao": "https://www.fitnessup.pt/ginasio/sao-joao",
+    "fitnessup-sao-joao-aulas": "https://www.fitnessup.pt/mapa-de-aulas/sao-joao",
+    "fitnessup-ramalde-zi": "https://www.fitnessup.pt/ginasio/porto-zona-industrial",
+    "fitnessup-ramalde-zi-aulas": "https://www.fitnessup.pt/mapa-de-aulas/porto-zona-industrial",
+    "foxgym-site": "https://foxgym.pt/",
+    "foxgym-aulas": "https://foxgym.pt/mapa-de-aulas/",
+    "osm-foxgym": "https://www.openstreetmap.org/node/11059019047",
+    "academia-marcial-experimental": "https://academiamarcial.com/"
   },
   "places": [
     {
@@ -461,29 +501,30 @@
           "id": "eefe04c2-1ba7-42c0-b891-320fb95af3e6",
           "sportId": "kickboxing",
           "name": "Kickboxing (striking)",
-          "description": null,
+          "description": "Parte da aula de striking (MMA, kickboxing e boxe).",
           "level": "UNSPECIFIED",
           "source": "academia-marcial-site",
-          "publicAccess": "UNCONFIRMED",
-          "publicAccessSource": null
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "academia-marcial-experimental ('Oferta de 1 aula grátis para poderes experimentar a modalidade antes do ato de inscrição')"
         },
         {
           "id": "a80f6597-f251-4572-b139-afd417213139",
           "sportId": "boxe",
           "name": "Boxe (striking)",
-          "description": null,
+          "description": "Parte da aula de striking (MMA, kickboxing e boxe).",
           "level": "UNSPECIFIED",
           "source": "academia-marcial-site",
-          "publicAccess": "UNCONFIRMED",
-          "publicAccessSource": null
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "academia-marcial-experimental ('Oferta de 1 aula grátis para poderes experimentar a modalidade antes do ato de inscrição')"
         }
       ],
       "pending": [
         "location: obrigatório; o OSM só tem a rua (sem o n.º 275)",
-        "parish: por confirmar (o OSM associa a rua a Paranhos e à União de Freguesias do Centro)",
-        "offerings: confirmar se o boxe e o kickboxing são aulas próprias ou parte de uma aula conjunta de striking"
+        "parish: por confirmar (o OSM associa a rua a Paranhos e à União de Freguesias do Centro)"
       ],
-      "notes": []
+      "notes": [
+        "Boxe e kickboxing são dados na mesma aula de 'Striking (MMA, Kickboxing e Boxe)'; o site não tem horários por modalidade."
+      ]
     },
     {
       "id": "c29fcda3-c288-47dd-ad1a-89deb689acf7",
@@ -575,6 +616,1028 @@
       ],
       "notes": [
         "Coordenadas da ligação Google Maps da página oficial do CDUP."
+      ]
+    },
+    {
+      "id": "d72c03b0-4612-4f7b-815b-643af0809762",
+      "status": "ready",
+      "name": "CrossFit OPO",
+      "description": "Ginásio afiliado da CrossFit.",
+      "address": {
+        "street": "Rua Silva Porto, 630",
+        "postalCode": "4250-471",
+        "parish": "Paranhos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.171265,
+        "longitude": -8.619426
+      },
+      "contacts": {
+        "phone": null,
+        "website": null
+      },
+      "fieldSources": {
+        "name": "crossfit-opo-affiliate",
+        "address": "crossfit-opo-affiliate",
+        "location": "crossfit-opo-affiliate",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "d413a5b6-b478-4abd-985a-b680f83e2eb0",
+          "sportId": "crossfit",
+          "name": "CrossFit",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "crossfit-opo-affiliate",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "diretório oficial de afiliados (crossfit.com): ginásio afiliado com aulas e contacto para aderir, incluindo 'Dropping in'"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Coordenadas da ligação de mapa do diretório oficial; a geocodificação inversa dá a Rua de Monsanto, a ~100 m da Rua de Silva Porto (o OSM não tem o n.º 630).",
+        "O diretório não indica site; só e-mail (não guardado)."
+      ]
+    },
+    {
+      "id": "9a6752f7-81d2-4a29-95c7-2bf02b4b9dc9",
+      "status": "ready",
+      "name": "CrossFit Drop In",
+      "description": "Ginásio afiliado da CrossFit.",
+      "address": {
+        "street": "Rua da Ranha, 320",
+        "postalCode": "4350-273",
+        "parish": "Campanhã",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.1764,
+        "longitude": -8.567213
+      },
+      "contacts": {
+        "phone": "+351916435866",
+        "website": null
+      },
+      "fieldSources": {
+        "name": "crossfit-dropin-affiliate",
+        "address": "crossfit-dropin-affiliate",
+        "location": "crossfit-dropin-affiliate",
+        "phone": "crossfit-dropin-affiliate",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "14cbdb54-fb5d-4c8a-af91-a8d5ad3f3e3c",
+          "sportId": "crossfit",
+          "name": "CrossFit",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "crossfit-dropin-affiliate",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "diretório oficial de afiliados (crossfit.com): ginásio afiliado com aulas e contacto para aderir, incluindo 'Dropping in'"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Coordenadas do diretório oficial; a geocodificação inversa dá a Rua da Ranha, Campanhã, concelho do Porto (o OSM sugere um código postal 4435, de Rio Tinto; prevalece o oficial, 4350-273)."
+      ]
+    },
+    {
+      "id": "06123a40-c59a-4f64-a283-d79cc606ea57",
+      "status": "ready",
+      "name": "CrossFit Foz",
+      "description": "Ginásio afiliado da CrossFit, no edifício do Clube Fluvial Portuense.",
+      "address": {
+        "street": "Rua Aleixo da Mota (Edifício do Clube Fluvial Portuense), s/n",
+        "postalCode": "4150-044",
+        "parish": "Lordelo do Ouro e Massarelos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.151432,
+        "longitude": -8.655489
+      },
+      "contacts": {
+        "phone": "+351914527332",
+        "website": "http://www.crossfitfoz.com/"
+      },
+      "fieldSources": {
+        "name": "crossfit-foz-affiliate",
+        "address": "crossfit-foz-affiliate",
+        "location": "crossfit-foz-affiliate",
+        "phone": "crossfit-foz-affiliate",
+        "website": "crossfit-foz-affiliate",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "0fad63eb-c870-4fa5-a409-8411c7052eba",
+          "sportId": "crossfit",
+          "name": "CrossFit",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "crossfit-foz-affiliate",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "diretório oficial de afiliados (crossfit.com): ginásio afiliado com aulas e contacto para aderir, incluindo 'Dropping in'"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Estabelecimento distinto do Clube Fluvial Portuense — Complexo de Piscinas (outro local do catálogo), embora no mesmo edifício: fica como local próprio, sem fundir."
+      ]
+    },
+    {
+      "id": "2e6b5cf3-f0d0-4bac-ae6c-4bb74e36684d",
+      "status": "ready",
+      "name": "Nortada CrossFit",
+      "description": "Ginásio afiliado da CrossFit.",
+      "address": {
+        "street": "Rua António Silva Marinho, 53",
+        "postalCode": "4100-064",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.175154,
+        "longitude": -8.654213
+      },
+      "contacts": {
+        "phone": "+351916791372",
+        "website": null
+      },
+      "fieldSources": {
+        "name": "nortada-affiliate",
+        "address": "nortada-affiliate",
+        "location": "nortada-affiliate",
+        "phone": "nortada-affiliate",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "0c58304c-afb2-4a35-8cb2-aa5a636fc14c",
+          "sportId": "crossfit",
+          "name": "CrossFit",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "nortada-affiliate",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "diretório oficial de afiliados (crossfit.com): ginásio afiliado com aulas e contacto para aderir, incluindo 'Dropping in'"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Coordenadas do diretório oficial; a geocodificação inversa dá o n.º 117 da mesma rua, Ramalde."
+      ]
+    },
+    {
+      "id": "6b072509-256c-4eaf-8ee6-608ca9e08bf5",
+      "status": "ready",
+      "name": "Piscina da Faculdade de Desporto da U.Porto",
+      "description": "Piscina da FADEUP, onde decorrem as aulas de natação do CDUP-UP.",
+      "address": {
+        "street": "Rua Dr. Plácido da Costa, 91",
+        "postalCode": "4200-450",
+        "parish": "Paranhos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.178542,
+        "longitude": -8.602223
+      },
+      "contacts": {
+        "phone": null,
+        "website": "https://cdup.up.pt/portfolio/natacao/"
+      },
+      "fieldSources": {
+        "name": "cdup-natacao",
+        "address": "sigarra-fadeup",
+        "location": "osm-fadeup",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "7fa73827-1da7-4165-834f-936f57347870",
+          "sportId": "natacao",
+          "name": "Natação",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "cdup-natacao",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "cdup-natacao (categoria 'Comunidade U.Porto e Externos (público)')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Coordenadas aproximadas: centro do campus da FADEUP no OSM (a piscina não tem objeto próprio).",
+        "A página do CDUP mostra a morada da sede (Rua das Estrelas); usa-se a da faculdade, onde fica a piscina."
+      ]
+    },
+    {
+      "id": "77be7178-ceda-4a1b-afa7-b34e13af8434",
+      "status": "ready",
+      "name": "Pavilhão Municipal Fontes Pereira de Melo",
+      "description": "Pavilhão municipal da Ágora, na escola Fontes Pereira de Melo.",
+      "address": {
+        "street": "Rua do Professor Damião Peres, 44",
+        "postalCode": "4100-198",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.164758,
+        "longitude": -8.643867
+      },
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-fontes-pereira-de-melo"
+      },
+      "fieldSources": {
+        "name": "agora-piscinas",
+        "address": "agora-pav-fontes-pereira-de-melo",
+        "phone": "agora-pav-fontes-pereira-de-melo",
+        "location": "osm-fontes-pereira-de-melo",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "cf51bfce-6913-4360-afb0-1fff2b3e0c9b",
+          "sportId": "pilates",
+          "name": "Pilates (Dias com Energia)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-programas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        },
+        {
+          "id": "9444da0d-5b53-43e2-aa1f-dda69bfd39e1",
+          "sportId": "ioga",
+          "name": "Ioga (Dias com Energia)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-programas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Aulas do programa municipal 'Dias com Energia' aos sábados, de outubro a abril; de maio a setembro passam para parques e jardins (não importados, por não terem morada de instalação).",
+        "Coordenadas aproximadas: escola onde fica o pavilhão (o OSM não tem o pavilhão como objeto próprio)."
+      ]
+    },
+    {
+      "id": "433f6c9c-0d9f-429e-b39c-8c832da9df3f",
+      "status": "ready",
+      "name": "Pavilhão Municipal do Lagarteiro",
+      "description": "Pavilhão municipal da Ágora.",
+      "address": {
+        "street": "Avenida de Francisco Esteves",
+        "postalCode": "4300-005",
+        "parish": "Campanhã",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.154375,
+        "longitude": -8.567512
+      },
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-do-lagarteiro"
+      },
+      "fieldSources": {
+        "name": "agora-pav-lagarteiro",
+        "address": "agora-pav-lagarteiro",
+        "phone": "agora-pav-lagarteiro",
+        "location": "osm-lagarteiro",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "a9422451-5bea-4175-a00b-cb744fd2aca5",
+          "sportId": "ioga",
+          "name": "Ioga (Dias com Energia)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-programas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Aulas do programa municipal 'Dias com Energia' aos sábados, de outubro a abril; de maio a setembro passam para parques e jardins (não importados, por não terem morada de instalação).",
+        "Coordenadas do objeto OSM 'Pavilhão Municipal do Lagarteiro'; a fonte oficial não indica número de porta."
+      ]
+    },
+    {
+      "id": "a4304810-85b5-46ec-b214-b2903ba68cda",
+      "status": "pending",
+      "name": "Pavilhão Municipal do Viso",
+      "description": "Pavilhão municipal da Ágora.",
+      "address": {
+        "street": "Rua de Artur Brás",
+        "postalCode": "4250-528",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-do-viso"
+      },
+      "fieldSources": {
+        "name": "agora-pav-viso",
+        "address": "agora-pav-viso"
+      },
+      "offerings": [
+        {
+          "id": "c05449bd-4c33-4fda-978e-b98876cc789c",
+          "sportId": "ioga",
+          "name": "Ioga (Dias com Energia)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-programas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        }
+      ],
+      "pending": [
+        "location: obrigatório; o único objeto próximo no OSM ('Gimnodesportivo do Viso', osm-gimnodesportivo-viso) fica na Travessa do Viso, com outro código postal: não se confirma que seja a mesma instalação"
+      ],
+      "notes": [
+        "Aulas do programa municipal 'Dias com Energia' aos sábados, de outubro a abril; de maio a setembro passam para parques e jardins (não importados, por não terem morada de instalação)."
+      ]
+    },
+    {
+      "id": "6c65c58e-0b8e-4a36-8c7e-08e2e59a695f",
+      "status": "pending",
+      "name": "Pavilhão Municipal Pêro Vaz de Caminha",
+      "description": "Pavilhão municipal da Ágora.",
+      "address": {
+        "street": "Rua de Irmã Droste",
+        "postalCode": "4250-009",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-pero-vaz-de-caminha"
+      },
+      "fieldSources": {
+        "name": "agora-pav-pero-vaz-de-caminha",
+        "address": "agora-pav-pero-vaz-de-caminha"
+      },
+      "offerings": [
+        {
+          "id": "43100309-7da9-45dc-830c-faa188b01b54",
+          "sportId": "pilates",
+          "name": "Pilates (Dias com Energia)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-programas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        },
+        {
+          "id": "5139d045-784a-40b3-959c-5200a8366d0e",
+          "sportId": "ioga",
+          "name": "Ioga (Dias com Energia)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-programas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        }
+      ],
+      "pending": [
+        "location: obrigatório; nem o pavilhão nem a Rua de Irmã Droste foram encontrados no OSM, e a página oficial não tem mapa"
+      ],
+      "notes": [
+        "Aulas do programa municipal 'Dias com Energia' aos sábados, de outubro a abril; de maio a setembro passam para parques e jardins (não importados, por não terem morada de instalação)."
+      ]
+    },
+    {
+      "id": "c61e3bbb-e595-4b3b-be06-918d9ac377df",
+      "status": "ready",
+      "name": "Pista de Atletismo do Parque Desportivo de Ramalde/INATEL",
+      "description": "Pista de atletismo municipal do Parque Desportivo de Ramalde/INATEL, gerido pela Ágora.",
+      "address": {
+        "street": "Rua do Dr. Aarão Lacerda",
+        "postalCode": "4100-015",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.168171,
+        "longitude": -8.658041
+      },
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/grandes-campos-municipais/parque-desportivo-de-ramalde"
+      },
+      "fieldSources": {
+        "name": "agora-ramalde",
+        "address": "agora-ramalde",
+        "phone": "agora-piscinas",
+        "location": "agora-ramalde (ligação de mapa oficial; a ~65 m do centro da pista no OSM: osm-pista-inatel)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "956b22db-5b99-4bf2-b0e7-a118aad04ab4",
+          "sportId": "corrida",
+          "name": "Pista de atletismo (utilização individual)",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "agora-ramalde-precario",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-ramalde-precario (preçário oficial 2026–2027, de 16.10.2026: pista com 'Utilização Individual', de segunda a domingo)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "É uma pista de utilização individual, não um treino orientado. Preço e horário não são guardados."
+      ]
+    },
+    {
+      "id": "73be4a20-e2b8-405c-95f7-4ae7e8680378",
+      "status": "ready",
+      "name": "Fitness UP Porto - Antas",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Rua Professor Bento de Jesus Caraça, 314",
+        "postalCode": "4200-132",
+        "parish": "Paranhos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.16395,
+        "longitude": -8.597468
+      },
+      "contacts": {
+        "phone": "915429244",
+        "website": "https://www.fitnessup.pt/ginasio/antas"
+      },
+      "fieldSources": {
+        "name": "fitnessup-antas",
+        "address": "fitnessup-antas",
+        "phone": "fitnessup-antas",
+        "location": "osm-fitnessup-antas (objeto OSM com o mesmo nome, número e código postal; a página oficial não tem mapa)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-antas-aulas"
+      },
+      "offerings": [
+        {
+          "id": "7e0d123d-f6fc-4842-b366-dc0bbc198053",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-antas-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-antas (treino experimental gratuito)"
+        },
+        {
+          "id": "d48277c8-216b-415e-b276-0fc734a947e5",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-antas-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-antas (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+      ]
+    },
+    {
+      "id": "189f7a3f-2b0c-4a4c-b944-64371e321213",
+      "status": "ready",
+      "name": "Fitness UP Porto - Foz",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Rua Marta Mesquita da Câmara, 114",
+        "postalCode": "4150-485",
+        "parish": "Aldoar, Foz do Douro e Nevogilde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.15475,
+        "longitude": -8.665301
+      },
+      "contacts": {
+        "phone": "913926730",
+        "website": "https://www.fitnessup.pt/ginasio/porto-foz"
+      },
+      "fieldSources": {
+        "name": "fitnessup-foz",
+        "address": "fitnessup-foz",
+        "phone": "fitnessup-foz",
+        "location": "fitnessup-foz (marcador do mapa oficial; coincide com o objeto OSM do ginásio)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-foz-aulas"
+      },
+      "offerings": [
+        {
+          "id": "4293efcf-5c45-4abc-b7fb-d8d19e5992fb",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-foz-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-foz (treino experimental gratuito)"
+        },
+        {
+          "id": "af44cf24-398d-4cf7-aaa8-af97b738f94b",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-foz-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-foz (treino experimental gratuito)"
+        },
+        {
+          "id": "22d75492-6c9b-40e5-9b55-b6870eeadf05",
+          "sportId": "kickboxing",
+          "name": "Kickboxing",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-foz-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-foz (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+      ]
+    },
+    {
+      "id": "760048c6-c984-4ba6-bc8b-c36a8a038e11",
+      "status": "ready",
+      "name": "Fitness UP Porto - Bessa",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Rua O Primeiro de Janeiro, 314",
+        "postalCode": "4100-365",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.163617,
+        "longitude": -8.642949
+      },
+      "contacts": {
+        "phone": "910467757",
+        "website": "https://www.fitnessup.pt/ginasio/porto-bessa"
+      },
+      "fieldSources": {
+        "name": "fitnessup-bessa",
+        "address": "fitnessup-bessa",
+        "phone": "fitnessup-bessa",
+        "location": "fitnessup-bessa (marcador do mapa oficial)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-bessa-aulas"
+      },
+      "offerings": [
+        {
+          "id": "f010b961-08a5-4c05-a437-eda4baa0fd68",
+          "sportId": "boxe",
+          "name": "Boxe",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-bessa-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-bessa (treino experimental gratuito)"
+        },
+        {
+          "id": "a262986f-bb1e-41ec-b949-d57ad93a55df",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-bessa-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-bessa (treino experimental gratuito)"
+        },
+        {
+          "id": "8dda907d-5736-457d-a959-a0ba067f3034",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-bessa-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-bessa (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+      ]
+    },
+    {
+      "id": "8d3f3af6-aab2-4127-92e8-642ea1d10377",
+      "status": "ready",
+      "name": "Fitness UP Porto - Constituição",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Rua do Seixal, 130",
+        "postalCode": "4000-521",
+        "parish": "Bonfim",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.160429,
+        "longitude": -8.597776
+      },
+      "contacts": {
+        "phone": "936071355",
+        "website": "https://www.fitnessup.pt/ginasio/porto-constituicao"
+      },
+      "fieldSources": {
+        "name": "fitnessup-constituicao",
+        "address": "fitnessup-constituicao",
+        "phone": "fitnessup-constituicao",
+        "location": "fitnessup-constituicao (marcador do mapa oficial; o OSM tem um centro desportivo no mesmo n.º 130)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-constituicao-aulas"
+      },
+      "offerings": [
+        {
+          "id": "999ecc0b-8551-4a14-b6f5-c49f7024edcc",
+          "sportId": "boxe",
+          "name": "Boxe",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-constituicao-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-constituicao (treino experimental gratuito)"
+        },
+        {
+          "id": "32a49998-d730-47d6-97c7-7fc838b620c2",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-constituicao-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-constituicao (treino experimental gratuito)"
+        },
+        {
+          "id": "7a51faea-2f41-43de-80ab-9001e0ef3ad0",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-constituicao-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-constituicao (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados).",
+        "Ginásio privado, distinto da Piscina Municipal da Constituição (outro local do catálogo)."
+      ]
+    },
+    {
+      "id": "2989cc8d-3bf0-4656-8f72-737e4a675130",
+      "status": "ready",
+      "name": "Fitness UP Porto - Alegria",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Rua da Alegria, 819",
+        "postalCode": "4000-038",
+        "parish": "Bonfim",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.158621,
+        "longitude": -8.601659
+      },
+      "contacts": {
+        "phone": "252023493",
+        "website": "https://www.fitnessup.pt/ginasio/porto-alegria"
+      },
+      "fieldSources": {
+        "name": "fitnessup-alegria",
+        "address": "fitnessup-alegria",
+        "phone": "fitnessup-alegria",
+        "location": "fitnessup-alegria (marcador do mapa oficial; a geocodificação inversa dá o n.º 847 da mesma rua)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-alegria-aulas"
+      },
+      "offerings": [
+        {
+          "id": "003e1f02-fd41-4f6c-b1b5-6af029bed6b1",
+          "sportId": "boxe",
+          "name": "Boxe",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-alegria-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-alegria (treino experimental gratuito)"
+        },
+        {
+          "id": "c4ca5eb5-7ca4-41cc-8a4a-7a645459ccce",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-alegria-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-alegria (treino experimental gratuito)"
+        },
+        {
+          "id": "59c2b3b6-a5c5-49be-9374-7a50fafcc42b",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-alegria-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-alegria (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+      ]
+    },
+    {
+      "id": "fb3d783d-04ef-4e0b-bcb7-9afc6922aa91",
+      "status": "ready",
+      "name": "Fitness UP Porto - Praça Galiza",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Praça da Galiza, 96",
+        "postalCode": "4150-344",
+        "parish": "Lordelo do Ouro e Massarelos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.152292,
+        "longitude": -8.627312
+      },
+      "contacts": {
+        "phone": "913123987",
+        "website": "https://www.fitnessup.pt/ginasio/praca-galiza"
+      },
+      "fieldSources": {
+        "name": "fitnessup-galiza",
+        "address": "fitnessup-galiza",
+        "phone": "fitnessup-galiza",
+        "location": "fitnessup-galiza (marcador do mapa oficial; a geocodificação inversa dá o mesmo código postal)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-galiza-aulas"
+      },
+      "offerings": [
+        {
+          "id": "46e6f3e4-7b7a-4de1-adae-52d795ce13dc",
+          "sportId": "boxe",
+          "name": "Boxe",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-galiza-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-galiza (treino experimental gratuito)"
+        },
+        {
+          "id": "6379513c-d2b8-41c4-a57e-a0cc5611d300",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-galiza-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-galiza (treino experimental gratuito)"
+        },
+        {
+          "id": "26ea76bd-2dbf-4221-853d-a0e2c494631c",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-galiza-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-galiza (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+      ]
+    },
+    {
+      "id": "f9829efb-71eb-46ad-88bb-87814c66ecc5",
+      "status": "ready",
+      "name": "Fitness UP Porto - São João",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Estrada da Circunvalação, 7316",
+        "postalCode": "4200-287",
+        "parish": "Paranhos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.182337,
+        "longitude": -8.59652
+      },
+      "contacts": {
+        "phone": "911069706",
+        "website": "https://www.fitnessup.pt/ginasio/sao-joao"
+      },
+      "fieldSources": {
+        "name": "fitnessup-sao-joao",
+        "address": "fitnessup-sao-joao",
+        "phone": "fitnessup-sao-joao",
+        "location": "fitnessup-sao-joao (marcador do mapa oficial; a geocodificação inversa dá a Rua da Arroteia, junto à Circunvalação)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-sao-joao-aulas"
+      },
+      "offerings": [
+        {
+          "id": "3fbe6202-2c5a-45db-925f-1e5b0b6d5217",
+          "sportId": "boxe",
+          "name": "Boxe",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-sao-joao-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-sao-joao (treino experimental gratuito)"
+        },
+        {
+          "id": "d6ba7c41-045f-48b7-9a40-965df49482b5",
+          "sportId": "kickboxing",
+          "name": "Kickboxing",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-sao-joao-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-sao-joao (treino experimental gratuito)"
+        },
+        {
+          "id": "62cb4e2a-7e17-43d5-97f1-25bf158dab17",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-sao-joao-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-sao-joao (treino experimental gratuito)"
+        },
+        {
+          "id": "dc7a172b-0d4b-4ac5-b37a-f8d9aaa00094",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-sao-joao-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-sao-joao (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+      ]
+    },
+    {
+      "id": "afcf6ad9-17e7-4ff5-a552-2396350d382a",
+      "status": "ready",
+      "name": "Fitness UP Porto - Ramalde Z.Ind.",
+      "description": "Ginásio da rede Fitness UP, com aulas de grupo.",
+      "address": {
+        "street": "Rua Manuel Pinto de Azevedo, 2",
+        "postalCode": "4100-320",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.17063,
+        "longitude": -8.64382
+      },
+      "contacts": {
+        "phone": "910586935",
+        "website": "https://www.fitnessup.pt/ginasio/porto-zona-industrial"
+      },
+      "fieldSources": {
+        "name": "fitnessup-ramalde-zi",
+        "address": "fitnessup-ramalde-zi",
+        "phone": "fitnessup-ramalde-zi",
+        "location": "fitnessup-ramalde-zi (marcador do mapa oficial; a geocodificação inversa dá a mesma rua e código postal)",
+        "parish": "osm-reverse",
+        "offerings": "fitnessup-ramalde-zi-aulas"
+      },
+      "offerings": [
+        {
+          "id": "1f6baa49-5593-4757-aa46-20e280c2dff6",
+          "sportId": "kickboxing",
+          "name": "Kickboxing",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-ramalde-zi-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-ramalde-zi (treino experimental gratuito)"
+        },
+        {
+          "id": "53eaf5fd-f7f1-4494-b6ce-9cec51527709",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-ramalde-zi-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-ramalde-zi (treino experimental gratuito)"
+        },
+        {
+          "id": "cd31a875-826f-48f1-8e7c-322b7ef0002e",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-ramalde-zi-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-ramalde-zi (treino experimental gratuito)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+      ]
+    },
+    {
+      "id": "6547bdd5-c266-4133-9705-fd5880e02243",
+      "status": "ready",
+      "name": "Fox Gym",
+      "description": "Ginásio com aulas de grupo e sala de artes marciais.",
+      "address": {
+        "street": "Travessa de Santo Isidro, 122",
+        "postalCode": "4000-099",
+        "parish": "Bonfim",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.15907,
+        "longitude": -8.600445
+      },
+      "contacts": {
+        "phone": "+351967220078",
+        "website": "https://foxgym.pt/"
+      },
+      "fieldSources": {
+        "name": "foxgym-site",
+        "address": "foxgym-site",
+        "phone": "foxgym-aulas",
+        "location": "osm-foxgym (objeto OSM com o mesmo nome, número e código postal)",
+        "parish": "osm-reverse",
+        "offerings": "foxgym-aulas"
+      },
+      "offerings": [
+        {
+          "id": "fbca8aaf-91e0-4953-ac1d-82cbb1cc7fc9",
+          "sportId": "boxe",
+          "name": "Boxe",
+          "description": "Aula de grupo na sala de artes marciais.",
+          "level": "UNSPECIFIED",
+          "source": "foxgym-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "foxgym-site (adesão pelo site)"
+        },
+        {
+          "id": "da42252f-33dc-4b89-b576-3445d895922a",
+          "sportId": "pilates",
+          "name": "Pilates",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "foxgym-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "foxgym-site (adesão pelo site)"
+        },
+        {
+          "id": "69fa04a5-8c76-41cc-af9b-c3bcc2e3a7ac",
+          "sportId": "ioga",
+          "name": "Yoga",
+          "description": null,
+          "level": "UNSPECIFIED",
+          "source": "foxgym-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "foxgym-site (adesão pelo site)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "O mapa de aulas oficial não tem data; consultado a 2026-10-27."
       ]
     }
   ],
