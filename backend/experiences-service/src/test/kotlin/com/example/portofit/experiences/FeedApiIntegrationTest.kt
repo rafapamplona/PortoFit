@@ -5,6 +5,7 @@ import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.hasItem
 import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
@@ -31,11 +32,18 @@ class FeedApiIntegrationTest : ApiIntegrationTest() {
 
 	@Autowired lateinit var feedProperties: FeedProperties
 
+	/** Os dados destes testes são de locais de demonstração; o modo do catálogo real é testado explicitamente. */
+	@BeforeEach
+	fun demoMode() {
+		feedProperties.includeDemoPlaces = true
+	}
+
 	@AfterEach
 	fun restore() {
 		users.mode = UsersStub.Mode.UP
 		catalog.mode = CatalogStub.Mode.UP
-		feedProperties.includeDemoPlaces = true
+		// O valor configurado no ambiente normal (application.yaml).
+		feedProperties.includeDemoPlaces = false
 	}
 
 	// --- Popular ---

@@ -34,8 +34,8 @@ data class UsersProperties(
 )
 
 /**
- * Feeds (docs/experiences-api.md §14.1, §14.6). [includeDemoPlaces] = modo de demonstração: enquanto só houver o
- * catálogo fictício é true; com o catálogo real passa a false e as publicações de locais de demonstração saem dos feeds.
+ * Feeds (docs/experiences-api.md §14.1, §14.6). [includeDemoPlaces] = modo de demonstração: com o catálogo real é false
+ * (application.yaml) e as publicações de locais de demonstração saem dos feeds; true só num ambiente de demonstração.
  */
 @ConfigurationProperties("portofit.feed")
 class FeedProperties {

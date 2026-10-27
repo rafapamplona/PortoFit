@@ -73,8 +73,9 @@ portofit:
   feed:
     # Bloco recente do feed popular (docs/experiences-api.md §14.1).
     recent-days: 30
-    # Modo de demonstração (§14.6): false quando o catálogo real entrar.
-    include-demo-places: true
+    # Modo de demonstração (§14.6): com o catálogo real, as publicações de locais fictícios ficam fora dos feeds
+    # (continuam acessíveis pelo id e no perfil do autor). Num ambiente de demonstração: FEED_INCLUDE_DEMO_PLACES=true.
+    include-demo-places: ${FEED_INCLUDE_DEMO_PLACES:false}
   publishing:
     # Limite por autor, em memória (docs/experiences-api.md §4.1).
     max-per-author: 30
