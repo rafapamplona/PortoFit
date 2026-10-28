@@ -49,9 +49,13 @@ class CatalogApiIntegrationTest {
 	fun `lista modalidades ordenadas por nome`() {
 		mvc.get("/api/v1/sports").andExpect {
 			status { isOk() }
-			jsonPath("$.items[0].id") { value("boxe") }
+			jsonPath("$.items[0].id") { value("basquetebol") }
 			jsonPath("$.items[*].id") { value(hasItem("natacao")) }
 			jsonPath("$.items[?(@.id == 'natacao')].name") { value(hasItem("Natação")) }
+			// V8: novas modalidades com slugs estáveis (os anteriores não mudam).
+			jsonPath("$.items[?(@.id == 'tenis')].name") { value(hasItem("Ténis")) }
+			jsonPath("$.items[?(@.id == 'musculacao')].name") { value(hasItem("Musculação")) }
+			jsonPath("$.items.length()") { value(15) }
 		}
 		val names = json("/api/v1/sports")["items"].elements.map { it["name"].asString() }
 		assertEquals(names.sortedBy(::normalize), names)
