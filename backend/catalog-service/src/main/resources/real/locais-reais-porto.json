@@ -98,7 +98,28 @@
     "oig-aluguer": "https://www.oportoindoorgames.pt/aluguer-de-campos",
     "oig-contactos": "https://www.oportoindoorgames.pt/reservas-contactos",
     "osm-oig-1063": "https://www.openstreetmap.org/way/897251551",
-    "fitnessup-no-ginasio": "https://www.fitnessup.pt/treinar-ginasio"
+    "fitnessup-no-ginasio": "https://www.fitnessup.pt/treinar-ginasio",
+    "goporto-tabelas-2022": "https://www.goporto.pt/noticias/municipio-promove-desporto-ao-ar-livre-para-todos",
+    "osm-covelo-basket": "https://www.openstreetmap.org/node/13741182024",
+    "osm-paulo-vallada-basket": "https://www.openstreetmap.org/way/482327698",
+    "osm-viso-basket": "https://www.openstreetmap.org/way/456415508",
+    "fpb-calendario-fcporto": "https://www.fpb.pt/calendario/clube_120/",
+    "fpb-calendario-vascodagama": "https://www.fpb.pt/calendario/clube_176/",
+    "agora-pav-manoel-de-oliveira": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-manoel-de-oliveira",
+    "agora-pav-manoel-de-oliveira-precario": "https://www.agoraporto.pt/files/uploads/cms/Pav-Manoel-Oliv-Horario-Precos-2026-2027_v2.pdf",
+    "agora-pav-lagarteiro-precario": "https://www.agoraporto.pt/files/uploads/cms/Pav-Lagarteiro-Horario-Precos-2026-2027_v2.pdf",
+    "agora-pav-irene-lisboa": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-irene-lisboa",
+    "agora-pav-irene-lisboa-precario": "https://www.agoraporto.pt/files/uploads/cms/Pav-Irene-Lisboa-Horario-Precos-2026-2027_v2.pdf",
+    "agora-pav-pvc-precario": "https://www.agoraporto.pt/files/uploads/cms/Pav-Pero-Vaz-Caminha-Horario-Precos-2026-2027_v2.pdf",
+    "osm-manoel-de-oliveira": "https://www.openstreetmap.org/way/160503724",
+    "avp-boavistafc": "https://www.avporto.pt/boavistafc/",
+    "avp-gcuniversal": "https://www.avporto.pt/gcuniversal/",
+    "avp-cdup": "https://www.avporto.pt/cdup/",
+    "playtomic-playsports-prelada": "https://playtomic.com/pt/clubs/arena-playsports-porto-prelada-novo-relvado",
+    "playtomic-footspace": "https://playtomic.com/pt/clubs/footspace",
+    "playtomic-ccdporto": "https://playtomic.com/pt/clubs/ccdporto",
+    "uaaaroso-site": "https://www.uaaaroso.pt/",
+    "portoccd-site": "https://portoccd.org/"
   },
   "places": [
     {
@@ -657,6 +678,16 @@
           "source": "cdup-estadio-pt-precos",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "cdup-estadio-pt-precos (tabela 'Courts de ténis' com preço para 'Externos')"
+        },
+        {
+          "id": "4736f7fa-d505-40fe-931b-6d3efb95f07f",
+          "sportId": "voleibol",
+          "name": "Aluguer do Pavilhão A (voleibol)",
+          "description": "Aluguer do pavilhão por hora, com preço para externos à U.Porto. Não é uma aula nem uma equipa.",
+          "level": "UNSPECIFIED",
+          "source": "cdup-estadio-pt-precos",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "cdup-estadio-pt-precos (tabela 'Pavilhão A' com preço para 'Externos'); a modalidade é confirmada pela AVP: a CDUP/Volleystars joga no 'Pavilhão A (Prof. Dr. Galvão Telles)' (avp-cdup)"
         }
       ],
       "pending": [
@@ -973,6 +1004,16 @@
           "source": "agora-programas",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        },
+        {
+          "id": "1eb03158-fac7-49e5-b092-65f0a32bb4de",
+          "sportId": "basquetebol",
+          "name": "Aluguer do pavilhão (basquetebol)",
+          "description": "Aluguer do pavilhão por hora, mediante marcação prévia. Não é uma aula nem um treino aberto.",
+          "level": "UNSPECIFIED",
+          "source": "fpb-calendario-fcporto",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-pav-lagarteiro-precario (preçário municipal 2026–2027 (16.10.2026): 'Utilização' do pavilhão por hora para 'Privados ou clubes de fora da cidade do Porto, mediante marcação prévia'); a modalidade é confirmada pelo calendário oficial da FPB 2026/2027 ('Gim. do Lagarteiro', jogos de formação em novembro de 2026: fpb-calendario-fcporto)"
         }
       ],
       "pending": [],
@@ -1022,23 +1063,28 @@
     },
     {
       "id": "6c65c58e-0b8e-4a36-8c7e-08e2e59a695f",
-      "status": "pending",
+      "status": "ready",
       "name": "Pavilhão Municipal Pêro Vaz de Caminha",
       "description": "Pavilhão municipal da Ágora.",
       "address": {
         "street": "Rua de Irmã Droste",
         "postalCode": "4250-009",
-        "parish": null,
+        "parish": "Paranhos",
         "city": "Porto"
       },
-      "location": null,
+      "location": {
+        "latitude": 41.177241,
+        "longitude": -8.615334
+      },
       "contacts": {
         "phone": "225390111",
         "website": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-pero-vaz-de-caminha"
       },
       "fieldSources": {
         "name": "agora-pav-pero-vaz-de-caminha",
-        "address": "agora-pav-pero-vaz-de-caminha"
+        "address": "agora-pav-pero-vaz-de-caminha",
+        "location": "avp-gcuniversal (ligação de mapa da Associação de Voleibol do Porto para o 'Pav. Esc. Pêro Vaz de Caminha'; cai na Escola Básica Pêro Vaz de Caminha, a ~70 m da Rua Irmã Maria Droste)",
+        "parish": "osm-reverse"
       },
       "offerings": [
         {
@@ -1060,13 +1106,22 @@
           "source": "agora-programas",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "agora-programas (programa municipal 'Dias com Energia': aulas 'abertas a pessoas de qualquer idade e nível de experiência', gratuitas, 'mediante inscrição online através do Portal de Desporto')"
+        },
+        {
+          "id": "c26027a7-a395-400c-932b-29cbba293180",
+          "sportId": "voleibol",
+          "name": "Aluguer do pavilhão (voleibol)",
+          "description": "Aluguer do pavilhão por hora, mediante marcação prévia. Não é uma aula nem um treino aberto.",
+          "level": "UNSPECIFIED",
+          "source": "avp-gcuniversal",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-pav-pvc-precario (preçário municipal 2026–2027 (16.10.2026): 'Utilização' do pavilhão por hora para 'Privados ou clubes de fora da cidade do Porto, mediante marcação prévia'); a modalidade é confirmada pela AVP: o Colégio Universal joga voleibol neste pavilhão (avp-gcuniversal)"
         }
       ],
-      "pending": [
-        "location: obrigatório; nem o pavilhão nem a Rua de Irmã Droste foram encontrados no OSM, e a página oficial não tem mapa"
-      ],
+      "pending": [],
       "notes": [
-        "Aulas do programa municipal 'Dias com Energia' aos sábados, de outubro a abril; de maio a setembro passam para parques e jardins (não importados, por não terem morada de instalação)."
+        "Aulas do programa municipal 'Dias com Energia' aos sábados, de outubro a abril; de maio a setembro passam para parques e jardins (não importados, por não terem morada de instalação).",
+        "Coordenadas aproximadas: as da escola onde fica o pavilhão (mapa da AVP). A AVP indica a Rua da Telheira (morada da escola); mantém-se a morada da Ágora."
       ]
     },
     {
@@ -2158,6 +2213,382 @@
       "notes": [
         "A página de reservas avisa que o pedido não garante a reserva nem a disponibilidade; o catálogo não guarda disponibilidade."
       ]
+    },
+    {
+      "id": "8166541a-7f14-452d-b378-39d73a980ddb",
+      "status": "ready",
+      "name": "Pavilhão Municipal Irene Lisboa",
+      "description": "Pavilhão municipal da Ágora, na escola Irene Lisboa.",
+      "address": {
+        "street": "Rua de Cervantes, 532",
+        "postalCode": "4050-186",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.160951,
+        "longitude": -8.612461
+      },
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-irene-lisboa"
+      },
+      "fieldSources": {
+        "name": "agora-pav-irene-lisboa",
+        "address": "agora-pav-irene-lisboa, avp-boavistafc",
+        "phone": "agora-piscinas",
+        "location": "avp-boavistafc (ligação de mapa da AVP; cai na Escola Básica Irene Lisboa, Rua de Cervantes 532)"
+      },
+      "offerings": [
+        {
+          "id": "0c42bc47-33fc-4de0-aa7b-7583975f73cb",
+          "sportId": "voleibol",
+          "name": "Aluguer do pavilhão (voleibol)",
+          "description": "Aluguer do pavilhão por hora, mediante marcação prévia. Não é uma aula nem um treino aberto.",
+          "level": "UNSPECIFIED",
+          "source": "avp-boavistafc",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-pav-irene-lisboa-precario (preçário municipal 2026–2027 (16.10.2026): 'Utilização' do pavilhão por hora para 'Privados ou clubes de fora da cidade do Porto, mediante marcação prévia'); a modalidade é confirmada pela AVP: o Boavista FC joga voleibol neste pavilhão (avp-boavistafc)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Coordenadas aproximadas: as da escola onde fica o pavilhão.",
+        "Freguesia vazia: União de Freguesias do Centro (forma por decidir, §4.4)."
+      ]
+    },
+    {
+      "id": "e2843975-2c4d-4a8c-9156-b19d34ad1f29",
+      "status": "ready",
+      "name": "Pavilhão Municipal Manoel de Oliveira",
+      "description": "Pavilhão municipal da Ágora, na escola Manoel de Oliveira.",
+      "address": {
+        "street": "Rua Robert Auzelle, 134",
+        "postalCode": "4100-431",
+        "parish": "Aldoar, Foz do Douro e Nevogilde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.168865,
+        "longitude": -8.667471
+      },
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/pavilhoes-municipais/pavilhao-manoel-de-oliveira"
+      },
+      "fieldSources": {
+        "name": "agora-pav-manoel-de-oliveira",
+        "address": "agora-pav-manoel-de-oliveira",
+        "phone": "agora-piscinas",
+        "location": "osm-manoel-de-oliveira (pavilhão dentro da escola com o mesmo n.º 134 e código postal da morada oficial)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "35f92e78-f181-4539-b5c4-befd4af0289e",
+          "sportId": "basquetebol",
+          "name": "Aluguer do pavilhão (basquetebol)",
+          "description": "Aluguer do pavilhão por hora, mediante marcação prévia. Não é uma aula nem um treino aberto.",
+          "level": "UNSPECIFIED",
+          "source": "fpb-calendario-fcporto",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-pav-manoel-de-oliveira-precario (preçário municipal 2026–2027 (16.10.2026): 'Utilização' do pavilhão por hora para 'Privados ou clubes de fora da cidade do Porto, mediante marcação prévia'); a modalidade é confirmada pelo calendário oficial da FPB 2026/2027 ('Escola EB23 Manoel de Oliveira', jogos em novembro de 2026: fpb-calendario-fcporto, fpb-calendario-vascodagama)"
+        }
+      ],
+      "pending": [],
+      "notes": []
+    },
+    {
+      "id": "bd51e293-b536-480f-97ac-581e2be0bb13",
+      "status": "ready",
+      "name": "Campo de basquetebol do Parque do Covelo",
+      "description": "Tabelas de basquetebol municipais no Parque do Covelo (Quinta do Covelo).",
+      "address": {
+        "street": "Parque do Covelo",
+        "postalCode": null,
+        "parish": "Paranhos",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.166967,
+        "longitude": -8.605398
+      },
+      "contacts": {
+        "phone": null,
+        "website": null
+      },
+      "fieldSources": {
+        "name": "goporto-tabelas-2022",
+        "address": "goporto-tabelas-2022",
+        "location": "osm-covelo-basket (campo de basquetebol dentro do Parque do Covelo)",
+        "parish": "goporto-tabelas-2022"
+      },
+      "offerings": [
+        {
+          "id": "5ddb1a04-d1cd-433a-9794-ad85d9f6a506",
+          "sportId": "basquetebol",
+          "name": "Basquetebol (prática livre)",
+          "description": "Tabelas de basquetebol de acesso livre e gratuito num espaço municipal; sem aulas, reservas nem horário.",
+          "level": "UNSPECIFIED",
+          "source": "goporto-tabelas-2022",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "goporto-tabelas-2022 (lista municipal de 23/02/2022: 'Quinta do Covelo', 'de acesso fácil e gratuito')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Fonte municipal de 2022 (requalificação de 15 tabelas): não há confirmação mais recente do estado das tabelas.",
+        "Coordenadas do campo dentro do parque."
+      ]
+    },
+    {
+      "id": "2abbe226-f831-40d9-9798-e04af7d5fc66",
+      "status": "ready",
+      "name": "Campo de basquetebol do Jardim Paulo Vallada",
+      "description": "Tabelas de basquetebol municipais no Jardim Paulo Vallada.",
+      "address": {
+        "street": "Jardim Paulo Vallada",
+        "postalCode": null,
+        "parish": "Bonfim",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.153296,
+        "longitude": -8.598051
+      },
+      "contacts": {
+        "phone": null,
+        "website": null
+      },
+      "fieldSources": {
+        "name": "goporto-tabelas-2022",
+        "address": "goporto-tabelas-2022",
+        "location": "osm-paulo-vallada-basket (campo de basquetebol dentro do jardim)",
+        "parish": "goporto-tabelas-2022"
+      },
+      "offerings": [
+        {
+          "id": "d7e7085b-520a-4e3a-9b32-082de9bb5208",
+          "sportId": "basquetebol",
+          "name": "Basquetebol (prática livre)",
+          "description": "Tabelas de basquetebol de acesso livre e gratuito num espaço municipal; sem aulas, reservas nem horário.",
+          "level": "UNSPECIFIED",
+          "source": "goporto-tabelas-2022",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "goporto-tabelas-2022 (lista municipal de 23/02/2022: 'Jardim Paulo Vallada', 'de acesso fácil e gratuito')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Fonte municipal de 2022: não há confirmação mais recente do estado das tabelas."
+      ]
+    },
+    {
+      "id": "447e0c15-06af-45a2-8cdc-4c4cd936a01d",
+      "status": "ready",
+      "name": "Campo de basquetebol do Bairro do Viso",
+      "description": "Tabelas de basquetebol municipais no Bairro do Viso.",
+      "address": {
+        "street": "Bairro do Viso (Rua de Bordeaux)",
+        "postalCode": null,
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.177874,
+        "longitude": -8.644382
+      },
+      "contacts": {
+        "phone": null,
+        "website": null
+      },
+      "fieldSources": {
+        "name": "goporto-tabelas-2022",
+        "address": "goporto-tabelas-2022, osm-reverse",
+        "location": "osm-viso-basket (campo de basquetebol no Bairro do Viso, Rua de Bordeaux)",
+        "parish": "goporto-tabelas-2022"
+      },
+      "offerings": [
+        {
+          "id": "da21b4f0-4329-4675-b328-2be91500b749",
+          "sportId": "basquetebol",
+          "name": "Basquetebol (prática livre)",
+          "description": "Tabelas de basquetebol de acesso livre e gratuito num espaço municipal; sem aulas, reservas nem horário.",
+          "level": "UNSPECIFIED",
+          "source": "goporto-tabelas-2022",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "goporto-tabelas-2022 (lista municipal de 23/02/2022: 'Bairro do Viso', 'de acesso fácil e gratuito')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Fonte municipal de 2022: não há confirmação mais recente do estado das tabelas.",
+        "A lista tem também a 'Associação Recreativa e Social do Viso'; este é o campo do bairro."
+      ]
+    },
+    {
+      "id": "4b92551e-618b-48f3-b97c-f9c305994fdc",
+      "status": "ready",
+      "name": "Arena PlaySports Porto (Prelada)",
+      "description": "Pavilhão de futsal e campos de futebol de 5 e 7, na Escola Básica Maria Lamas.",
+      "address": {
+        "street": "Travessa da Prelada",
+        "postalCode": "4250-380",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.170806,
+        "longitude": -8.63361
+      },
+      "contacts": {
+        "phone": "917775500",
+        "website": "https://playtomic.com/pt/clubs/arena-playsports-porto-prelada-novo-relvado"
+      },
+      "fieldSources": {
+        "name": "playtomic-playsports-prelada",
+        "address": "playtomic-playsports-prelada",
+        "phone": "playtomic-playsports-prelada",
+        "location": "playtomic-playsports-prelada (coordenadas da página do espaço; caem na EB Maria Lamas)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "ef5b0474-ce55-49df-8f69-6c93a28b276a",
+          "sportId": "futsal",
+          "name": "Aluguer do pavilhão de futsal",
+          "description": "Aluguer do campo no pavilhão, com reserva por email ou telefone. Não é uma aula.",
+          "level": "UNSPECIFIED",
+          "source": "playtomic-playsports-prelada",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "playtomic-playsports-prelada ('um pavilhão para a prática de futsal'; 'Contacto: reservas@playsports.pt ou 917775500')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Os campos de futebol de 5 e 7 existem, mas não foram acrescentados nesta revisão (só basquetebol, voleibol e futsal)."
+      ]
+    },
+    {
+      "id": "e4d5235f-8f98-4570-a2b1-bf4d8836f547",
+      "status": "ready",
+      "name": "Footspace",
+      "description": "Campos de futebol cobertos (sintético e taco).",
+      "address": {
+        "street": "Rua Manuel Pinto de Azevedo, 269",
+        "postalCode": "4100-321",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.172157,
+        "longitude": -8.646609
+      },
+      "contacts": {
+        "phone": null,
+        "website": "https://playtomic.com/pt/clubs/footspace"
+      },
+      "fieldSources": {
+        "name": "playtomic-footspace",
+        "address": "playtomic-footspace",
+        "location": "playtomic-footspace (coordenadas da página do espaço)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "8b12e397-06fb-453d-bb91-72e04fcbcab2",
+          "sportId": "futsal",
+          "name": "Aluguer de campos de futsal",
+          "description": "Aluguer de campos cobertos (sintético e taco) por reserva na plataforma. Não é uma aula.",
+          "level": "UNSPECIFIED",
+          "source": "playtomic-footspace",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "playtomic-footspace (desporto 'Futsal', reserva na plataforma)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "A página não indica contactos."
+      ]
+    },
+    {
+      "id": "e83f9c2f-5145-486a-a805-4c9da509e5ce",
+      "status": "ready",
+      "name": "Porto CCD",
+      "description": "Centro Cultural e Desportivo dos Trabalhadores da Câmara do Porto, com pavilhão e campos de futebol.",
+      "address": {
+        "street": "Rua de Alves Redol, 292",
+        "postalCode": "4050-042",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.159258,
+        "longitude": -8.615574
+      },
+      "contacts": {
+        "phone": "+351228318210",
+        "website": "https://portoccd.org/"
+      },
+      "fieldSources": {
+        "name": "playtomic-ccdporto",
+        "address": "playtomic-ccdporto",
+        "phone": "portoccd-site",
+        "location": "playtomic-ccdporto (coordenadas da página do espaço; caem na Rua de Alves Redol, 292)"
+      },
+      "offerings": [
+        {
+          "id": "d1b7ab6c-dd9e-4dd9-b5be-624ef7c794d1",
+          "sportId": "futsal",
+          "name": "Aluguer do pavilhão de futsal",
+          "description": "Aluguer do pavilhão (piso de madeira) por reserva na plataforma. Não é uma aula.",
+          "level": "UNSPECIFIED",
+          "source": "playtomic-ccdporto",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "playtomic-ccdporto ('um pavilhão para a prática de futsal', reserva na plataforma)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "A página da plataforma não indica se a reserva exige ser sócio do CCD.",
+        "Freguesia vazia: União de Freguesias do Centro (§4.4)."
+      ]
+    },
+    {
+      "id": "fe31d9a3-2a9f-42a8-9a04-d7a0de956fce",
+      "status": "pending",
+      "name": "União Académica António Aroso — escola de basquetebol",
+      "description": "Clube de basquetebol com formação a partir dos 5 anos.",
+      "address": {
+        "street": "—",
+        "postalCode": null,
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": null,
+        "website": "https://www.uaaaroso.pt/"
+      },
+      "fieldSources": {
+        "name": "uaaaroso-site"
+      },
+      "offerings": [
+        {
+          "id": "0d1d2faf-e0e9-467b-9bfc-9a5ba18609e1",
+          "sportId": "basquetebol",
+          "name": "Escola e formação de basquetebol",
+          "description": "Treinos de formação a partir dos 5 anos, femininos e masculinos; inscrições para a época 2026/2027. Sem informação para adultos.",
+          "level": "UNSPECIFIED",
+          "source": "uaaaroso-site",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "uaaaroso-site ('Inscrições abertas para a época 2026/2027'; 'Basquetebol a partir dos 5 anos')"
+        }
+      ],
+      "pending": [
+        "address/location: o site não indica onde o clube treina; as referências encontradas (EB 2,3 Leonardo Coimbra em 2017, Manoel de Oliveira em perfis de terceiros) não confirmam o local atual"
+      ],
+      "notes": []
     }
   ],
   "reviewedOn": "2026-10-28",
