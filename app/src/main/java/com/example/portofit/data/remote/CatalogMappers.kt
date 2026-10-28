@@ -2,6 +2,7 @@ package com.example.portofit.data.remote
 
 import com.example.portofit.data.model.ActivityLevel
 import com.example.portofit.data.model.CatalogStatus
+import com.example.portofit.data.model.GeoPoint
 import com.example.portofit.data.model.OfferingSummary
 import com.example.portofit.data.model.Address
 import com.example.portofit.data.model.Offering
@@ -80,6 +81,7 @@ fun PlaceDetailDto.toModel(): PlaceDetail {
         offerings = offeringModels,
         isDemo = demo,
         status = statusFrom(status),
+        location = GeoPoint(location.latitude, location.longitude),
     )
 }
 

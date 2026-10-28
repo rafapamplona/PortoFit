@@ -1,6 +1,7 @@
 package com.example.portofit.data.remote
 
 import com.example.portofit.data.model.ActivityLevel
+import com.example.portofit.data.model.GeoPoint
 import com.example.portofit.data.model.Rating
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -63,6 +64,7 @@ class CatalogMappersTest {
 
         assertNull(place.address.postalCode)
         assertEquals("Porto", place.address.city)
+        assertEquals(GeoPoint(41.17, -8.69), place.location)
         // Também sem o campo (resposta que omite os nulos).
         val omitted = body.replace("\"postalCode\":null,", "")
         assertNull(json.decodeFromString<PlaceDetailDto>(omitted).toModel().address.postalCode)

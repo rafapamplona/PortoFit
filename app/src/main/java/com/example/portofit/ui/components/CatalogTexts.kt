@@ -1,7 +1,13 @@
 package com.example.portofit.ui.components
 
 import androidx.annotation.StringRes
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.example.portofit.R
@@ -26,6 +32,20 @@ fun ratingText(rating: Rating): String = when (rating) {
     )
     Rating.NoRatings -> stringResource(R.string.rating_none)
     Rating.Unavailable -> stringResource(R.string.rating_unavailable)
+}
+
+/**
+ * Avaliação com estilo próprio para cada caso: média em destaque; "Sem avaliações" discreto; indisponível em itálico
+ * (é uma falha temporária, não uma ausência de avaliações, e nunca aparece como zero).
+ */
+@Composable
+fun RatingText(rating: Rating, style: TextStyle, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    when (rating) {
+        is Rating.Available -> Text(ratingText(rating), style = style, fontWeight = FontWeight.Medium, color = colors.onSurface, modifier = modifier)
+        Rating.NoRatings -> Text(ratingText(rating), style = style, color = colors.onSurfaceVariant, modifier = modifier)
+        Rating.Unavailable -> Text(ratingText(rating), style = style, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant, modifier = modifier)
+    }
 }
 
 @StringRes

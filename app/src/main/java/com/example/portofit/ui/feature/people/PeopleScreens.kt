@@ -54,6 +54,7 @@ import com.example.portofit.ui.feature.experience.ExperienceSortSelector
 import com.example.portofit.ui.feature.profile.PublicationsSection
 import com.example.portofit.data.repository.FollowError
 import com.example.portofit.data.repository.UserSummary
+import com.example.portofit.ui.components.EmptyMessage
 import com.example.portofit.ui.components.ErrorMessage
 import com.example.portofit.ui.components.LoadingIndicator
 import com.example.portofit.ui.components.errorMessageRes
@@ -83,14 +84,7 @@ fun LazyListScope.peopleSearchItems(
         is PeopleResults.Loaded -> {
             if (results.people.isEmpty()) {
                 item(key = "people-empty") {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(stringResource(R.string.people_empty), style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            stringResource(R.string.people_empty_hint),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    EmptyMessage(stringResource(R.string.people_empty), stringResource(R.string.people_empty_hint))
                 }
             } else {
                 item(key = "people-count") {

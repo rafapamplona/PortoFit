@@ -1,7 +1,11 @@
 package com.example.portofit.ui.feature.place
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -11,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,12 +27,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.portofit.R
@@ -35,10 +48,13 @@ import com.example.portofit.data.model.ExperienceSort
 import com.example.portofit.data.model.Offering
 import com.example.portofit.data.model.PlaceDetail
 import com.example.portofit.ui.components.ErrorMessage
+import com.example.portofit.ui.components.ExternalLinks
+import com.example.portofit.ui.components.InfoLabel
 import com.example.portofit.ui.components.LoadingIndicator
+import com.example.portofit.ui.components.RatingText
+import com.example.portofit.ui.components.SectionHeader
 import com.example.portofit.ui.components.errorMessageRes
 import com.example.portofit.ui.components.levelLabelRes
-import com.example.portofit.ui.components.ratingText
 import com.example.portofit.ui.feature.experience.ExperienceListSection
 import com.example.portofit.ui.feature.experience.ExperienceListState
 import com.example.portofit.ui.feature.experience.ExperienceSortSelector
@@ -152,7 +168,7 @@ private fun PlaceDetailBody(
                 if (place.isRetired) {
                     Text(stringResource(R.string.place_retired_notice), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
-                Text(ratingText(place.rating), style = MaterialTheme.typography.titleSmall)
+                RatingText(place.rating, MaterialTheme.typography.titleSmall)
                 if (experiences.ratingRefreshFailed) {
                     Text(
                         stringResource(R.string.place_rating_refresh_failed),
@@ -163,6 +179,7 @@ private fun PlaceDetailBody(
                 place.description?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             }
         }
+        item(key = "actions") { ExternalActions(place) }
         item(key = "address") {
             Section(stringResource(R.string.section_address)) {
                 Text(place.address.street)
@@ -182,12 +199,14 @@ private fun PlaceDetailBody(
         if (place.sports.isNotEmpty()) {
             item(key = "sports") {
                 Section(stringResource(R.string.section_sports)) {
-                    Text(place.sports.joinToString(" · ") { it.name }, color = MaterialTheme.colorScheme.primary)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        place.sports.forEach { InfoLabel(it.name) }
+                    }
                 }
             }
         }
         item(key = "offerings-title") {
-            Text(stringResource(R.string.section_offerings), style = MaterialTheme.typography.titleMedium)
+            SectionHeader(stringResource(R.string.section_offerings), Modifier.padding(top = 8.dp))
         }
         if (place.offerings.isEmpty()) {
             item(key = "offerings-empty") { Text(stringResource(R.string.offerings_empty)) }
@@ -205,8 +224,8 @@ private fun PlaceDetailBody(
             OfferingCard(offering, onPublish = { actions.onPublish(place, offering, experiences.signedIn) })
         }
         item(key = "experiences") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.section_experiences), style = MaterialTheme.typography.titleMedium)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
+                SectionHeader(stringResource(R.string.section_experiences))
                 ExperienceSortSelector(experiences.sort, onSortChange)
                 ExperienceListSection(
                     state = experiences.list,
@@ -225,8 +244,58 @@ private fun PlaceDetailBody(
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        SectionHeader(title)
         content()
+    }
+}
+
+/**
+ * Abrir o site, o marcador (sem ligar) ou uma app de mapas. Só aparecem as ações com dados válidos; sem nenhuma app
+ * compatível, fica uma mensagem por baixo, sem sair do ecrã.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ExternalActions(place: PlaceDetail) {
+    val context = LocalContext.current
+    val website = ExternalLinks.website(place.website)
+    val phone = ExternalLinks.dialNumber(place.phone)
+    val geo = ExternalLinks.geoUri(place.location, place.name)
+    if (website == null && phone == null && geo == null) return
+    var missingApp by rememberSaveable(place.id) { mutableStateOf<Int?>(null) }
+    fun open(intent: Intent, missing: Int) {
+        missingApp = try {
+            context.startActivity(intent)
+            null
+        } catch (_: ActivityNotFoundException) {
+            missing
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            geo?.let {
+                FilledTonalButton(onClick = { open(Intent(Intent.ACTION_VIEW, it.toUri()), R.string.place_action_no_maps) }) {
+                    Text(stringResource(R.string.place_action_map))
+                }
+            }
+            phone?.let {
+                OutlinedButton(onClick = { open(Intent(Intent.ACTION_DIAL, ExternalLinks.telUri(it).toUri()), R.string.place_action_no_dialer) }) {
+                    Text(stringResource(R.string.place_action_call))
+                }
+            }
+            website?.let {
+                OutlinedButton(onClick = { open(Intent(Intent.ACTION_VIEW, it.toUri()), R.string.place_action_no_browser) }) {
+                    Text(stringResource(R.string.place_action_website))
+                }
+            }
+        }
+        missingApp?.let {
+            Text(
+                stringResource(it),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 }
 
@@ -263,7 +332,7 @@ private fun OfferingCard(offering: Offering, onPublish: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(ratingText(offering.rating), style = MaterialTheme.typography.bodySmall)
+            RatingText(offering.rating, MaterialTheme.typography.bodySmall)
             if (offering.acceptsExperiences) {
                 OutlinedButton(onClick = onPublish) { Text(stringResource(R.string.offering_publish)) }
             } else {

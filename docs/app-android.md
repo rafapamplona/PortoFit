@@ -1459,3 +1459,63 @@ As contas foram `verifclose…` (4). Todos os passos responderam como o contrato
 - Confirmação visual no emulador da apresentação "só a cidade" e "Nível não indicado" com os locais reais. Está coberta pelos testes JVM, mas não foi vista no ecrã.
 - *Push* com Firebase: não exigido pelo enunciado, que só pede notificações ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto)); extensão opcional.
 - PostgreSQL num contentor partilhado por todos os serviços face a "a set of independent Docker containers" por serviço: a confirmar ([arquitetura.md §6.2](arquitetura.md#62-pontos-em-aberto), ponto 4).
+
+
+## 23. Acabamento visual: pesquisa e detalhe dos locais (2026-10-28)
+
+Material 3 e a identidade atual (tema e cores dinâmicas) mantêm-se. Não há dependências novas nem mudanças no backend. As alterações ficam nos componentes partilhados, na pesquisa e no detalhe do local.
+
+### Componentes partilhados (`ui/components/`)
+
+| Componente | O que faz |
+|---|---|
+| `StatusViews.kt` | `LoadingIndicator`, `ErrorMessage` e o novo `EmptyMessage` (título e sugestão), com a mesma margem vertical. `SectionHeader` é o título de secção, anunciado como cabeçalho. `InfoLabel` é uma etiqueta não clicável (modalidades) |
+| `CatalogTexts.kt` | `RatingText`: média em destaque; "Sem avaliações" discreto; "Avaliações temporariamente indisponíveis" em itálico. Os três casos nunca se confundem, e a falha nunca aparece como zero |
+| `ExternalLinks.kt` | Funções puras que validam e constroem os endereços do site (`http(s)://` com domínio), do marcador (`tel:`, só dígitos com `+` opcional, 6 a 15, e "00" passa a "+") e dos mapas (`geo:lat,lng?q=lat,lng(nome)`, coordenadas válidas e nome codificado) |
+
+### Pesquisa
+
+- **Cartão do local:**
+  - nome com até 3 linhas;
+  - modalidades em etiquetas, que passam para a linha seguinte quando não cabem;
+  - "freguesia, cidade" (ou só a cidade) e a distância quando há proximidade;
+  - avaliação com `RatingText`.
+- **Lista vazia**, pela ordem:
+  1. Com proximidade: o raio (como antes).
+  2. Com texto submetido: "Nenhum local corresponde a "…"" ou "Nenhum local de *modalidade* corresponde a "…"", com a sugestão de rever a escrita.
+  3. Só com a modalidade: "Ainda não há locais de *modalidade* no catálogo." (ex.: Escalada).
+  4. Sem filtros: "Ainda não há locais no catálogo."
+- **Pesquisa de pessoas:** usa o mesmo `EmptyMessage`.
+
+### Detalhe do local
+
+- **Ações por baixo do cabeçalho**, só com dados válidos:
+  - **Ver no mapa:** `ACTION_VIEW` com `geo:`; usa as coordenadas do catálogo, que passaram a ser lidas (`PlaceDetail.location`). Não há SDK nem mapa embutido.
+  - **Telefonar:** `ACTION_DIAL`. Abre o marcador com o número, sem ligar e sem a permissão `CALL_PHONE`.
+  - **Abrir site:** `ACTION_VIEW` com `http(s)`.
+  - Sem nenhuma aplicação compatível (`ActivityNotFoundException`), fica uma mensagem por baixo das ações, anunciada pelos leitores de ecrã (`liveRegion`), sem sair do ecrã. O manifesto não muda: a app não consulta outras aplicações antes, só trata a falha.
+- **Secções:** usam `SectionHeader`, com mais espaço antes de "Atividades oferecidas" e "Experiências". As modalidades aparecem em etiquetas. A morada continua sem código postal quando o local não o tem.
+- **Textos longos e acessibilidade:** os botões estão num `FlowRow` e passam para a linha seguinte com nomes longos ou texto ampliado. São botões Material 3, com área de toque mínima de 48 dp. O ecrã continua a deslocar-se por inteiro, e nada fica preso por baixo das barras do sistema (os insets são os do `Scaffold`, como antes).
+
+### Testes, build e lint
+
+- **Testes JVM novos:**
+  - `ExternalLinksTest` (3): sites válidos e recusados (sem esquema, `javascript:`, sem domínio, com espaço); telefones com espaços, `+351` e `00351`, e recusados; URI de mapa com nome codificado e coordenadas fora do intervalo.
+  - `CatalogMappersTest`: verifica as coordenadas no detalhe.
+- **Bateria da app:** 311 testes, 0 falhas.
+- **`assembleDebug` e `lintDebug`:** sem erros; os avisos são os já registados no §22.
+
+### Verificação no emulador
+
+- **Tentativa:** com o daemon do Gradle e três serviços (listas, mensagens, notificações) parados, havia ~0,9 GB livres. O emulador arrancou do snapshot e a app nova foi instalada por cima, sem apagar dados.
+- **O que se viu:** a primeira captura mostrou os cartões novos (nome em duas linhas, etiqueta "Corrida", "Aldoar, Foz do Douro e Nevogilde, Porto", avaliação em itálico).
+  - As avaliações apareciam como "temporariamente indisponíveis": o catálogo não obteve resposta a tempo do experiences-service, com a máquina sem memória. Era o estado degradado correto, e não zeros. Depois, por HTTP, os 24 locais responderam `NO_RATINGS`.
+- **Bloqueio:** logo a seguir, o Android mostrou "System UI isn't responding" e o ecrã ficou congelado, com 0,30 GB livres. O emulador foi fechado sem insistir e os serviços voltaram a arrancar.
+- **Dados:** contagens iguais às do §22 em todas as bases e no volume.
+- **Por verificar no ecrã (falta de memória):**
+  - o detalhe do local com as secções e as três ações;
+  - a abertura do mapa, do marcador e do navegador, e a mensagem sem aplicação compatível;
+  - as mensagens de lista vazia;
+  - texto ampliado e nomes longos.
+
+  Estão cobertos pelos testes JVM das regras (validação e construção dos URIs), mas não pela interface.

@@ -2,6 +2,8 @@ package com.example.portofit.ui.feature.search
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -42,16 +44,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.portofit.R
 import com.example.portofit.data.model.PlaceSummary
 import com.example.portofit.data.model.Sport
+import com.example.portofit.ui.components.EmptyMessage
 import com.example.portofit.ui.components.ErrorMessage
+import com.example.portofit.ui.components.InfoLabel
 import com.example.portofit.ui.components.LoadingIndicator
+import com.example.portofit.ui.components.RatingText
 import com.example.portofit.ui.components.errorMessageRes
-import com.example.portofit.ui.components.ratingText
 import com.example.portofit.ui.feature.auth.AccountAction
 import com.example.portofit.ui.feature.auth.AccountViewModel
 import com.example.portofit.ui.feature.auth.SessionBanner
@@ -186,7 +191,13 @@ fun SearchContent(
                 is ResultsState.Error -> item(key = "error") {
                     ErrorMessage(stringResource(errorMessageRes(results.error)), onRetrySearch)
                 }
-                is ResultsState.Loaded -> loadedResults(results, (state.nearby as? NearbyState.Active)?.filter?.radiusKm, onPlaceClick, onLoadMore)
+                is ResultsState.Loaded -> loadedResults(
+                    results = results,
+                    nearbyRadiusKm = (state.nearby as? NearbyState.Active)?.filter?.radiusKm,
+                    emptyContext = EmptyContext(state.activeQuery, state.selectedSportId?.let { id -> (state.sports as? SportsState.Loaded)?.sports?.find { it.id == id }?.name ?: "" }),
+                    onPlaceClick = onPlaceClick,
+                    onLoadMore = onLoadMore,
+                )
             }
         }
     }
@@ -283,24 +294,22 @@ private fun SportFilter(
     }
 }
 
+/**
+ * O que estava aplicado quando não houve resultados: [query] (texto submetido) e [sportName] (modalidade escolhida;
+ * vazio se o nome ainda não é conhecido), para distinguir "nada corresponde" de "ainda não há locais".
+ */
+private data class EmptyContext(val query: String?, val sportName: String?)
+
 /** [nearbyRadiusKm]: raio da pesquisa por proximidade em curso (null sem proximidade). */
 private fun androidx.compose.foundation.lazy.LazyListScope.loadedResults(
     results: ResultsState.Loaded,
     nearbyRadiusKm: Int?,
+    emptyContext: EmptyContext,
     onPlaceClick: (String) -> Unit,
     onLoadMore: () -> Unit,
 ) {
     if (results.places.isEmpty()) {
-        item(key = "empty") {
-            Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stringResource(R.string.results_empty), style = MaterialTheme.typography.titleMedium)
-                Text(
-                    if (nearbyRadiusKm != null) stringResource(R.string.nearby_empty_hint, nearbyRadiusKm) else stringResource(R.string.results_empty_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        item(key = "empty") { EmptyResults(nearbyRadiusKm, emptyContext) }
         return
     }
 
@@ -351,33 +360,52 @@ private fun androidx.compose.foundation.lazy.LazyListScope.loadedResults(
 }
 
 @Composable
+private fun EmptyResults(nearbyRadiusKm: Int?, context: EmptyContext) {
+    val sport = context.sportName?.ifBlank { stringResource(R.string.results_empty_sport_fallback) }
+    when {
+        // Proximidade: o raio é o que mais provavelmente explica a lista vazia.
+        nearbyRadiusKm != null -> EmptyMessage(stringResource(R.string.results_empty), stringResource(R.string.nearby_empty_hint, nearbyRadiusKm))
+        // Texto submetido sem correspondência (com ou sem modalidade).
+        context.query != null -> EmptyMessage(
+            if (sport != null) stringResource(R.string.results_empty_query_sport, context.query, sport) else stringResource(R.string.results_empty_query, context.query),
+            stringResource(R.string.results_empty_query_hint),
+        )
+        // Só a modalidade: o catálogo ainda não tem locais dela.
+        sport != null -> EmptyMessage(stringResource(R.string.results_empty_sport, sport), stringResource(R.string.results_empty_sport_hint))
+        else -> EmptyMessage(stringResource(R.string.results_empty_catalog), hint = null)
+    }
+}
+
+/** Cartão de um local: nome; modalidades em etiquetas; localização (e distância); avaliação. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun PlaceCard(place: PlaceSummary, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(place.name, style = MaterialTheme.typography.titleMedium)
-            place.distanceKm?.let { km ->
-                val distance = formatDistance(km)
-                val description = stringResource(R.string.nearby_distance_description, distance)
-                Text(
-                    stringResource(R.string.nearby_distance, distance),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.semantics { contentDescription = description },
-                )
-            }
-            Text(
-                place.parish ?: place.city,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(place.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (place.sports.isNotEmpty()) {
-                Text(
-                    place.sports.joinToString(" · ") { it.name },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    place.sports.forEach { InfoLabel(it.name) }
+                }
             }
-            Text(ratingText(place.rating), style = MaterialTheme.typography.bodySmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    place.parish?.let { stringResource(R.string.place_location, it, place.city) } ?: place.city,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                place.distanceKm?.let { km ->
+                    val distance = formatDistance(km)
+                    val description = stringResource(R.string.nearby_distance_description, distance)
+                    Text(
+                        stringResource(R.string.nearby_distance, distance),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.semantics { contentDescription = description },
+                    )
+                }
+            }
+            RatingText(place.rating, MaterialTheme.typography.bodyMedium)
         }
     }
 }

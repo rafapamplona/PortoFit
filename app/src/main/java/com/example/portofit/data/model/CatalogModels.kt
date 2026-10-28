@@ -78,9 +78,13 @@ data class PlaceDetail(
     val offerings: List<Offering>,
     val isDemo: Boolean,
     val status: CatalogStatus = CatalogStatus.ACTIVE,
+    /** Coordenadas do catálogo (podem ser aproximadas, ex.: ponto de encontro); só para abrir numa app de mapas. */
+    val location: GeoPoint? = null,
 ) {
     val isRetired: Boolean get() = status == CatalogStatus.RETIRED
 }
+
+data class GeoPoint(val latitude: Double, val longitude: Double)
 
 /** Atividade vista isoladamente (GET /offerings/{id}), com o estado efetivo. */
 data class OfferingSummary(

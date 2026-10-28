@@ -16,7 +16,20 @@
     </plurals>
     <string name="demo_notice">Dados de demonstração: estes locais são fictícios e não correspondem a estabelecimentos reais.</string>
     <string name="results_empty">Nenhum local encontrado.</string>
-    <string name="results_empty_hint">Experimenta outra pesquisa ou outra modalidade.</string>
+    <string name="results_empty_query">Nenhum local corresponde a “%1$s”.</string>
+    <string name="results_empty_query_sport">Nenhum local de %2$s corresponde a “%1$s”.</string>
+    <string name="results_empty_query_hint">Confirma a escrita ou experimenta outra palavra ou modalidade.</string>
+    <string name="results_empty_sport">Ainda não há locais de %1$s no catálogo.</string>
+    <string name="results_empty_sport_hint">O catálogo só tem locais verificados. Escolhe outra modalidade para ver mais.</string>
+    <string name="results_empty_catalog">Ainda não há locais no catálogo.</string>
+    <string name="results_empty_sport_fallback">esta modalidade</string>
+    <string name="place_location">%1$s, %2$s</string>
+    <string name="place_action_website">Abrir site</string>
+    <string name="place_action_call">Telefonar</string>
+    <string name="place_action_map">Ver no mapa</string>
+    <string name="place_action_no_browser">Não há nenhuma aplicação para abrir o site neste aparelho.</string>
+    <string name="place_action_no_dialer">Não há nenhuma aplicação para telefonar neste aparelho.</string>
+    <string name="place_action_no_maps">Não há nenhuma aplicação de mapas neste aparelho.</string>
     <string name="load_more">Carregar mais</string>
     <string name="load_more_error">Não foi possível carregar mais locais.</string>
 
