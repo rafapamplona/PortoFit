@@ -78,7 +78,27 @@
     "osm-transparente": "https://www.openstreetmap.org/way/108391028",
     "portorunners-treinos": "https://www.portorunners.net/divulgacao/treinos",
     "portorunners-inicio": "https://www.portorunners.net/",
-    "osm-parque-cidade": "https://www.openstreetmap.org/way/559610396"
+    "osm-parque-cidade": "https://www.openstreetmap.org/way/559610396",
+    "agora-campo-viso": "https://www.agoraporto.pt/desporto/rmid/grandes-campos-municipais/campo-sintetico-do-viso",
+    "agora-campo-viso-precario": "https://www.agoraporto.pt/files/uploads/cms/Campo-do-Viso-Horario-Precos-2026-2027_v2.pdf",
+    "agora-campo-choupos": "https://www.agoraporto.pt/desporto/rmid/grandes-campos-municipais/polidesportivo-dos-choupos",
+    "agora-campo-choupos-precario": "https://www.agoraporto.pt/files/uploads/cms/Campo-dos-Choupos-Horario-Precos-2026-2027_v2.pdf",
+    "osm-campo-viso": "https://www.openstreetmap.org/way/334849388",
+    "cdup-estadio-pt-precos": "https://cdup.up.pt/instalacoes/estadio-universitario-do-porto/",
+    "ctp-contactos": "https://www.ctporto.com/p123-contactos-pt",
+    "ctp-precario-adultos": "https://www.ctporto.com/p369-precario-adultos-pt",
+    "ctp-precario-escola": "https://www.ctporto.com/p172-precario-escola-pt",
+    "ctp-precario-padel": "https://www.ctporto.com/p159-precario-reservas-padel-clube-de-tenis-do-porto-pt",
+    "monserrate-parque": "https://quintademonserrate.com/en/parque-da-cidade/",
+    "monserrate-contactos": "https://quintademonserrate.com/en/contacts/",
+    "osm-monserrate-15687": "https://www.openstreetmap.org/way/755451318",
+    "pac-site": "http://padelathleticclub.pt/",
+    "osm-pac": "https://www.openstreetmap.org/node/14045851701",
+    "yourpadel-site": "https://www.yourpadel.pt/",
+    "oig-aluguer": "https://www.oportoindoorgames.pt/aluguer-de-campos",
+    "oig-contactos": "https://www.oportoindoorgames.pt/reservas-contactos",
+    "osm-oig-1063": "https://www.openstreetmap.org/way/897251551",
+    "fitnessup-no-ginasio": "https://www.fitnessup.pt/treinar-ginasio"
   },
   "places": [
     {
@@ -617,13 +637,34 @@
           "source": "cdup-estadio",
           "publicAccess": "UNCONFIRMED",
           "publicAccessSource": "cdup-estadio-pt (pista 'Gratuito' numa tabela 'Comunidade UP'/'Externos', sem indicar a coluna nem condições)"
+        },
+        {
+          "id": "19290773-2cd8-47c5-bc28-c9d3b57913a0",
+          "sportId": "futebol",
+          "name": "Aluguer de campos de futebol (5, 7 e 11)",
+          "description": "Aluguer por hora, com preço para externos à U.Porto e reserva online no CDUP. Não é uma aula nem uma equipa.",
+          "level": "UNSPECIFIED",
+          "source": "cdup-estadio-pt-precos",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "cdup-estadio-pt-precos (tabela com colunas 'Comunidade UP' e 'Externos' para os campos de futebol 5, 7 e 11; 'Reservar agora')"
+        },
+        {
+          "id": "294a4267-f7db-4e6c-8138-cb4087ce4ec6",
+          "sportId": "tenis",
+          "name": "Aluguer de courts de ténis",
+          "description": "Aluguer por hora, com preço para externos à U.Porto. Não é uma aula.",
+          "level": "UNSPECIFIED",
+          "source": "cdup-estadio-pt-precos",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "cdup-estadio-pt-precos (tabela 'Courts de ténis' com preço para 'Externos')"
         }
       ],
       "pending": [
-        "offerings.corrida: acesso de quem não é da U.Porto à pista por confirmar — sem atividade confirmada, o local não é importado"
+        "offerings.corrida: acesso de quem não é da U.Porto à pista por confirmar (a atividade continua fora)"
       ],
       "notes": [
-        "Coordenadas da ligação Google Maps da página oficial do CDUP."
+        "Coordenadas da ligação Google Maps da página oficial do CDUP.",
+        "As equipas de competição universitária do CDUP (futebol 7, ténis, padel) não são atividades abertas e não foram incluídas."
       ]
     },
     {
@@ -1031,8 +1072,8 @@
     {
       "id": "c61e3bbb-e595-4b3b-be06-918d9ac377df",
       "status": "ready",
-      "name": "Pista de Atletismo do Parque Desportivo de Ramalde/INATEL",
-      "description": "Pista de atletismo municipal do Parque Desportivo de Ramalde/INATEL, gerido pela Ágora.",
+      "name": "Parque Desportivo de Ramalde/INATEL",
+      "description": "Parque desportivo municipal gerido pela Ágora, com pista de atletismo e campo de futebol de 11.",
       "address": {
         "street": "Rua do Dr. Aarão Lacerda",
         "postalCode": "4100-015",
@@ -1064,11 +1105,22 @@
           "source": "agora-ramalde-precario",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "agora-ramalde-precario (preçário oficial 2026–2027, de 16.10.2026: pista com 'Utilização Individual', de segunda a domingo)"
+        },
+        {
+          "id": "d5b85a72-3efc-4b8d-86f4-9db91a2346be",
+          "sportId": "futebol",
+          "name": "Aluguer do campo de futebol de 11",
+          "description": "Aluguer do campo por hora, mediante marcação prévia. Não é uma aula nem um treino.",
+          "level": "UNSPECIFIED",
+          "source": "agora-ramalde-precario",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-ramalde-precario (preçário oficial 2026–2027 (16.10.2026): 'Utilização' por hora para 'Privados ou clubes de fora da cidade do Porto, mediante marcação prévia'; linha 'Campo Futebol de 11')"
         }
       ],
       "pending": [],
       "notes": [
-        "É uma pista de utilização individual, não um treino orientado. Preço e horário não são guardados."
+        "É uma pista de utilização individual, não um treino orientado. Preço e horário não são guardados.",
+        "Nome alargado de 'Pista de Atletismo do Parque…' para o parque (2026-10-28), por ter agora também o campo de futebol; o id mantém-se."
       ]
     },
     {
@@ -1118,11 +1170,22 @@
           "source": "fitnessup-antas-aulas",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-antas (treino experimental gratuito)"
+        },
+        {
+          "id": "4649d2a4-0f93-482d-9384-318d0c3d74d1",
+          "sportId": "musculacao",
+          "name": "Zona de musculação",
+          "description": "Treino livre na zona de musculação, para sócios do ginásio.",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-no-ginasio",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-no-ginasio"
         }
       ],
       "pending": [],
       "notes": [
-        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados).",
+        "Zona de musculação descrita na página 'No ginásio' da rede Fitness UP (fitnessup-no-ginasio: 'mais de 300 postos de treino'), não na página do clube."
       ]
     },
     {
@@ -1246,11 +1309,22 @@
           "source": "fitnessup-bessa-aulas",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-bessa (treino experimental gratuito)"
+        },
+        {
+          "id": "a5dfbda7-c798-403d-9feb-402a673c4569",
+          "sportId": "musculacao",
+          "name": "Zona de musculação",
+          "description": "Treino livre na zona de musculação, para sócios do ginásio.",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-no-ginasio",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-no-ginasio"
         }
       ],
       "pending": [],
       "notes": [
-        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados).",
+        "Zona de musculação descrita na página 'No ginásio' da rede Fitness UP (fitnessup-no-ginasio: 'mais de 300 postos de treino'), não na página do clube."
       ]
     },
     {
@@ -1310,12 +1384,23 @@
           "source": "fitnessup-constituicao-aulas",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-constituicao (treino experimental gratuito)"
+        },
+        {
+          "id": "a32aa28c-6ae6-440b-bf79-91aedd807588",
+          "sportId": "musculacao",
+          "name": "Zona de musculação",
+          "description": "Treino livre na zona de musculação, para sócios do ginásio.",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-no-ginasio",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-no-ginasio"
         }
       ],
       "pending": [],
       "notes": [
         "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados).",
-        "Ginásio privado, distinto da Piscina Municipal da Constituição (outro local do catálogo)."
+        "Ginásio privado, distinto da Piscina Municipal da Constituição (outro local do catálogo).",
+        "Zona de musculação descrita na página 'No ginásio' da rede Fitness UP (fitnessup-no-ginasio: 'mais de 300 postos de treino'), não na página do clube."
       ]
     },
     {
@@ -1513,11 +1598,22 @@
           "source": "fitnessup-sao-joao-aulas",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-sao-joao (treino experimental gratuito)"
+        },
+        {
+          "id": "4de6a5f7-51d1-48ae-bf33-2ca995608128",
+          "sportId": "musculacao",
+          "name": "Zona de musculação",
+          "description": "Treino livre na zona de musculação, para sócios do ginásio.",
+          "level": "UNSPECIFIED",
+          "source": "fitnessup-no-ginasio",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "fitnessup-adesao (adesão online de sócios) e fitnessup-no-ginasio"
         }
       ],
       "pending": [],
       "notes": [
-        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados)."
+        "Modalidades lidas no mapa de aulas oficial a 2026-10-27; o clube pode alterar atividades e horários (não guardados).",
+        "Zona de musculação descrita na página 'No ginásio' da rede Fitness UP (fitnessup-no-ginasio: 'mais de 300 postos de treino'), não na página do clube."
       ]
     },
     {
@@ -1641,6 +1737,16 @@
           "source": "foxgym-aulas",
           "publicAccess": "CONFIRMED",
           "publicAccessSource": "foxgym-site (adesão pelo site)"
+        },
+        {
+          "id": "312d6e40-0ca6-4c81-9969-5863bedd853c",
+          "sportId": "musculacao",
+          "name": "Funcional de Musculação",
+          "description": "Aula de grupo (mapa de aulas do ginásio).",
+          "level": "UNSPECIFIED",
+          "source": "foxgym-aulas",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "foxgym-site (adesão pelo site)"
         }
       ],
       "pending": [],
@@ -1731,8 +1837,329 @@
       "notes": [
         "Os treinos de terça e quinta da Porto Runners são os do Centro Municipal de Marcha e Corrida (outro local do catálogo): não se duplicam."
       ]
+    },
+    {
+      "id": "c320e8d7-d9f4-4222-b5c0-9c7c48c81851",
+      "status": "ready",
+      "name": "Campo Municipal do Viso",
+      "description": "Campo municipal de relva sintética para futebol de 11 e hóquei em campo, gerido pela Ágora.",
+      "address": {
+        "street": "Rua Direita do Viso",
+        "postalCode": null,
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.181946,
+        "longitude": -8.645094
+      },
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/grandes-campos-municipais/campo-sintetico-do-viso"
+      },
+      "fieldSources": {
+        "name": "agora-campo-viso",
+        "address": "agora-campo-viso",
+        "phone": "agora-campo-viso",
+        "location": "osm-campo-viso (objeto 'Campo Sintético do Viso', na Rua Direita do Viso)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "29698f15-5a4f-4b76-9fa9-194b9801a10e",
+          "sportId": "futebol",
+          "name": "Aluguer do campo de futebol de 11",
+          "description": "Aluguer do campo por hora, mediante marcação prévia. Não é uma aula nem um treino.",
+          "level": "UNSPECIFIED",
+          "source": "agora-campo-viso-precario",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-campo-viso-precario (preçário oficial 2026–2027 (16.10.2026): 'Utilização' por hora para 'Privados ou clubes de fora da cidade do Porto, mediante marcação prévia')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "O código postal oficial está incompleto ('4250'): fica vazio, sem inventar."
+      ]
+    },
+    {
+      "id": "eec5e623-a4ab-4053-80e3-4607834f3bf1",
+      "status": "pending",
+      "name": "Campo Municipal dos Choupos",
+      "description": "Campo municipal de relva sintética para futebol de 7, gerido pela Ágora.",
+      "address": {
+        "street": "Rua dos Plátanos",
+        "postalCode": "4100-414",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": "225390111",
+        "website": "https://www.agoraporto.pt/desporto/rmid/grandes-campos-municipais/polidesportivo-dos-choupos"
+      },
+      "fieldSources": {
+        "name": "agora-campo-choupos",
+        "address": "agora-campo-choupos"
+      },
+      "offerings": [
+        {
+          "id": "6a3b4e7c-f448-4380-82f8-42c75830f313",
+          "sportId": "futebol",
+          "name": "Aluguer do campo de futebol de 7",
+          "description": "Aluguer do campo por hora, mediante marcação prévia. Não é uma aula nem um treino.",
+          "level": "UNSPECIFIED",
+          "source": "agora-campo-choupos-precario",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "agora-campo-choupos-precario (preçário oficial 2026–2027 (16.10.2026): 'Utilização' por hora para 'Privados ou clubes de fora da cidade do Porto, mediante marcação prévia')"
+        }
+      ],
+      "pending": [
+        "location: obrigatório; a página oficial não tem mapa e não há no OSM um campo com nome nem na Rua dos Plátanos"
+      ],
+      "notes": []
+    },
+    {
+      "id": "795620dd-2bdb-47dd-8c5c-79132c7e9750",
+      "status": "ready",
+      "name": "Clube de Ténis do Porto",
+      "description": "Clube de ténis e padel, com escola de ténis.",
+      "address": {
+        "street": "Rua Damião de Góis, 405",
+        "postalCode": "4050-227",
+        "parish": null,
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.161956,
+        "longitude": -8.614354
+      },
+      "contacts": {
+        "phone": "225028506",
+        "website": "https://www.ctporto.com/"
+      },
+      "fieldSources": {
+        "name": "ctp-contactos",
+        "address": "ctp-contactos",
+        "location": "ctp-contactos ('Coordenadas GPS' oficiais)",
+        "phone": "ctp-contactos"
+      },
+      "offerings": [
+        {
+          "id": "a1ff825f-6292-4bb6-97db-bc9b6dbb977f",
+          "sportId": "tenis",
+          "name": "Aulas de ténis (escola e adultos)",
+          "description": "Aulas em turma e privadas, com preço para não sócios.",
+          "level": "UNSPECIFIED",
+          "source": "ctp-precario-adultos",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "ctp-precario-adultos e ctp-precario-escola (mensalidades com coluna 'N/ Sócio')"
+        },
+        {
+          "id": "a89f3c46-04f0-4b1f-9f90-006fe8b47e7b",
+          "sportId": "padel",
+          "name": "Aluguer de campos de padel",
+          "description": "Reserva de campos por hora, com preço para não sócios. Não é uma aula.",
+          "level": "UNSPECIFIED",
+          "source": "ctp-precario-padel",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "ctp-precario-padel (preço 'Reserva' e preço reduzido para 'Sócios do CTP')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Freguesia vazia: a geocodificação inversa dá Cedofeita (União de Freguesias do Centro), forma por decidir (§4.4)."
+      ]
+    },
+    {
+      "id": "fbaeb8a5-79d0-4c6b-b96b-0d42345ac08c",
+      "status": "ready",
+      "name": "Quinta de Monserrate — Parque da Cidade",
+      "description": "Complexo de ténis e padel no Parque da Cidade, com academias.",
+      "address": {
+        "street": "Estrada da Circunvalação, 15687",
+        "postalCode": "4100-183",
+        "parish": "Aldoar, Foz do Douro e Nevogilde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.171659,
+        "longitude": -8.681941
+      },
+      "contacts": {
+        "phone": "+351910139430",
+        "website": "https://quintademonserrate.com/en/parque-da-cidade/"
+      },
+      "fieldSources": {
+        "name": "monserrate-parque",
+        "address": "monserrate-contactos",
+        "phone": "monserrate-contactos",
+        "location": "osm-monserrate-15687 (objeto com o n.º 15687 da Estrada Interior da Circunvalação, junto aos campos de ténis)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "b705a39c-e445-4781-9ff6-2d620d250a94",
+          "sportId": "tenis",
+          "name": "Aluguer de campos de ténis",
+          "description": "Reserva de campos ('Book your court!'); há também academia de ténis.",
+          "level": "UNSPECIFIED",
+          "source": "monserrate-parque",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "monserrate-parque ('Book your court!', reserva online)"
+        },
+        {
+          "id": "08fa46e6-c0a5-47f4-b518-4c571a211675",
+          "sportId": "padel",
+          "name": "Aluguer de campos de padel",
+          "description": "Reserva de campos ('Book your court!'); há também academia de padel.",
+          "level": "UNSPECIFIED",
+          "source": "monserrate-parque",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "monserrate-parque ('Book your court!', reserva online)"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "Fica no lado do Porto da Circunvalação (Nevogilde); os outros complexos da Quinta de Monserrate (Matosinhos, Gaia, Braga, Maia) ficam fora.",
+        "A página não diz se as aulas da academia exigem ser sócio: só o aluguer de campos é apresentado como acesso confirmado."
+      ]
+    },
+    {
+      "id": "5dfbcbe4-bd3e-46f5-a5f1-b9056fe15d6d",
+      "status": "ready",
+      "name": "Padel Athletic Club",
+      "description": "Clube de padel.",
+      "address": {
+        "street": "Rua Engenheiro Ferreira Dias, 1010",
+        "postalCode": "4100-246",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.177327,
+        "longitude": -8.648148
+      },
+      "contacts": {
+        "phone": "+351912581458",
+        "website": "http://padelathleticclub.pt/"
+      },
+      "fieldSources": {
+        "name": "pac-site",
+        "address": "pac-site",
+        "phone": "pac-site",
+        "location": "osm-pac (objeto com o mesmo nome e número)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "57bdf900-052f-4cc2-b419-c8fdd7a11eba",
+          "sportId": "padel",
+          "name": "Padel: aluguer de campos e aula experimental",
+          "description": "Reserva de campos e aula experimental anunciadas no site.",
+          "level": "UNSPECIFIED",
+          "source": "pac-site",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "pac-site ('Reservar campo', 'Aula experimental')"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "O OSM indica o código postal 4100-248; prevalece o do site (4100-246)."
+      ]
+    },
+    {
+      "id": "dab361d4-9529-49dc-9235-4d6d970d0dd8",
+      "status": "pending",
+      "name": "Your Top-Padel Industrial",
+      "description": "Centro de padel na Zona Industrial do Porto, com academia.",
+      "address": {
+        "street": "Rua Engenheiro Ferreira Dias, 241",
+        "postalCode": null,
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": null,
+      "contacts": {
+        "phone": "+351965423718",
+        "website": "https://www.yourpadel.pt/"
+      },
+      "fieldSources": {
+        "name": "yourpadel-site",
+        "address": "yourpadel-site",
+        "phone": "yourpadel-site"
+      },
+      "offerings": [
+        {
+          "id": "c38010b0-ef32-429b-b638-afae66306c49",
+          "sportId": "padel",
+          "name": "Padel: aluguer de campos e academia",
+          "description": "Reserva de campos online e inscrição na academia.",
+          "level": "UNSPECIFIED",
+          "source": "yourpadel-site",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "yourpadel-site ('RESERVA JÁ O TEU PRÓXIMO JOGO'; inscrições na academia)"
+        }
+      ],
+      "pending": [
+        "location: obrigatório; o site não tem mapa e o OSM não tem o n.º 241 nem o centro",
+        "address.postalCode: o site não o indica (pode ficar vazio)"
+      ],
+      "notes": []
+    },
+    {
+      "id": "ea53a742-c0f6-4757-8d0a-bb14d05c81fb",
+      "status": "ready",
+      "name": "Oporto Indoor Games",
+      "description": "Campos de futebol e futsal cobertos para aluguer.",
+      "address": {
+        "street": "Rua Engenheiro Ferreira Dias, 1063",
+        "postalCode": "4100-247",
+        "parish": "Ramalde",
+        "city": "Porto"
+      },
+      "location": {
+        "latitude": 41.177033,
+        "longitude": -8.648851
+      },
+      "contacts": {
+        "phone": "912996588",
+        "website": "https://www.oportoindoorgames.pt/"
+      },
+      "fieldSources": {
+        "name": "oig-aluguer",
+        "address": "oig-contactos",
+        "phone": "oig-contactos",
+        "location": "osm-oig-1063 (edifício com o endereço 1063-1095 da mesma rua)",
+        "parish": "osm-reverse"
+      },
+      "offerings": [
+        {
+          "id": "3aa7a315-1bd6-46cf-83cd-36ba1fad7715",
+          "sportId": "futebol",
+          "name": "Aluguer de campos de futebol de 5 e de 7",
+          "description": "Aluguer de campos cobertos, com reserva por email, telefone ou WhatsApp. Não é uma aula.",
+          "level": "UNSPECIFIED",
+          "source": "oig-aluguer",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "oig-aluguer ('Aluguer de Campos de Futebol de Cinco e Futebol de Sete') e oig-contactos"
+        },
+        {
+          "id": "1a9ac965-ed9e-4a0f-9f2a-8fa43ea52e91",
+          "sportId": "futsal",
+          "name": "Aluguer do campo de futsal",
+          "description": "Campo coberto com medidas oficiais, para aluguer. Não é uma aula.",
+          "level": "UNSPECIFIED",
+          "source": "oig-aluguer",
+          "publicAccess": "CONFIRMED",
+          "publicAccessSource": "oig-aluguer ('O nosso maior campo de futsal é o único no Porto com medidas oficiais') e oig-contactos"
+        }
+      ],
+      "pending": [],
+      "notes": [
+        "A página de reservas avisa que o pedido não garante a reserva nem a disponibilidade; o catálogo não guarda disponibilidade."
+      ]
     }
   ],
-  "reviewedOn": "2026-10-27",
+  "reviewedOn": "2026-10-28",
   "publicAccessPolicy": "CONFIRMED: a fonte indica que o público em geral pode inscrever-se ou aderir (sem prometer vagas, horários nem preços). UNCONFIRMED: a atividade é praticada no local, mas o acesso do público não está confirmado — não é importada."
 }
