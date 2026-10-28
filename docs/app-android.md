@@ -1512,10 +1512,15 @@ Material 3 e a identidade atual (tema e cores dinâmicas) mantêm-se. Não há d
   - As avaliações apareciam como "temporariamente indisponíveis": o catálogo não obteve resposta a tempo do experiences-service, com a máquina sem memória. Era o estado degradado correto, e não zeros. Depois, por HTTP, os 24 locais responderam `NO_RATINGS`.
 - **Bloqueio:** logo a seguir, o Android mostrou "System UI isn't responding" e o ecrã ficou congelado, com 0,30 GB livres. O emulador foi fechado sem insistir e os serviços voltaram a arrancar.
 - **Dados:** contagens iguais às do §22 em todas as bases e no volume.
-- **Por verificar no ecrã (falta de memória):**
-  - o detalhe do local com as secções e as três ações;
-  - a abertura do mapa, do marcador e do navegador, e a mensagem sem aplicação compatível;
-  - as mensagens de lista vazia;
+- **Confirmado no emulador pelo utilizador (2026-10-28):**
+  - o detalhe dos locais reais, com as secções e as etiquetas novas;
+  - "Ver no mapa" abre o local correto;
+  - "Abrir site" abre a página;
+  - "Telefonar" abre o marcador com o número, sem iniciar a chamada;
+  - uma pesquisa sem correspondência mostra a mensagem adequada.
+- **Por verificar no ecrã:**
+  - a mensagem quando não há nenhuma aplicação compatível;
+  - a lista vazia de uma modalidade sem locais (ex.: Escalada) e a lista vazia com proximidade;
   - texto ampliado e nomes longos.
 
-  Estão cobertos pelos testes JVM das regras (validação e construção dos URIs), mas não pela interface.
+  As regras estão cobertas pelos testes JVM (validação e construção dos URIs).
