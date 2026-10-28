@@ -189,7 +189,7 @@ As avaliações vêm do experiences-service num único pedido por resposta, com 
 
 - Só num ambiente de demonstração com volume próprio: `docker compose -p portofit-demo -f docker-compose.yml -f docker-compose.demo.yml up -d --wait` (perfil `demo` e `FEED_INCLUDE_DEMO_PLACES=true`; parar primeiro o ambiente normal, porque as portas são as mesmas). Com ele, em cada arranque, o serviço carrega **10 locais e 19 atividades fictícios** (`is_demo = true`, "(fictício)" no nome). Os nomes e moradas são inventados; as coordenadas ficam em zonas do Porto só para a proximidade ser realista e **não assinalam estabelecimentos reais**.
 - O carregamento é repetível: ids fixos e `INSERT ... ON CONFLICT DO UPDATE`; reiniciar não cria duplicados.
-- As 8 modalidades vêm de uma migração normal (dados de referência), com ou sem o perfil.
+- As 15 modalidades vêm de migrações normais (`V3`, `V8`; dados de referência), com ou sem o perfil.
 - No volume normal, os fictícios carregados antes de 2026-10-27 continuam lá, `RETIRED` (`is_demo = true`), porque há experiências que os referem.
 
 ### Testes automáticos

@@ -1,6 +1,6 @@
 # Locais reais do Porto (preparação)
 
-> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10, §11): 24 locais e 45 atividades; corrida (2), escalada (0) e kickboxing (4) abaixo de 5. Pesquisa e preparação consultadas a 2026-10-27.
+> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10, §11): 24 locais e 45 atividades; corrida (2), escalada (0) e kickboxing (4) abaixo de 5. **Novas modalidades** (§12, 2026-10-28): 30 locais e 61 atividades em 15 modalidades. Pesquisa e preparação consultadas a 2026-10-27.
 > Dados: [`backend/catalog-service/src/main/resources/real/locais-reais-porto.json`](../backend/catalog-service/src/main/resources/real/locais-reais-porto.json), separados dos dados de demonstração.
 > Modelo e regras do catálogo: [catalog-api.md §2](catalog-api.md#2-entidades-e-relações); estratégia de substituição: [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração).
 
@@ -482,3 +482,118 @@ Depois de editar o ficheiro, basta reiniciar o catálogo com a imagem reconstru�
   - a corrida a 1 km do Castelo do Queijo devolve o ponto de encontro a 0,28 km;
   - as coordenadas estão todas no concelho.
 - **Testes:** catálogo, 35 de 35, incluindo a migração V7 e o ponto de encontro sem código postal. Na app, `CatalogMappersTest` 7, com um teste novo sem código postal, e `PlaceDetailViewModelTest` 10. Emulador não aberto, por isso a apresentação "só a cidade" no detalhe não foi vista no ecrã.
+
+## 12. Novas modalidades (2026-10-28)
+
+O objetivo era ter até 5 locais reais ativos para cada nova modalidade, só no município do Porto, com as mesmas regras (§2, §9–§11). Fontes consultadas e dados revistos a 2026-10-28. Cada atividade diz o tipo de acesso: aluguer de campo, aula, academia ou treino livre de sócios. Equipas de competição não contam.
+
+### 12.1 Modalidades e compatibilidade
+
+- **`V8__more_sports.sql`:** acrescenta 7 modalidades, com slugs estáveis e `ON CONFLICT (id) DO NOTHING`.
+
+  | Slug | Nome |
+  |---|---|
+  | `futebol` | Futebol |
+  | `futsal` | Futsal |
+  | `basquetebol` | Basquetebol |
+  | `voleibol` | Voleibol |
+  | `tenis` | Ténis |
+  | `padel` | Padel |
+  | `musculacao` | Musculação |
+
+  Os 8 slugs anteriores não mudam, por isso os interesses e as publicações existentes continuam válidos.
+- **Sem listas fixas:**
+  - o users-service valida os interesses contra `GET /sports`;
+  - a app lê as modalidades da API (filtros, interesses e nomes);
+  - o experiences-service guarda a modalidade da atividade.
+
+  Por isso **não houve alterações na app nem noutros serviços**.
+- **Pesquisa:** o texto é normalizado (sem acentos), por isso "tenis" e "ténis" dão o mesmo resultado. "Futebol" e "futsal" são categorias distintas: "futsal" encontra só o campo de futsal.
+
+### 12.2 Resultado
+
+| Modalidade | Locais | Meta (até 5) | Locais e acesso |
+|---|---|---|---|
+| Futebol | **4** | não atingida | Parque Desportivo de Ramalde/INATEL, Campo Municipal do Viso, Estádio Universitário do Porto, Oporto Indoor Games: todos **aluguer de campo** |
+| Futsal | **1** | não atingida | Oporto Indoor Games (**aluguer** do campo) |
+| Basquetebol | **0** | não atingida | — |
+| Voleibol | **0** | não atingida | — |
+| Ténis | **3** | não atingida | Estádio Universitário (**aluguer** de courts); Clube de Ténis do Porto (**aulas**, com preço para não sócios); Quinta de Monserrate — Parque da Cidade (**aluguer** de campos) |
+| Padel | **3** | não atingida | Clube de Ténis do Porto e Quinta de Monserrate (**aluguer** de campos); Padel Athletic Club (**aluguer** e aula experimental) |
+| Musculação | **5** | atingida | Fitness UP Antas, Bessa, Constituição e São João (**treino livre** de sócios na zona de musculação); Fox Gym (**aula** "Funcional de Musculação") |
+
+**Total do catálogo:** 30 locais e 61 atividades (eram 24 e 45), com 9 de fora.
+
+- **Locais novos:** Campo Municipal do Viso, Clube de Ténis do Porto, Quinta de Monserrate — Parque da Cidade, Padel Athletic Club e Oporto Indoor Games.
+- **Locais existentes com atividades novas, sem nova entrada:**
+  - **Parque Desportivo de Ramalde/INATEL:** futebol. O nome passou de "Pista de Atletismo do Parque…" para o parque, com o mesmo id.
+  - **Estádio Universitário do Porto:** futebol e ténis. Estava no ficheiro sem atividade confirmada e passa a ser importado; a pista continua de fora.
+  - **4 Fitness UP e o Fox Gym:** musculação.
+- **Pendentes no ficheiro:**
+  - **Campo Municipal dos Choupos** (futebol de 7, aluguer confirmado): falta a posição, porque a página oficial não tem mapa e o OSM não tem o campo.
+  - **Your Top-Padel Industrial** (padel): falta a posição e o código postal.
+
+### 12.3 Fontes (consultadas a 2026-10-28)
+
+| Local | Fonte do acesso | Coordenadas |
+|---|---|---|
+| Ramalde, Viso, Choupos | Preçários municipais 2026–2027 da Ágora (16.10.2026): "Utilização" por hora para "Privados ou clubes de fora da cidade do Porto, mediante marcação prévia" ([Ramalde](https://www.agoraporto.pt/files/uploads/cms/Parque-Desp-Ramalde-Horario-Precos-2026-2027_v2.pdf), [Viso](https://www.agoraporto.pt/files/uploads/cms/Campo-do-Viso-Horario-Precos-2026-2027_v2.pdf), [Choupos](https://www.agoraporto.pt/files/uploads/cms/Campo-dos-Choupos-Horario-Precos-2026-2027_v2.pdf)) | Ramalde: ligação de mapa da Ágora; Viso: [objeto OSM "Campo Sintético do Viso"](https://www.openstreetmap.org/way/334849388) na Rua Direita do Viso |
+| Estádio Universitário | [Tabela de preços do CDUP](https://cdup.up.pt/instalacoes/estadio-universitario-do-porto/): colunas "Comunidade UP" e "Externos" para os campos de futebol 5, 7 e 11 e os courts de ténis; reserva online | Ligação de mapa do CDUP (já existente) |
+| Clube de Ténis do Porto | Preçários com coluna "N/ Sócio" ([adultos](https://www.ctporto.com/p369-precario-adultos-pt), [escola](https://www.ctporto.com/p172-precario-escola-pt)) e preço "Reserva" no [padel](https://www.ctporto.com/p159-precario-reservas-padel-clube-de-tenis-do-porto-pt) | "Coordenadas GPS" oficiais na [página de contactos](https://www.ctporto.com/p123-contactos-pt) |
+| Quinta de Monserrate — Parque da Cidade | ["Book your court!"](https://quintademonserrate.com/en/parque-da-cidade/) e academias; morada nos [contactos](https://quintademonserrate.com/en/contacts/) | [Objeto OSM](https://www.openstreetmap.org/way/755451318) com o n.º 15687 da Estrada Interior da Circunvalação, junto aos campos de ténis; lado do Porto (Nevogilde) |
+| Padel Athletic Club | ["Reservar campo" e "Aula experimental"](http://padelathleticclub.pt/) | [Objeto OSM](https://www.openstreetmap.org/node/14045851701) com o mesmo nome e número |
+| Oporto Indoor Games | ["Aluguer de Campos de Futebol de Cinco e Futebol de Sete"](https://www.oportoindoorgames.pt/aluguer-de-campos) e campo de futsal; [reservas](https://www.oportoindoorgames.pt/reservas-contactos) | [Edifício OSM](https://www.openstreetmap.org/way/897251551) com o endereço 1063-1095 da mesma rua |
+| Fitness UP (musculação) | Página da rede ["No ginásio"](https://www.fitnessup.pt/treinar-ginasio): "Zona de musculação", "mais de 300 postos de treino". A descrição é da rede, não de cada clube | As do §10 |
+| Fox Gym (musculação) | [Mapa de aulas](https://foxgym.pt/mapa-de-aulas/): "Funcional de Musculação" | As do §10 |
+
+Sem preços, horários, níveis (`UNSPECIFIED`), disponibilidade, fotografias nem avaliações.
+
+### 12.4 Porque é que a meta não foi atingida
+
+- **Basquetebol, voleibol e futsal:**
+  - **Pavilhões municipais da Ágora (11):** os preçários confirmam o aluguer a privados, mas nem as páginas nem os PDF dizem que modalidades cada pavilhão permite. Atribuir-lhes estas modalidades seria inventar.
+  - **Pavilhão Luís Falcão (CDUP):** tem o mesmo problema; só menciona badminton.
+  - **Equipas universitárias do CDUP** (basquetebol 3x3, voleibol de praia, futebol 7, ténis, padel): são de competição e não contam.
+  - **Escolas e captações de clubes:** as encontradas eram de Matosinhos, ou captações de formação competitiva (FC Porto voleibol), por isso não entram.
+  - **Porto CCD:** não indica modalidades nem acesso para quem não é sócio.
+  - **Arena PlaySports (Prelada) e Footspace:** só têm fichas em plataformas de reserva (Playtomic, Urban Sports Club), sem site oficial encontrado.
+- **Futebol:**
+  - Os campos municipais do **Parque da Cidade**, do **Outeiro** (cedido ao Sporting Clube da Cruz) e o **Prof. Joaquim Novais** não têm preçário nem regras de acesso publicadas.
+  - O **Campo dos Choupos** está pendente pelas coordenadas.
+  - O **Dragon Force** não tem página oficial com escolas e moradas.
+- **Ténis:**
+  - **Monte Aventino** (gerido pela Federação Portuguesa de Ténis): as fontes só dizem que "aceita reservas", sem dizer de quem.
+  - **Boa Hora Ténis & Padel:** fica em Lisboa.
+- **Padel:**
+  - **Your Top-Padel:** pendente pelas coordenadas.
+  - **Norte Padel:** só tem ficha na Playtomic.
+  - **Complexo do Fluvial:** o site do clube só tem modalidades aquáticas (o padel junto ao Fluvial é outro negócio, sem site oficial encontrado).
+- **Musculação:**
+  - **Ginásio de Ramalde:** o regulamento municipal reserva-o a clubes e atletas.
+  - **Sala de musculação do Estádio Universitário:** remete para os "preços UPFit", sem condições para externos.
+
+### 12.5 Importação e verificação
+
+- **Cópia antes de alterar:** `C:\Users\rafap\AndroidStudioProjects\PortoFit-backups\catalog_db-2026-10-28-antes-novas-modalidades.dump`, com SHA-256 `816fb5a4c37607c10cbc1eecb2621d5b5d1c1b9f811c2b258818d82234e1f4e2` igual dentro e fora do contentor, e 4 tabelas com dados.
+- **Arranque:** V8 aplicada e importação de **30 locais e 61 atividades, com 9 de fora**. Depois de reiniciar (nova importação), as mesmas contagens: 40 locais na base (30 reais e 10 fictícios `RETIRED`), 80 atividades e 15 modalidades, sem nomes repetidos.
+- **API:**
+  - contagens por modalidade iguais às do §12.2; as anteriores não mudaram (§11.3);
+  - detalhes com o tipo de acesso no nome e na descrição da atividade, e `UNSPECIFIED`;
+  - coordenadas todas no concelho;
+  - um par novo a menos de 200 m: Oporto Indoor Games e Padel Athletic Club, a 67 m, estabelecimentos diferentes com números de porta diferentes (1063 e 1010);
+  - ténis a 5 km dos Aliados: Clube de Ténis do Porto a 1,4 km e Estádio Universitário a 2,76 km.
+- **Compatibilidade, com uma conta temporária, removida no fim:**
+  - **Interesses:** "tenis" e "padel" aceites (`200`); "tennis" recusado (`400 UNKNOWN_INTERESTS`).
+  - **Publicação:** publicar em "Aulas de ténis" do Clube de Ténis do Porto dá `201`, com a modalidade `tenis`/"Ténis".
+  - **Filtros:** aparece em `?sportId=tenis` e no feed popular filtrado por ténis; a avaliação do local passou a 4,0 (1). A experiência foi eliminada a seguir.
+  - **Dados dos utilizadores:** todas as tabelas das outras bases e o volume das fotografias ficaram com as mesmas contagens que antes.
+- **Testes do catálogo:** 35, todos a passar.
+  - `CatalogApiIntegrationTest`: 15 modalidades, com "Basquetebol" primeiro, "Ténis" e "Musculação".
+  - `RealPlacesImportIntegrationTest`: os totais novos, as contagens das 15 modalidades, o estádio só com futebol e ténis, "tenis" e "ténis" iguais, e "futsal" diferente de "futebol".
+- **App:** sem alterações, por isso sem novo build.
+
+### 12.6 Pendências
+
+- **Por coordenadas:** Campo dos Choupos e Your Top-Padel.
+- **Modalidades sem locais:** basquetebol e voleibol. Precisam de uma fonte oficial que associe uma modalidade a um pavilhão com acesso do público.
+- **Fitness UP:** a musculação vem da descrição da rede; confirmar por clube, se for possível.
