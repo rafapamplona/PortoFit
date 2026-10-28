@@ -1,6 +1,6 @@
 # Locais reais do Porto (preparação)
 
-> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10, §11): 24 locais e 45 atividades; corrida (2), escalada (0) e kickboxing (4) abaixo de 5. **Novas modalidades** (§12, 2026-10-28): 30 locais e 61 atividades em 15 modalidades. Pesquisa e preparação consultadas a 2026-10-27.
+> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10, §11): 24 locais e 45 atividades; corrida (2), escalada (0) e kickboxing (4) abaixo de 5. **Novas modalidades** (§12, 2026-10-28): 30 locais e 61 atividades em 15 modalidades. **Basquetebol, voleibol e futsal** (§13): 39 locais e 74 atividades. Pesquisa e preparação consultadas a 2026-10-27.
 > Dados: [`backend/catalog-service/src/main/resources/real/locais-reais-porto.json`](../backend/catalog-service/src/main/resources/real/locais-reais-porto.json), separados dos dados de demonstração.
 > Modelo e regras do catálogo: [catalog-api.md §2](catalog-api.md#2-entidades-e-relações); estratégia de substituição: [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração).
 
@@ -597,3 +597,91 @@ Sem preços, horários, níveis (`UNSPECIFIED`), disponibilidade, fotografias ne
 - **Por coordenadas:** Campo dos Choupos e Your Top-Padel.
 - **Modalidades sem locais:** basquetebol e voleibol. Precisam de uma fonte oficial que associe uma modalidade a um pavilhão com acesso do público.
 - **Fitness UP:** a musculação vem da descrição da rede; confirmar por clube, se for possível.
+
+## 13. Basquetebol, voleibol e futsal: pesquisa alargada (2026-10-28)
+
+O objetivo era ter até 5 locais verificáveis de basquetebol, voleibol e futsal no município do Porto. Fontes consultadas a 2026-10-28.
+
+**Fontes aceites nesta revisão**, além do site próprio e do preçário:
+- páginas oficiais dos espaços em plataformas de reserva (Playtomic);
+- diretórios e calendários federativos (Associação de Voleibol do Porto, Federação Portuguesa de Basquetebol);
+- notícias municipais oficiais.
+
+**A modalidade nunca foi atribuída a um pavilhão por parecer adequada.** Nos pavilhões municipais, o aluguer vem do preçário da Ágora, e a modalidade de uma fonte federativa que a liga explicitamente a esse pavilhão.
+
+A "Funcional de Musculação" do Fox Gym não foi alterada.
+
+### 13.1 Resultado
+
+| Modalidade | Locais | Meta (até 5) | Locais e acesso |
+|---|---|---|---|
+| Basquetebol | **5** | atingida | **Prática livre:** Parque do Covelo, Jardim Paulo Vallada e Bairro do Viso. **Aluguer:** Pavilhão Municipal do Lagarteiro e Pavilhão Municipal Manoel de Oliveira |
+| Voleibol | **3** | não atingida | **Aluguer:** Pavilhão A do Estádio Universitário (preço para externos), Pavilhão Municipal Irene Lisboa e Pavilhão Municipal Pêro Vaz de Caminha |
+| Futsal | **4** | não atingida | **Aluguer:** Oporto Indoor Games (§12), Arena PlaySports Porto (Prelada), Footspace e Porto CCD |
+
+**Restrições de participação:**
+- **Prática livre:** sem aulas, reservas nem horário.
+- **Aluguer:** é aluguer do espaço, não uma aula nem uma equipa aberta.
+- **Porto CCD:** a página da plataforma não indica se a reserva exige ser sócio (fica anotado).
+
+**Total do catálogo:** 39 locais e 74 atividades (eram 30 e 61), com 9 de fora.
+
+**Atividades acrescentadas a locais existentes, sem nova entrada:**
+- **Pavilhão do Lagarteiro:** basquetebol.
+- **Estádio Universitário:** voleibol.
+- **Pavilhão Pêro Vaz de Caminha:** passou de pendente a importado, com as coordenadas do mapa da AVP. Trouxe também o ioga e o pilates do "Dias com Energia", que já estavam confirmados: **ioga passa a 13 e pilates a 12**.
+
+**Pendente no ficheiro:** a **União Académica António Aroso — escola de basquetebol**.
+- O site tem "Inscrições abertas para a época 2026/2027" e "Basquetebol a partir dos 5 anos", sem informação para adultos.
+- Falta saber onde o clube treina:
+  - a FPB situa um campus de 2017 na EB 2,3 Leonardo Coimbra;
+  - os perfis de estatísticas de terceiros indicam a Manoel de Oliveira;
+  - nenhuma destas fontes confirma o local atual.
+
+### 13.2 Fontes e coordenadas (consultadas a 2026-10-28)
+
+| Local | Modalidade e acesso | Coordenadas |
+|---|---|---|
+| Parque do Covelo, Jardim Paulo Vallada, Bairro do Viso | [GO Porto, 23/02/2022](https://www.goporto.pt/noticias/municipio-promove-desporto-ao-ar-livre-para-todos): lista municipal das 15 tabelas de basquetebol requalificadas, "de acesso fácil e gratuito" | Campo de basquetebol dentro de cada espaço da lista: [Covelo](https://www.openstreetmap.org/node/13741182024), [Paulo Vallada](https://www.openstreetmap.org/way/482327698), [Bairro do Viso](https://www.openstreetmap.org/way/456415508) (Rua de Bordeaux); a geocodificação inversa confirma o espaço de cada um |
+| Pavilhão do Lagarteiro, Pavilhão Manoel de Oliveira | Calendário oficial da FPB, época 2026/2027: jogos em novembro de 2026 no "Gim. do Lagarteiro" e na "Escola EB23 Manoel de Oliveira" ([FC Porto](https://www.fpb.pt/calendario/clube_120/), [Vasco da Gama](https://www.fpb.pt/calendario/clube_176/)). Aluguer: [preçário do Lagarteiro](https://www.agoraporto.pt/files/uploads/cms/Pav-Lagarteiro-Horario-Precos-2026-2027_v2.pdf) e [preçário da Manoel de Oliveira](https://www.agoraporto.pt/files/uploads/cms/Pav-Manoel-Oliv-Horario-Precos-2026-2027_v2.pdf) | Lagarteiro: as do §10. Manoel de Oliveira: [pavilhão](https://www.openstreetmap.org/way/160503724) dentro da escola com o n.º 134 e o código postal da morada oficial |
+| Pavilhão Irene Lisboa, Pavilhão Pêro Vaz de Caminha, Pavilhão A do Estádio Universitário | Diretório de clubes da AVP: o Boavista FC joga [no Irene Lisboa](https://www.avporto.pt/boavistafc/), o Colégio Universal [no Pêro Vaz de Caminha](https://www.avporto.pt/gcuniversal/), a CDUP/Volleystars [no Pavilhão A](https://www.avporto.pt/cdup/). Aluguer: preçários da Ágora ([Irene Lisboa](https://www.agoraporto.pt/files/uploads/cms/Pav-Irene-Lisboa-Horario-Precos-2026-2027_v2.pdf), [Pêro Vaz de Caminha](https://www.agoraporto.pt/files/uploads/cms/Pav-Pero-Vaz-Caminha-Horario-Precos-2026-2027_v2.pdf)) e [tabela do CDUP](https://cdup.up.pt/instalacoes/estadio-universitario-do-porto/) (Pavilhão A, "Externos") | Ligações de mapa da AVP; caem nas escolas Irene Lisboa (Rua de Cervantes, 532) e Pêro Vaz de Caminha (a ~70 m da Rua Irmã Maria Droste). São aproximadas, a escola onde fica o pavilhão |
+| Arena PlaySports Porto (Prelada) | [Página do espaço no Playtomic](https://playtomic.com/pt/clubs/arena-playsports-porto-prelada-novo-relvado): "um pavilhão para a prática de futsal"; reservas por email e telefone | Coordenadas da página; caem na EB Maria Lamas (Travessa da Prelada) |
+| Footspace | [Página do espaço no Playtomic](https://playtomic.com/pt/clubs/footspace): futsal, campos cobertos (sintético e taco) | Coordenadas da página |
+| Porto CCD | [Página do espaço no Playtomic](https://playtomic.com/pt/clubs/ccdporto): "um pavilhão para a prática de futsal" | Coordenadas da página; caem na Rua de Alves Redol, 292 |
+
+Sem preços, horários, níveis (`UNSPECIFIED`), disponibilidade, fotografias nem avaliações.
+
+### 13.3 Porque é que voleibol e futsal ficaram abaixo de 5
+
+- **Voleibol:**
+  - **Outros pavilhões indicados pela AVP:** a Escola Francisco Torrinha (FC Porto, CD Foz) e os colégios Júlio Dinis e Rosário não são municipais nem têm acesso do público publicado.
+  - **Clubes:** o site da AEGO Sport está offline. A Volleystars não tem inscrições de praticantes. As captações do FC Porto terminaram em junho e são seleção de atletas, não escola aberta.
+  - **Campos de praia do Parque da Cidade:** a única informação atual é o Estádio de Praia sazonal (junho a setembro), sem condições de uso fora dos eventos. A página da Ágora já não existe.
+- **Futsal:**
+  - **Pavilhões municipais:** não foi encontrada uma fonte federativa ou municipal que ligue o futsal a um pavilhão específico.
+  - **Pavilhão Luís Falcão (CDUP):** só menciona badminton.
+  - Os locais de futsal da Arena PlaySports e do Porto CCD também têm futebol; essas atividades não foram acrescentadas, porque esta revisão é só destas três modalidades.
+- **Basquetebol, candidatos não usados:**
+  - **Parque da Cidade:** tem dois campos possíveis em entradas diferentes.
+  - **Largo de Miragaia e Rua Coronel Hélder Ribeiro:** sem posição do campo.
+  - **Escola EB 2.3 Viso:** é o pavilhão do Viso, sem coordenadas confirmadas.
+  - **Académico FC:** sem inscrições nem local de treino publicados.
+
+### 13.4 Importação e verificação
+
+- **Cópia antes de alterar:** `C:\Users\rafap\AndroidStudioProjects\PortoFit-backups\catalog_db-2026-10-28-antes-basquetebol-voleibol-futsal.dump`, com SHA-256 `859c8bcb319877931ffd47f11529194add46101f62d69e83bcc95436da49390b` igual dentro e fora do contentor, e 4 tabelas com dados.
+- **Importação:** 39 locais e 74 atividades, com 9 de fora. Depois de reiniciar, as mesmas contagens: 49 locais na base (39 reais e 10 fictícios `RETIRED`) e 93 atividades, sem nomes repetidos.
+- **API:**
+  - basquetebol 5, voleibol 3, futsal 4, ioga 13, pilates 12; as outras modalidades sem alteração;
+  - "futsal" encontra os 4 locais de futsal, e "futebol" continua com os seus 4;
+  - coordenadas todas no concelho;
+  - um par novo a menos de 200 m: Clube de Ténis do Porto e Pavilhão Irene Lisboa, a 194 m, instalações diferentes.
+- **Outras bases:** só o `catalog_db` mudou (mais 9 locais e 13 atividades). Contas, publicações, listas, mensagens, notificações e o volume ficaram iguais.
+- **Testes:** `RealPlacesImportIntegrationTest` com os totais e as contagens novas, e o estádio com futebol, ténis e voleibol: 4, a passar.
+
+### 13.5 Pendências
+
+- **Voleibol (3) e futsal (4) abaixo de 5.**
+- **União Académica António Aroso:** falta o local de treino.
+- **Tabelas de basquetebol:** a fonte é de 2022; confirmar no local o estado atual.
+- **Porto CCD:** confirmar se a reserva do pavilhão exige ser sócio.
