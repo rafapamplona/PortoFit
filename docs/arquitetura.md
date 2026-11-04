@@ -1,7 +1,6 @@
 # PortoFit — Arquitetura
 
-> Documento de desenho. Descreve o que vai ser construído e porquê; não descreve código existente.
-> Estado: **proposta inicial**, a rever à medida que cada serviço for implementado.
+> Documento de desenho: explica as decisões e o seu porquê. Os seis serviços e a app estão implementados; o estado de cada etapa está na [secção 5](#5-etapas-de-implementação) e o comportamento da app em [app-android.md](app-android.md). Quando há diferença entre o desenho inicial e o que existe, o texto indica-o.
 > As escolhas tecnológicas (Kotlin/Compose/MVVM, Spring Boot, PostgreSQL, Docker Compose, REST) são decisões do grupo, não exigências confirmadas pelo docente.
 
 ## Índice
@@ -71,13 +70,15 @@ Uma experiência refere-se sempre a **uma atividade oferecida**, e por isso tamb
 - adaptação da qualidade das imagens ao tipo de ligação;
 - guardar **locais** em listas (além de experiências);
 - associar a localização GPS à própria publicação;
-- notificações *push* reais (decisão a confirmar; ver [6.2](#62-pontos-em-aberto)).
+- notificações *push* reais: o enunciado não as exige ([6.2](#62-pontos-em-aberto), ponto 1), e ficam como melhoria possível.
 
 **Fora de âmbito:** reservas, pagamentos, gestão de ginásios, edição do catálogo pelos utilizadores, moderação de conteúdos, recuperação de palavra-passe, eliminação de conta.
 
 ### 1.4 Dados de demonstração
 
-Na primeira demonstração, todos os dados pré-carregados (locais, atividades, utilizadores e experiências de exemplo) são **fictícios** e claramente identificados como tal:
+> **Histórico.** Foi assim até 2026-10-27. Hoje, o ambiente normal usa locais reais, e os fictícios estão `RETIRED`, sem aparecer na pesquisa nem nos feeds; continuam disponíveis num ambiente de demonstração separado ([locais-reais.md](locais-reais.md)).
+
+Na primeira demonstração, todos os dados pré-carregados (locais, atividades, utilizadores e experiências de exemplo) eram **fictícios** e claramente identificados como tal:
 
 - os locais têm nomes inventados e o campo `demo: true`; a app mostra a indicação "Dados de demonstração";
 - os utilizadores de exemplo usam o prefixo `demo_` no username;
@@ -124,7 +125,7 @@ Legenda dos serviços: **USR** users · **CAT** catalog · **EXP** experiences �
 
 | # | Requisito | Funcionalidades | Serviço(s) | Critério de demonstração |
 |---|---|---|---|---|
-| R1 | Visitantes consultam e pesquisam conteúdos e utilizadores | Pesquisa unificada (locais, experiências, utilizadores) sem sessão; detalhe de local, experiência e perfil | CAT, EXP, USR | Sem sessão iniciada, pesquisar "boxe" mostra locais e experiências; pesquisar um username mostra o perfil |
+| R1 | Visitantes consultam e pesquisam conteúdos e utilizadores | Pesquisa sem sessão em três modos independentes (Locais, Experiências, Pessoas); detalhe de local, experiência e perfil | CAT, EXP, USR | Sem sessão iniciada, pesquisar "boxe" em Locais e em Experiências mostra os resultados de cada um; pesquisar um username em Pessoas mostra o perfil |
 | R2 | Perfil com username, descrição, interesses e publicações | Registo, login, editar descrição e interesses, ver publicações do utilizador | USR (perfil), EXP (publicações), CAT (lista de modalidades) | Criar conta, editar perfil, sair e voltar a entrar: dados persistem; o perfil lista as publicações |
 | R3 | Publicar experiência com texto, fotografia e 1–5 estrelas | Formulário de publicação a partir de uma atividade oferecida; fotografia opcional; editar e apagar a própria | EXP (valida a atividade em CAT) | Publicar uma experiência com fotografia e outra sem; ambas aparecem no local e no perfil; estrelas fora de 1–5 são rejeitadas |
 | R4 | Câmara dentro da app e galeria | Captura pela aplicação de câmara do sistema a partir do ecrã de publicação (sem CameraX); seleção com Photo Picker | App, EXP (armazenamento) | **Obrigatório na demonstração:** tirar fotografia com a câmara dentro da app e publicá-la; repetir escolhendo da galeria |
@@ -183,7 +184,7 @@ Sem API gateway nesta fase: a app conhece o endereço de cada serviço (configur
 | **users-service** | Registo, autenticação (emissão de tokens), perfis, interesses, seguir | utilizadores, credenciais (hash), interesses (ids de modalidade), relações de seguir | ver perfil, pesquisar utilizadores, listas de seguidores/seguidos | editar perfil, seguir |
 | **catalog-service** | Modalidades, locais, atividades oferecidas, pesquisa por nome/modalidade/proximidade | modalidades, locais, atividades oferecidas | tudo (só leitura) | — (sem escrita nesta fase) |
 | **experiences-service** | Experiências, fotografias, estrelas, comentários, gostos, visualizações, avaliações agregadas, feeds, estatísticas | experiências, ficheiros de fotografia, comentários, gostos, visualizações | ler, pesquisar, feed popular, avaliações agregadas | publicar, apagar a própria, comentar, gostar, feed pessoal, dashboard |
-| **collections-service** ([collections-api.md](collections-api.md)) | Listas personalizadas e referências a conteúdos guardados | listas, itens (id da experiência) | contagem de vezes guardada (agregada) | tudo o resto (listas são privadas) |
+| **collections-service** ([collections-api.md](collections-api.md)) | Listas personalizadas e referências a conteúdos guardados | listas, itens (id da experiência) | — | tudo (listas são privadas) |
 | **messaging-service** ([messaging-api.md](messaging-api.md)) | Conversas 1-para-1, mensagens, partilha de experiências; a app obtém mensagens novas por consulta periódica (sem tempo real na primeira versão) | conversas, mensagens (texto e/ou id de experiência) | — | tudo |
 | **notifications-service** ([notifications-api.md](notifications-api.md)) | Registo, consulta e marcação de notificações | notificações, ids de eventos já processados | — | consultar e marcar como lidas |
 
@@ -196,7 +197,7 @@ A divisão proposta mantém-se, com estes ajustes e esclarecimentos:
 1. **A partilha é uma mensagem.** Partilhar uma experiência cria, no messaging-service, uma mensagem com `experienceId`. Não há um serviço ou entidade "partilha" separada.
 2. **As avaliações agregadas são do experiences-service, não do catálogo.** As estrelas vivem nas experiências; o catálogo pede o agregado e mostra-o como complemento opcional (ver [catalog-api.md](catalog-api.md)).
 3. **As fotografias ficam no experiences-service** (volume Docker), sem serviço de média próprio. Simplifica; a contrapartida é este serviço ficar maior.
-4. **A pesquisa unificada é composta na app**: a app faz três pedidos em paralelo (CAT, EXP, USR) e mostra cada secção de forma independente. Não há serviço de pesquisa.
+4. **A pesquisa tem três modos independentes na app** (Locais no CAT, Experiências no EXP, Pessoas no USR), cada um com o seu pedido, estado e posição. O desenho inicial previa uma pesquisa unificada com três pedidos em paralelo, que não foi implementada: só o modo escolhido faz pedidos. Não há serviço de pesquisa.
 5. **O dashboard é composto na app**: métricas próprias vêm do EXP. Se for implementada a melhoria adiada "vezes guardada", vem do COL, e se o COL falhar essa coluna aparece como indisponível.
 6. **Os interesses guardam ids de modalidade do catálogo** (`"boxe"`, `"corrida"`), por isso os ids de modalidade são *slugs* estáveis.
 7. **Utilizadores referenciados por `userId`.** Todas as referências a utilizadores entre serviços (autor, seguidor, destinatário, dono de lista) usam o `userId` (UUID gerado pelo users-service e nunca alterado). O username é apenas um dado de apresentação; as cópias que outros serviços guardam (ver [3.5](#35-cópias-de-dados-desnormalização)) nunca são usadas para identificar, autorizar ou relacionar dados.
@@ -347,7 +348,7 @@ Contrato completo em [experiences-api.md §14](experiences-api.md#14-etapa-e4-fe
 4. **Se o USR não responder** (0,5 s de ligação, 1 s de resposta, sem novas tentativas) ou recusar a chave interna, devolve o feed popular com `mode: POPULAR_FALLBACK`, e a app mostra "Não foi possível personalizar agora; a mostrar publicações populares". Se o USR recusar o token, a resposta é `401`. Nunca apresenta resultados populares como personalizados; se o modo mudar entre páginas, a app recomeça a lista.
 5. Cada pessoa segue no máximo 500 outras (limite aplicado ao seguir), por isso o contexto é sempre completo.
 
-Os feeds não consultam o catálogo: usam os nomes copiados na publicação e mantêm as experiências de atividades retiradas como registo histórico. **Modo de demonstração:** enquanto só houver o catálogo fictício, os feeds incluem as publicações de locais de demonstração. Quando o catálogo real entrar, ficam fora dos feeds, acessíveis pelo perfil, pelo local e por referência direta ([experiences-api.md §14.6](experiences-api.md#146-modo-de-demonstração-e-catálogo-real)).
+Os feeds não consultam o catálogo: usam os nomes copiados na publicação e mantêm as experiências de atividades retiradas como registo histórico. **Publicações de locais fictícios:** desde 2026-10-27, com o catálogo real, ficam fora dos feeds, e continuam acessíveis pelo perfil, pelo local, pela pesquisa e por referência direta. Só o ambiente de demonstração as inclui nos feeds ([experiences-api.md §14.6](experiences-api.md#146-modo-de-demonstração-e-catálogo-real)).
 
 ### 3.11 Notificações
 
@@ -384,7 +385,7 @@ O que esta solução oferece, e o que não oferece:
 - Exige a permissão `POST_NOTIFICATIONS` (Android 13+); se recusada, as notificações continuam visíveis dentro da app.
 - Na demonstração, a notificação na barra do Android aparece com atraso; pode forçar-se a execução da tarefa para mostrar o mecanismo, explicando que em uso real o atraso é variável.
 
-**Push real (Firebase Cloud Messaging) — decisão a confirmar.** Seria a forma de ter notificações quase imediatas com a app fechada, mas exige projeto Firebase, `google-services.json`, registo do token do dispositivo e um passo extra no notifications-service. O desenho acima permite acrescentá-lo sem mudar os produtores de eventos.
+**Push real (Firebase Cloud Messaging) — não implementado.** O enunciado só exige notificações ([6.2](#62-pontos-em-aberto), ponto 1), por isso fica como melhoria possível. Seria a forma de ter notificações quase imediatas com a app fechada, mas exige projeto Firebase, `google-services.json`, registo do token do dispositivo e um passo extra no notifications-service. O desenho acima permite acrescentá-lo sem mudar os produtores de eventos.
 
 ### 3.12 Dashboard
 
@@ -395,7 +396,7 @@ Só para o próprio utilizador (o autor é o `sub` do token). Contrato em [exper
 - **Estado atual:** publicações eliminadas, gostos retirados e comentários eliminados deixam de contar.
 - **Falha:** dá `503`, e a app mostra "indisponível", nunca zeros.
 
-A app junta mais tarde "vezes guardada" com `GET /stats/saves?experienceIds=…` (COL). Partilhas por mensagem não entram nesta fase (exigiria contagens do MSG; pode ser acrescentado da mesma forma).
+**Melhoria adiada, não implementada:** "vezes guardada", que exigiria um `GET /stats/saves` no COL (esse endpoint não existe). As partilhas por mensagem também não são contadas (exigiria contagens do MSG).
 
 Visualizações (apresentadas como **soma**, não como pessoas únicas): no máximo uma por pessoa (ou por chave de instalação, para visitantes; nunca pelo IP) em cada período fixo de 24 h (dia UTC), sem contar o autor ([experiences-api.md §13.5](experiences-api.md#135-visualizações)). É uma métrica aproximada e manipulável, que não mede pessoas únicas: apagar os dados da app, enviar chaves novas ou alternar entre visitante e sessão conta de novo.
 
@@ -405,7 +406,7 @@ Um único módulo Android, MVVM, organizado por funcionalidade:
 
 ```
 com.example.portofit/
-├── PortoFitApp.kt            Application; cria o AppContainer
+├── PortoFitApplication.kt    Application; cria o AppContainer
 ├── di/AppContainer.kt        injeção de dependências manual
 ├── data/
 │   ├── remote/               clientes REST e DTOs, um por serviço
@@ -421,7 +422,7 @@ com.example.portofit/
 - Cada ecrã tem um `UiState` com estados por secção (a carregar, dados, vazio, indisponível), para que a falha de uma secção não esconda as outras.
 - Todos os textos visíveis em `strings.xml`, em português.
 - Os endereços dos serviços ficam num único sítio de configuração (no emulador, o computador é `10.0.2.2`).
-- **Navegação a partir da E4 (decidida):** **Pesquisar** (locais e pessoas, o ecrã atual) continua a ser o destino inicial; uma barra inferior acrescenta **Descobrir** (feed) e **Estatísticas** (dashboard; sem sessão, convite para entrar). Cada destino mantém o seu estado; os detalhes empilham-se por cima; o menu de conta continua na barra superior ([experiences-api.md §14.7](experiences-api.md#147-app-android-descobrir-e-estatísticas-proposta-para-a-etapa-da-app)).
+- **Navegação a partir da E4 (decidida):** **Pesquisar** (locais, experiências e pessoas) é o destino inicial; uma barra inferior acrescenta **Descobrir** (feed) e **Estatísticas** (dashboard; sem sessão, convite para entrar). Cada destino mantém o seu estado; os detalhes empilham-se por cima; o menu de conta continua na barra superior ([experiences-api.md §14.7](experiences-api.md#147-app-android-descobrir-e-estatísticas-proposta-para-a-etapa-da-app)).
 
 ### 3.14 Opcionais
 
@@ -466,7 +467,7 @@ Existe uma dependência nos dois sentidos entre CAT e EXP, mas para operações 
 | Serviço em falha | Continua a funcionar | Fica afetado | Como a app mostra |
 |---|---|---|---|
 | **notifications** | Tudo o resto, incluindo publicar, gostar, comentar, seguir, mensagens | Lista de notificações | "Notificações indisponíveis"; eventos acumulam na outbox e chegam depois, desde que a falha não ultrapasse o limite de tentativas |
-| **collections** | Tudo o resto | Listas; "vezes guardada" no dashboard | Botão "Guardar" mostra erro; coluna do dashboard "—" com nota |
+| **collections** | Tudo o resto | Listas | Botão "Guardar" mostra erro |
 | **messaging** | Tudo o resto | Conversas e partilha | Separador de mensagens com aviso; botão "Partilhar" mostra erro |
 | **users** | Pesquisa e consulta de locais e experiências; para quem tem token **ainda não expirado**: publicar, comentar, gostar, gerir listas (ver limites em [3.8](#38-autenticação-e-autorização)) | Login, registo e nova sessão após o token expirar; perfis, seguir, editar perfil e interesses, pesquisa de utilizadores; conversas novas (validação do destinatário; as existentes continuam); feed pessoal passa a popular | Secção "Utilizadores" da pesquisa indisponível; aviso no feed; ao expirar o token, "Não é possível iniciar sessão agora" |
 | **experiences** | Pesquisa e detalhe de locais, perfis, seguir, listas (nomes), mensagens já recebidas | Experiências, feeds, publicar, avaliações agregadas, dashboard | Local mostra atividades com "Avaliação indisponível" e "Experiências indisponíveis" |
@@ -544,7 +545,7 @@ O contrato detalhado de cada serviço (como [catalog-api.md](catalog-api.md)) é
 | Pesquisa ignora maiúsculas/minúsculas e acentos; implementação escolhida por serviço | [3.2](#32-responsabilidades) |
 | Fotografia opcional (máx. uma por experiência); câmara dentro da app sempre disponível e demonstrada | [3.9](#39-fotografias-e-câmara) |
 | Mensagens por consulta periódica na primeira versão | [3.2](#32-responsabilidades) |
-| Dados fictícios e identificados na primeira demonstração | [1.4](#14-dados-de-demonstração) |
+| Dados fictícios e identificados na primeira demonstração (histórico; hoje, locais reais) | [1.4](#14-dados-de-demonstração) |
 | Avaliação geral: peso 1 por pessoa, avaliação vigente = experiência mais recente | [3.7](#37-avaliação-geral-sem-distorção) |
 | Ordenação por data, gostos, interações e estrelas acessível a visitantes | [3.6](#36-métricas-e-ordenações) |
 | Outbox para eventos de notificação, implementado na etapa 10 | [3.11](#311-notificações) |

@@ -1,6 +1,6 @@
 # PortoFit — App Android
 
-> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–9 — experiências (E1, §14), fotografias (E2, §15), comentários, gostos e visualizações (E3, §16), Descobrir e Estatísticas (E4, §17); etapa 11 — listas pessoais (§18); etapa 12 — mensagens e partilha (§19). Sem mapas nem GPS.
+> Estado: etapa 4 — pesquisa e detalhe do catálogo (públicos); etapa 5 (app) — registo, login, sessão, logout, "O meu perfil", pesquisa de pessoas, perfis públicos e seguir; etapas 6–9 — experiências (E1, §14), fotografias (E2, §15), comentários, gostos e visualizações (E3, §16), Descobrir e Estatísticas (E4, §17); etapa 11 — listas pessoais (§18); etapa 12 — mensagens e partilha (§19); etapa 10 — notificações (§20); etapa 14 — pesquisa por proximidade com GPS (§21); revisão de fecho (§22); acabamento visual da pesquisa e do detalhe (§23); pesquisa de experiências (§24). Sem mapa embutido: "Ver no mapa" abre outra aplicação.
 > Backend: [infraestrutura.md](infraestrutura.md) · Contratos: [catalog-api.md](catalog-api.md), [users-api.md](users-api.md) · Desenho: [arquitetura.md](arquitetura.md)
 
 ## 1. Percurso disponível
@@ -1415,7 +1415,7 @@ A revisão aproveita as verificações das secções anteriores e incide no que 
   - Nenhum campo ou botão fica sem acesso.
 - **Contas:** os ecrãs com dados privados (Estatísticas, Descobrir, Mensagens, conversa, listas, guardar numa lista, notificações, perfil, detalhe da experiência e perfis públicos) reagem à mudança de sessão pela chave da conta. Apagam logo o estado e cancelam os pedidos da conta anterior, também nos separadores que guardam o estado.
 - **Lint:** sem erros. Os avisos são versões de dependências, recursos sem uso, falsos erros ortográficos ("autor", "momento"), contadores "x/N caracteres" e `android.media.ExifInterface`. Nenhum é um defeito comprovado; o `ExifInterface` da plataforma serve a `minSdk` 26.
-- **Requisitos (R1–R14 de [arquitetura.md §2](arquitetura.md#2-requisitos-funcionalidades-serviços-e-demonstração)):** todos têm implementação. "Vezes guardada" no dashboard era um acrescento nosso ao critério do R11 e é uma melhoria adiada, não um requisito (ver abaixo). A câmara e a galeria (R4), as ordenações `recent`, `likes`, `interactions` e `stars` (R6), o perfil (R2), a notificação do sistema (R10) e a proximidade (R12) existem no código.
+- **Requisitos (R1–R14 de [arquitetura.md §2](arquitetura.md#2-requisitos-funcionalidades-serviços-e-demonstração)):** todos têm implementação. *(Corrigido a 2026-11-04: esta revisão não detetou que faltava a pesquisa de experiências do R1 na app, entretanto implementada, §24.)* "Vezes guardada" no dashboard era um acrescento nosso ao critério do R11 e é uma melhoria adiada, não um requisito (ver abaixo). A câmara e a galeria (R4), as ordenações `recent`, `likes`, `interactions` e `stars` (R6), o perfil (R2), a notificação do sistema (R10) e a proximidade (R12) existem no código.
 
 ### Verificação por HTTP, com contas temporárias, sobre locais reais
 
@@ -1524,3 +1524,53 @@ Material 3 e a identidade atual (tema e cores dinâmicas) mantêm-se. Não há d
   - texto ampliado e nomes longos.
 
   As regras estão cobertas pelos testes JVM (validação e construção dos URIs).
+
+## 24. Pesquisa de experiências (2026-11-04)
+
+O enunciado pede que todos possam pesquisar os conteúdos. O backend já aceitava `q` em `GET /experiences` ([experiences-api.md §4.2](experiences-api.md#42-get-experiences--listar-e-pesquisar)), mas a app não o usava. Não foi preciso alterar o backend.
+
+### Componentes
+
+| Componente | Onde | Função |
+|---|---|---|
+| `ExperiencesApi.search`, `ExperiencesRepository.search` | `data/` | `GET /experiences?q=&sort=&page=&size=`, sem token |
+| `ExperienceListLoader.setQuery` | `ui/feature/experience/` | O carregador existente passa a aceitar uma pesquisa, e mantém a paginação, as gerações e as contagens |
+| `ExperienceSearchViewModel`, `experienceSearchItems` | `ui/feature/search/ExperienceSearch.kt` | Estado e itens do modo Experiências |
+| `ModeSelector`, estados de lista por modo | `ui/feature/search/SearchScreen.kt` | Três modos e posição própria de cada um |
+
+### Regras
+
+- **Modos independentes:** Locais, Experiências e Pessoas têm cada um o seu ViewModel, texto e resultados. Só o modo em uso faz pedidos, e não há pesquisa unificada.
+- **Pública:** funciona sem sessão.
+- **Submissão explícita:** só pesquisa ao tocar em **Pesquisar** ou na tecla de pesquisa, e não há pedido antes da primeira submissão.
+- **Limites do contrato:** 2 a 100 caracteres depois de aparar os espaços, contados como no servidor (um emoji conta como um). O campo não deixa passar de 100 sem partir um carácter. Um texto inválido mostra o aviso e mantém os resultados anteriores.
+- **Cartões:** o `ExperienceCard` existente, com o local e a atividade. Tocar no cartão abre o detalhe, e tocar em `@autor` abre o perfil.
+- **Ordenação:** as quatro do contrato, com o `ExperienceSortSelector` existente. Mudar recomeça na primeira página. Antes de pesquisar, a escolha não faz pedidos e vale para a pesquisa seguinte.
+- **Paginação:** "Carregar mais", sem repetir itens. Um erro numa página seguinte mantém os resultados e permite repetir.
+- **Estados:** convite inicial, a carregar, vazio ("Nenhuma experiência corresponde a…"), erro com **Tentar novamente**. Publicações antigas de locais fictícios podem aparecer: o nome do local di-lo, e a lista mostra um aviso.
+- **Respostas antigas:** ignoradas por geração, incluindo uma página seguinte em curso da pesquisa anterior.
+- **Preservação:** o texto, a pesquisa aplicada e a ordenação ficam no `SavedStateHandle`, e os resultados no ViewModel. Cada modo tem o seu `LazyListState`, por isso alternar entre modos ou voltar do detalhe mantém a posição. Depois de recriar o processo, a pesquisa aplicada repete-se.
+- **Alterações vindas do detalhe:** gostos e comentários atualizam o item sem recarregar. Uma publicação, edição ou eliminação recarrega a pesquisa desde a primeira página, porque o conteúdo pode já não corresponder.
+- **Texto ampliado:** o seletor de modos passou de botões segmentados, que dividiam a largura em três partes iguais, para chips num `FlowRow`, que passam para a linha seguinte quando não cabem.
+
+### Testes automáticos (JVM)
+
+- `ExperienceSearchViewModelTest` (16): sem pedidos antes de submeter; limites e emojis; pedido inválido mantém os resultados; paginação; quatro ordenações; respostas antigas (primeira página e página em curso); vazio, erro e nova tentativa; erro ao carregar mais; recriação; contagens sem recarregar; alteração recarrega só com pesquisa ativa.
+- `NetworkExperiencesRepositoryTest` (+1): o texto e a ordenação vão no pedido, sem usar o `list`.
+
+### Verificação (2026-11-04)
+
+- **Testes da app:** 328, 0 falhas. `assembleDebug` e `lintDebug` sem erros.
+- **Pedidos HTTP**, com contas temporárias (`verifclosepq_…`), removidas no fim:
+  - `q=zêlofante` sem sessão: `200`, com 12 resultados e 10 na primeira página; `ZELOFANTE` e `zelofante` dão o mesmo;
+  - `page=1` traz os 2 restantes; `sort=stars` por estrelas decrescentes;
+  - `q=durius` encontra pelo nome do local;
+  - 1 e 101 caracteres dão `400 VALIDATION_FAILED`; sem resultados dá `200` com 0 itens.
+- **Dados:** todas as tabelas e o volume das fotografias ficaram com as mesmas contagens que antes.
+- **Interface: não verificada.** Havia 0,55 GB livres, mesmo com três serviços parados, e o emulador já tinha bloqueado a partir de 0,87 GB (§23). Está coberta só pelos testes JVM da lógica.
+
+**Por verificar no ecrã:**
+
+- os três modos com texto ampliado;
+- preservação do texto, dos resultados e da posição ao alternar entre modos e ao voltar do detalhe;
+- abertura do detalhe e do perfil do autor a partir de um cartão.

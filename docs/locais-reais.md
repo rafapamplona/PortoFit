@@ -1,10 +1,14 @@
-# Locais reais do Porto (preparação)
+# Locais reais do Porto
 
-> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10, §11): 24 locais e 45 atividades; corrida (2), escalada (0) e kickboxing (4) abaixo de 5. **Novas modalidades** (§12, 2026-10-28): 30 locais e 61 atividades em 15 modalidades. **Basquetebol, voleibol e futsal** (§13): 39 locais e 74 atividades. Pesquisa e preparação consultadas a 2026-10-27.
+> **Estado:** **primeira importação feita a 2026-10-27** (§9): 5 locais reais e 7 atividades no catálogo, fictícios retirados. **Ampliação no mesmo dia** (§10, §11): 24 locais e 45 atividades; corrida (2), escalada (0) e kickboxing (4) abaixo de 5. **Novas modalidades** (§12, 2026-10-28): 30 locais e 61 atividades em 15 modalidades. **Basquetebol, voleibol e futsal** (§13): 39 locais e 74 atividades.
+> **Situação atual:** 15 modalidades, 39 locais importados com 74 atividades, e 9 entradas pendentes no ficheiro. As secções estão por ordem cronológica: **§1–§8 são a preparação (histórico)**, e cada secção seguinte atualiza as anteriores.
+> **Datas de consulta:** a preparação e as secções §9–§11 são de 2026-10-27, e as §12–§13 de 2026-10-28. No ficheiro de dados, `sourcesConsultedOn` dá a data de cada fonte, que é a do commit que a acrescentou.
 > Dados: [`backend/catalog-service/src/main/resources/real/locais-reais-porto.json`](../backend/catalog-service/src/main/resources/real/locais-reais-porto.json), separados dos dados de demonstração.
 > Modelo e regras do catálogo: [catalog-api.md §2](catalog-api.md#2-entidades-e-relações); estratégia de substituição: [experiences-api.md §15](experiences-api.md#15-relação-com-locais-reais-e-substituição-do-catálogo-de-demonstração).
 
-## 1. Resumo
+## 1. Resumo da preparação (histórico)
+
+> Estado antes da primeira importação. A situação atual está no início deste documento.
 
 - **11 locais reais**, todos no **município do Porto**. Cobrem as 8 modalidades do projeto, com 16 atividades.
 - **6 prontos:** todos os campos obrigatórios confirmados.
@@ -96,7 +100,9 @@ As fontes de cada campo estão no JSON (`fieldSources` e `sources`); aqui ficam 
 3. Desligar o perfil `demo` no `docker-compose.yml`. Não é preciso para manter a retirada: o script de demonstração (`ON CONFLICT DO UPDATE`) não escreve o `status`, por isso recarregá-lo não reativa os locais (verificado a 2026-10-27). Desligá-lo só evita voltar a escrever nomes e moradas fictícias.
 4. Relatório **depois**: as mesmas contagens. Os locais retirados continuam a responder pelo id, e a app indica "Local de demonstração retirado".
 
-## 6. Candidatos excluídos ou adiados
+## 6. Candidatos excluídos ou adiados (histórico)
+
+> Situação na preparação. Alguns entraram depois: CrossFit OPO e Drop In (§10), pavilhões municipais (§10, §13) e Parque da Cidade como ponto de encontro de corrida (§11).
 
 | Candidato | Motivo |
 |---|---|
@@ -113,7 +119,9 @@ As fontes de cada campo estão no JSON (`fieldSources` e `sources`); aqui ficam 
 
 O Desporto365 tem uma API interna, mas não foi usada: só páginas públicas.
 
-## 7. Campos a rever antes de importar
+## 7. Campos a rever antes de importar (histórico)
+
+> Situação na preparação. O nível foi decidido no §9, e o Boavista resolvido no §11. As pendências atuais estão nos §11.5, §12.6 e §13.5.
 
 **Decisões do grupo:**
 - **Nível das atividades:** valor `UNSPECIFIED` ou `NULL` (§4.1). Bloqueia todos os locais.
@@ -266,7 +274,9 @@ docker compose -p portofit-demo -f docker-compose.yml -f docker-compose.demo.yml
   - **Dados preservados:** contas, experiências (4, 3 ativas), comentário, lista e item, seguidores e os volumes. *(Corrigido no §11.1: dizia também "mensagens" e "as 9 fotografias do volume". Nessa altura havia 0 mensagens, 0 fotografias na base e 0 ficheiros no volume; o "9" eram as 9 entradas da pasta.)*
 - **Emulador:** não aberto (0,75 GB livres). A apresentação na app ("Nível não indicado", "Sem avaliações", local fictício retirado) fica coberta pelos testes JVM e pelos textos que já existiam, mas falta a confirmação visual.
 
-### 9.7 Pendências
+### 9.7 Pendências (histórico)
+
+> Situação a seguir à primeira importação. Parte foi resolvida nos §10–§13.
 
 - **Os 5 locais pendentes do §7**, com código postal ou coordenadas em falta.
 - **Acesso do público por confirmar:**
@@ -327,7 +337,9 @@ Os 8 Fitness UP com ioga e pilates são Antas, Foz, Bessa, Constituição, Alegr
 - **Academia Marcial:** o acesso do público fica confirmado, porque o site oferece "1 aula grátis para poderes experimentar a modalidade antes do ato de inscrição". O boxe e o kickboxing são dados na mesma aula de "Striking (MMA, Kickboxing e Boxe)". Continua **pendente pelas coordenadas**.
 - **Mudanças face ao §6:** o CrossFit OPO e o CrossFit Drop In entram agora com o diretório oficial. A morada do Drop In fica no Porto (Campanhã), não em Rio Tinto. Os pavilhões municipais entram pelo programa "Dias com Energia".
 
-### 10.3 Metas não cumpridas
+### 10.3 Metas não cumpridas (histórico)
+
+> Situação no fim desta ampliação. Revista no §11: o Boavista entrou, a corrida passou a 2 e o kickboxing a 4.
 
 - **Corrida (1):**
   - O **Centro Municipal de Marcha e Corrida**, no Parque da Cidade, tem treinos orientados (terças e quintas às 19 h, sábados às 10 h), mas a [página da Ágora](https://www.agoraporto.pt/desporto/programas-de-atividade-fisica) não diz quem pode participar, como se faz a inscrição nem o custo. Só remete para a Federação Portuguesa de Atletismo, cuja última informação legível sobre a inscrição no programa nacional é de 2024. Também não tem morada de instalação: o ponto de encontro é "junto ao viaduto do Edifício Transparente".
@@ -373,7 +385,9 @@ Os 8 Fitness UP com ioga e pilates são Antas, Foz, Bessa, Constituição, Alegr
 - **Outras bases:** a importação só escreve no `catalog_db`. Contagens atuais: 2 contas, 1 seguidor, 4 experiências, 1 comentário, 1 lista com 1 item, 0 mensagens e 0 registos de media. O volume das fotografias tem 9 pastas e **0 ficheiros**. A frase "as 9 fotografias do volume" do §9.6 não corresponde a isto; o mais provável é que contasse as 9 pastas, mas não ficou confirmado.
 - **Testes:** `RealPlacesImportIntegrationTest`, com as contagens novas (22/43/8 e os totais por modalidade): 4 testes, todos a passar. A app e os outros serviços não mudaram, por isso não voltaram a correr. Emulador não aberto.
 
-### 10.6 Pendências
+### 10.6 Pendências (histórico)
+
+> Situação no fim desta ampliação. O Pavilhão Pêro Vaz de Caminha foi resolvido no §13.
 
 - **Corrida, escalada e kickboxing abaixo de 5** (§10.3).
 - **Pavilhões do Viso e Pêro Vaz de Caminha:** coordenadas.

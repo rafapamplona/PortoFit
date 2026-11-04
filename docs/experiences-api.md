@@ -212,15 +212,15 @@ Serve para travar abusos e erros da app, não como garantia exata. Um contador n
 | `sportId` | string | — | formato de slug do catálogo | Experiências de uma modalidade (categoria) |
 | `authorId` | UUID | — | UUID válido | Publicações de um perfil |
 | `q` | string | — | 2–100 caracteres após remover espaços nas pontas | Pesquisa textual |
-| `sort` | enum | `recent` | em E1: `recent`, `stars` | Ordenação (§9) |
+| `sort` | enum | `recent` | `recent`, `stars`, `likes`, `interactions` | Ordenação (§9) |
 | `page` | inteiro | `0` | ≥ 0 | Página |
 | `size` | inteiro | `20` | 1–50 | Elementos por página |
 
-- Todos os filtros são opcionais e combinam-se com **E**. Sem filtros, devolve todas as experiências (usado pela pesquisa unificada da app).
+- Todos os filtros são opcionais e combinam-se com **E**. Sem filtros, devolve todas as experiências. A app usa `q` no modo Experiências do ecrã Pesquisar, e nunca pede a lista sem filtros ([app-android.md §24](app-android.md#24-pesquisa-de-experiências-2026-11-04)).
 - Parâmetros vazios são tratados como ausentes, como no catálogo.
 - **Ids desconhecidos não são erro:** um `placeId`, `sportId` ou `authorId` sem experiências devolve `items: []`. O serviço não chama o catálogo nem o users-service para confirmar que existem.
 - `q` procura no **texto** e nas **cópias** do nome do local, da atividade e da modalidade, **sem distinguir maiúsculas/minúsculas nem acentos** ([arquitetura.md §3.2](arquitetura.md#32-responsabilidades)): `q=boxe` encontra experiências de Boxe mesmo que o texto não diga "boxe". `%` e `_` são literais. Não procura no username do autor (para isso existe a pesquisa de utilizadores).
-- `sort=likes` e `sort=interactions` só existem a partir de E3; em E1 dão `400 VALIDATION_FAILED` no campo `sort`.
+- Um valor de `sort` fora desta lista dá `400 VALIDATION_FAILED` no campo `sort`. (`likes` e `interactions` existem desde a etapa E3.)
 - Experiências eliminadas nunca aparecem.
 
 ```http
@@ -1002,7 +1002,7 @@ O objeto `received` separa o que as publicações **receberam** (gostos, coment�
 - **Coerência:** a soma das linhas é igual aos totais `received` do mesmo período.
 - **Falha:** se a consulta falhar (base de dados indisponível) → `503 SERVICE_UNAVAILABLE`, **nunca** uma resposta com zeros. A app mostra "Estatísticas indisponíveis" com **Tentar novamente**; os totais e a lista por publicação têm estados separados.
 - **Sem dados:** um utilizador sem publicações recebe `200` com zeros, que a app mostra como estado vazio, não como erro.
-- "Vezes guardada" (collections-service, etapas 11/13) é juntada pela app mais tarde, com o seu próprio estado "—" se falhar.
+- "Vezes guardada" é uma melhoria adiada, não implementada ([arquitetura.md §3.12](arquitetura.md#312-dashboard)).
 
 ### 14.5 Erros e limites
 
@@ -1033,7 +1033,7 @@ O objeto `received` separa o que as publicações **receberam** (gostos, coment�
 
 | Destino | Conteúdo | Sem sessão |
 |---|---|---|
-| **Pesquisar** (início) | O ecrã atual, com os separadores Locais e Pessoas, sem alterações | igual |
+| **Pesquisar** (início) | Modos Locais, Experiências e Pessoas (o modo Experiências foi acrescentado a 2026-11-04) | igual |
 | **Descobrir** | Ver a lista abaixo | só "Populares", com "Entra para um feed personalizado" |
 | **Estatísticas** | Ver a lista abaixo | "Entra para ver as estatísticas das tuas publicações", com **Entrar** |
 
