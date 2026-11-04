@@ -1567,10 +1567,10 @@ O enunciado pede que todos possam pesquisar os conteúdos. O backend já aceitav
   - `q=durius` encontra pelo nome do local;
   - 1 e 101 caracteres dão `400 VALIDATION_FAILED`; sem resultados dá `200` com 0 itens.
 - **Dados:** todas as tabelas e o volume das fotografias ficaram com as mesmas contagens que antes.
-- **Interface: não verificada.** Havia 0,55 GB livres, mesmo com três serviços parados, e o emulador já tinha bloqueado a partir de 0,87 GB (§23). Está coberta só pelos testes JVM da lógica.
+- **Interface, pelo assistente: não verificada.** Havia 0,55 GB livres, mesmo com três serviços parados, e o emulador já tinha bloqueado a partir de 0,87 GB (§23).
+- **Interface, pelo utilizador, no emulador:** confirmou manualmente que a pesquisa de experiências funciona (registado a 2026-11-04). Não houve testes em telemóvel físico.
 
-**Por verificar no ecrã:**
+**Não confirmado no ecrã:**
 
 - os três modos com texto ampliado;
-- preservação do texto, dos resultados e da posição ao alternar entre modos e ao voltar do detalhe;
-- abertura do detalhe e do perfil do autor a partir de um cartão.
+- preservação exata da posição ao alternar entre modos e ao voltar do detalhe (a implementação guarda uma posição por modo, sem teste automático da interface).
