@@ -145,6 +145,9 @@ interface ExperiencesRepository {
     /** Lista pública de um local ([placeId]) ou de um autor ([authorId]). */
     suspend fun list(placeId: String?, authorId: String?, sort: ExperienceSort, page: Int, pageSize: Int): DataResult<Page<Experience>>
 
+    /** Pesquisa pública por texto, no texto da experiência e nos nomes do local, da atividade e da modalidade. */
+    suspend fun search(query: String, sort: ExperienceSort, page: Int, pageSize: Int): DataResult<Page<Experience>>
+
     suspend fun get(experienceId: String): DataResult<Experience>
 
     /** [idempotencyKey] identifica a tentativa lógica: repetir a mesma tentativa usa a mesma chave. */
@@ -193,6 +196,9 @@ class NetworkExperiencesRepository(
 
     override suspend fun list(placeId: String?, authorId: String?, sort: ExperienceSort, page: Int, pageSize: Int) =
         apiCall { api.list(placeId, authorId, sort.apiValue, page, pageSize).toModel { it.toModel() } }
+
+    override suspend fun search(query: String, sort: ExperienceSort, page: Int, pageSize: Int) =
+        apiCall { api.search(query, sort.apiValue, page, pageSize).toModel { it.toModel() } }
 
     /**
      * Com sessão, pedido com o token (para `likedByMe`); um 401 renova uma vez. Sem token disponível, pedido como
@@ -433,6 +439,7 @@ fun CommentDto.toModel(): Comment = try {
 class UnconfiguredExperiencesRepository : ExperiencesRepository {
     private val failure = DataResult.Failure(DataError.NOT_CONFIGURED)
     override suspend fun list(placeId: String?, authorId: String?, sort: ExperienceSort, page: Int, pageSize: Int) = failure
+    override suspend fun search(query: String, sort: ExperienceSort, page: Int, pageSize: Int) = failure
     override suspend fun get(experienceId: String) = failure
     override suspend fun publish(idempotencyKey: String, draft: ExperienceDraft) = PublishOutcome.Rejected(PublishRejection.NOT_CONFIGURED)
     override suspend fun edit(experienceId: String, text: String?, stars: Int?, photo: PhotoChange) = MutationResult.Failure(MutationError.NOT_CONFIGURED)

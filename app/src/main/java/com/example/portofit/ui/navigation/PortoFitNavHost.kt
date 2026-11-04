@@ -315,6 +315,7 @@ private fun PortoFitGraph(navController: NavHostController, modifier: Modifier) 
                 onLoginClick = { if (entry.isResumed()) navController.navigate(Routes.LOGIN) },
                 onProfileClick = { if (entry.isResumed()) navController.navigate(Routes.PROFILE) },
                 onPersonClick = { userId -> if (entry.isResumed()) navController.navigate(Routes.person(userId)) },
+                onExperienceClick = { id -> if (entry.isResumed()) navController.navigate(Routes.experience(id)) },
                 onCollectionsClick = { if (entry.isResumed()) navController.navigate(Routes.COLLECTIONS) },
                 onMessagesClick = { if (entry.isResumed()) navController.navigate(Routes.INBOX) },
                 onNotificationsClick = { if (entry.isResumed()) navController.navigate(Routes.NOTIFICATIONS) },

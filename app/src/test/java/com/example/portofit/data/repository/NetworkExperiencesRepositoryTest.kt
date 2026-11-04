@@ -84,6 +84,13 @@ class NetworkExperiencesRepositoryTest {
             return this.page()
         }
 
+        val searchParams = mutableListOf<List<Any?>>()
+
+        override suspend fun search(q: String, sort: String, page: Int, size: Int): PageDto<ExperienceDto> {
+            searchParams += listOf(q, sort, page, size)
+            return this.page()
+        }
+
         /** Authorization de cada leitura do detalhe (null = visitante). */
         val getAuthorizations = mutableListOf<String?>()
         var getResponses = ArrayDeque<() -> Response<ExperienceDto>>()
@@ -223,6 +230,16 @@ class NetworkExperiencesRepositoryTest {
         assertEquals("ana", experience.authorUsername)
         assertTrue(experience.placeDemo)
         assertEquals(Instant.parse("2026-10-19T18:30:00.123456Z"), experience.createdAt)
+    }
+
+    @Test
+    fun `pesquisa por texto e publica, com o texto e a ordenacao no pedido`() = runTest {
+        api.page = { PageDto(listOf(dto), 1, 10, 11, 2) }
+        val page = (repository.search("boxe", ExperienceSort.LIKES, 1, 10) as DataResult.Success).value
+        assertEquals(listOf(listOf("boxe", "likes", 1, 10)), api.searchParams)
+        assertEquals("ana", page.items.single().authorUsername)
+        assertEquals(11L, page.totalItems)
+        assertTrue(api.listParams.isEmpty())
     }
 
     @Test

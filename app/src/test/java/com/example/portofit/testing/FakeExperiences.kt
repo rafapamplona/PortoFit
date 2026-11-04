@@ -17,10 +17,13 @@ import com.example.portofit.data.repository.PublishOutcome
 import java.time.Instant
 
 data class ListCall(val placeId: String?, val authorId: String?, val sort: ExperienceSort, val page: Int, val pageSize: Int)
+data class ExperienceSearchCall(val query: String, val sort: ExperienceSort, val page: Int, val pageSize: Int)
 
 /** Repositório de experiências controlado pelos testes (cada resposta é uma função, que pode suspender). */
 class FakeExperiencesRepository : ExperiencesRepository {
     val listCalls = mutableListOf<ListCall>()
+    val searchCalls = mutableListOf<ExperienceSearchCall>()
+    var onSearch: suspend (ExperienceSearchCall) -> DataResult<Page<Experience>> = { call -> DataResult.Success(pageOf(call.page, 1)) }
     val publishCalls = mutableListOf<Pair<String, ExperienceDraft>>()
     val editCalls = mutableListOf<Triple<String, String?, Int?>>()
     val editPhotoChanges = mutableListOf<PhotoChange>()
@@ -62,6 +65,12 @@ class FakeExperiencesRepository : ExperiencesRepository {
         val call = ListCall(placeId, authorId, sort, page, pageSize)
         listCalls += call
         return onList(call)
+    }
+
+    override suspend fun search(query: String, sort: ExperienceSort, page: Int, pageSize: Int): DataResult<Page<Experience>> {
+        val call = ExperienceSearchCall(query, sort, page, pageSize)
+        searchCalls += call
+        return onSearch(call)
     }
 
     override suspend fun get(experienceId: String): DataResult<Experience> {

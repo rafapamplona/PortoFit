@@ -32,6 +32,15 @@ interface ExperiencesApi {
         @Query("size") size: Int,
     ): PageDto<ExperienceDto>
 
+    /** Pesquisa pública por texto ([q]: 2 a 100 caracteres, docs/experiences-api.md §4.2). */
+    @GET("api/v1/experiences")
+    suspend fun search(
+        @Query("q") q: String,
+        @Query("sort") sort: String,
+        @Query("page") page: Int,
+        @Query("size") size: Int,
+    ): PageDto<ExperienceDto>
+
     @GET("api/v1/experiences/{experienceId}")
     suspend fun get(
         @Path("experienceId") experienceId: String,

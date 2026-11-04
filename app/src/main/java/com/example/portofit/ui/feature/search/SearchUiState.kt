@@ -6,7 +6,7 @@ import com.example.portofit.data.model.Sport
 import com.example.portofit.data.repository.DataError
 
 /** O que a pesquisa procura. Cada modo tem o seu próprio texto, filtros e resultados. */
-enum class SearchMode { PLACES, PEOPLE }
+enum class SearchMode { PLACES, EXPERIENCES, PEOPLE }
 
 data class SearchUiState(
     val mode: SearchMode = SearchMode.PLACES,

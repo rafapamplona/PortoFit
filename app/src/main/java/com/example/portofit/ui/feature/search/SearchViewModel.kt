@@ -61,7 +61,7 @@ class SearchViewModel(
         startSearch()
     }
 
-    /** Alternar entre Locais e Pessoas não altera a pesquisa de locais (texto, filtro, resultados). */
+    /** Alternar entre modos não altera a pesquisa de locais (texto, filtro, resultados). */
     fun onModeChange(mode: SearchMode) {
         savedState[KEY_MODE] = mode.name
         _uiState.update { it.copy(mode = mode) }

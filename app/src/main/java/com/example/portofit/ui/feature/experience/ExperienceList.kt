@@ -59,8 +59,8 @@ sealed interface ExperienceListState {
 }
 
 /**
- * Lista paginada de experiências de um local ou de um autor, usada dentro de um ViewModel (com o
- * [scope] dele). Cada carregamento tem uma geração: respostas de pedidos antigos são ignoradas.
+ * Lista paginada de experiências de um local, de um autor ou de uma pesquisa por texto ([setQuery]), usada dentro de um
+ * ViewModel (com o [scope] dele). Cada carregamento tem uma geração: respostas de pedidos antigos são ignoradas.
  * Mudar a ordenação recomeça na primeira página. As contagens confirmadas no detalhe ([counts]) atualizam o
  * item já carregado, sem recarregar nem perder as páginas (a ordem só muda no próximo carregamento).
  */
@@ -80,6 +80,7 @@ class ExperienceListLoader(
     val sort: StateFlow<ExperienceSort> = _sort.asStateFlow()
 
     private var authorId: String? = authorId
+    private var query: String? = null
     private var generation = 0
     private var job: Job? = null
 
@@ -100,12 +101,12 @@ class ExperienceListLoader(
 
     /** Primeira página (também depois de uma alteração ou de "Tentar novamente"). */
     fun load() {
-        if (placeId == null && authorId == null) return
+        if (placeId == null && authorId == null && query == null) return
         job?.cancel()
         val myGeneration = ++generation
         _state.value = ExperienceListState.Loading
         job = scope.launch {
-            val result = repository.list(placeId, authorId, _sort.value, 0, pageSize)
+            val result = fetch(0)
             if (myGeneration != generation) return@launch
             _state.value = when (result) {
                 is DataResult.Success -> ExperienceListState.Loaded(result.value.items, result.value.page, result.value.totalItems, result.value.hasMore)
@@ -120,7 +121,7 @@ class ExperienceListLoader(
         val myGeneration = generation
         _state.value = current.copy(isLoadingMore = true, loadMoreError = null)
         job = scope.launch {
-            val result = repository.list(placeId, authorId, _sort.value, current.page + 1, pageSize)
+            val result = fetch(current.page + 1)
             if (myGeneration != generation) return@launch
             _state.update { state ->
                 val loaded = state as? ExperienceListState.Loaded ?: return@update state
@@ -157,6 +158,15 @@ class ExperienceListLoader(
             load()
         }
     }
+
+    /** Para a pesquisa por texto: recomeça com o novo texto, e as respostas da pesquisa anterior são ignoradas. */
+    fun setQuery(text: String) {
+        query = text
+        load()
+    }
+
+    private suspend fun fetch(page: Int) =
+        query?.let { repository.search(it, _sort.value, page, pageSize) } ?: repository.list(placeId, authorId, _sort.value, page, pageSize)
 
     companion object {
         const val PAGE_SIZE = 10

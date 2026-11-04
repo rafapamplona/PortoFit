@@ -138,7 +138,14 @@
 
     <!-- Pesquisa de pessoas e perfis públicos -->
     <string name="search_mode_places">Locais</string>
+    <string name="search_mode_experiences">Experiências</string>
     <string name="search_mode_people">Pessoas</string>
+    <string name="experience_search_label">Pesquisar experiências</string>
+    <string name="experience_search_placeholder">Ex.: treino, boxe, Foz</string>
+    <string name="experience_search_invalid">Escreve entre 2 e 100 caracteres.</string>
+    <string name="experience_search_idle">Pesquisa no texto das experiências e no nome do local, da atividade e da modalidade.</string>
+    <string name="experience_search_empty">Nenhuma experiência corresponde a “%1$s”.</string>
+    <string name="experience_search_empty_hint">Confirma a escrita ou experimenta outra palavra.</string>
     <string name="people_search_label">Nome de utilizador</string>
     <string name="people_search_invalid">Escreve entre 2 e 50 caracteres.</string>
     <string name="people_idle">Escreve parte de um nome de utilizador e toca em Pesquisar.</string>
