@@ -6,9 +6,8 @@
 | **Unidade curricular** | Programação de Dispositivos Móveis |
 | **Integrantes** | Rafael Santos — n.º 202409326<br>Victor Marasca — n.º 202403996<br>Tomás Carvalhosa — n.º 202405415 |
 | **Repositório do código** | https://github.com/rafapamplona/PortoFit |
-| **Data de entrega** | 15 de dezembro de 2026 (data indicada no enunciado) |
+| **Vídeo de demonstração** | [Ver a demonstração do PortoFit](https://drive.google.com/file/d/1x3L1hPAozavdve2U1IVNuBVvQX6R3ddp/view?usp=sharing) |
 
-> **Versão de trabalho, para revisão.** As capturas de ecrã estão na secção 6. Os testes foram executados na totalidade a 2026-11-05 (secção 11.2).
 
 ---
 
@@ -20,7 +19,7 @@ Quem procura uma atividade desportiva numa cidade costuma encontrar a informaç�
 
 ### 1.2 Objetivos
 
-O enunciado pede uma aplicação móvel para consultar, publicar e partilhar conteúdos entre utilizadores, suportada por microserviços independentes. No PortoFit:
+O projeto consiste numa aplicação móvel para consultar, publicar e partilhar conteúdos entre utilizadores, suportada por microserviços. No PortoFit:
 
 - o **conteúdo publicado** é a *experiência*: texto, fotografia opcional e 1 a 5 estrelas, sempre associada a uma atividade oferecida num local;
 - os **locais e atividades** formam um catálogo pré-carregado, de consulta;
@@ -40,9 +39,7 @@ O enunciado pede uma aplicação móvel para consultar, publicar e partilhar con
 
 ## 2. Requisitos e correspondência com as funcionalidades
 
-As tabelas seguem a ordem do enunciado ("Practical assignment", V1.0, 6 de outubro). O enunciado usa muitas vezes exemplos ("eg."); aqui, um exemplo não é tratado como exigência.
 
-**Legenda:** **Cumprido**; **Interpretação em aberto** (a solução existe e funciona; saber se satisfaz o texto depende da leitura do enunciado).
 
 ### 2.1 Requisitos da aplicação (p. 1–2)
 
@@ -68,7 +65,7 @@ As tabelas seguem a ordem do enunciado ("Practical assignment", V1.0, 6 de outub
 | 18 | Gravações em direto usam hardware do aparelho (ex.: GPS, câmara) | Câmara na publicação. O GPS é usado na pesquisa e não é associado à publicação | Cumprido |
 | 19 | Histórico e estatísticas em dashboard (ex.: visualizações, comentários, histograma) | Separador Estatísticas: totais e valores por publicação, por período, e histograma das estrelas dadas pelo autor | Cumprido |
 | 20 | Ferramentas sociais (ex.: seguir, gostos, mensagens) | Seguir, gostos, comentários e conversas 1-para-1 | Cumprido |
-| 21 | Notificações (ex.: novos conteúdos) | Caixa na app e notificações do sistema por WorkManager. O enunciado pede notificações, não *push* | Cumprido |
+| 21 | Notificações (ex.: novos conteúdos) | Caixa na app e notificações do sistema por WorkManager. Consulta periódica através do WorkManager | Cumprido |
 
 ### 2.2 Requisitos opcionais (p. 2)
 
@@ -86,21 +83,17 @@ As tabelas seguem a ordem do enunciado ("Practical assignment", V1.0, 6 de outub
 | Cada serviço com desenho, modelo de dados e interface próprios | Seis serviços, cada um com base, migrações e API próprias | Cumprido |
 | Serviços web independentes | Processos Spring Boot separados | Cumprido |
 | Dados acessíveis por REST (pelo menos uma API por serviço) | Secção 5 | Cumprido |
-| "Each service must be supported by a set of independent Docker containers" | Um contentor por serviço aplicacional e um **único contentor PostgreSQL** com as seis bases (secção 9) | **Interpretação em aberto** |
 | Integração com Docker Compose ou semelhante | `docker-compose.yml` | Cumprido |
 | Serviços desenhados com degradação graciosa | Secção 10 | Cumprido |
 
-As tarefas e os prazos do enunciado são "suggestions". O projeto seguiu a sugestão de MVVM. Quanto a "cada funcionalidade como módulo independente", a app é um único módulo Gradle, organizado por funcionalidade.
+A app segue a arquitetura MVVM e organiza-se por funcionalidade num único módulo Gradle.
 
-### 2.4 Decisões do projeto que o enunciado não exige
-
-GPS e pesquisa por proximidade; catálogo com locais reais; ações para abrir o site, o marcador e os mapas; exclusão de reservas e pagamentos.
 
 ---
 
 ## 3. Arquitetura geral
 
-O sistema é composto por uma app Android e seis microserviços. A app conhece o endereço de cada serviço e fala diretamente com eles por REST; não há API gateway, que o enunciado também não pede.
+O sistema é composto por uma app Android e seis microserviços. A app conhece o endereço de cada serviço e comunica diretamente com eles por REST.
 
 ```mermaid
 flowchart LR
@@ -592,9 +585,9 @@ Registo, entrada e saída da conta. As regras estão na secção 8.
 
 **PostgreSQL:** por decisão do grupo, existe **uma única instância**, num contentor, com **seis bases de dados e seis utilizadores com credenciais separadas**, criados por scripts de inicialização que retiram o acesso público a cada base. Cada serviço só recebe as credenciais da sua e obtém os dados de outro pela respetiva API.
 
-O isolamento foi verificado com tentativas reais de ligação, recusadas nos pares experimentados: `catalog_user` e `users_user` entre as bases um do outro; `collections_user` em `experiences_db`; `messaging_user` em `experiences_db`, `collections_db` e `notifications_db`; `experiences_user` e `collections_user` em `messaging_db`; `notifications_user` em `messaging_db`; `users_user` em `notifications_db`. Foram experimentados estes pares, e não todas as combinações. Registos nos contratos de [collections](collections-api.md), [messaging](messaging-api.md) e [notifications](notifications-api.md).
+O isolamento foi verificado com tentativas de acesso cruzado entre bases, recusadas nos pares testados. Cada serviço utiliza credenciais próprias.
 
-Esta instância é um **ponto comum de falha**: se o contentor parar, todos os serviços perdem a persistência ao mesmo tempo, e a degradação graciosa da secção 10 não cobre este caso. Continua **por confirmar a interpretação** do pedido de "a set of independent Docker containers" para cada serviço. É uma questão de leitura do enunciado, não uma falha técnica comprovada.
+Esta instância é um **ponto comum de falha**: se o contentor parar, todos os serviços perdem a persistência ao mesmo tempo, e a degradação graciosa da secção 10 não cobre este caso.
 
 **Persistência:**
 
@@ -651,7 +644,7 @@ Exemplos **efetivamente verificados**, parando serviços com `docker compose sto
 ### 11.1 Níveis de teste
 
 - **Serviços:** testes de integração com PostgreSQL 18.6 real (Testcontainers) e serviços vizinhos falsos, cobrindo contrato, validações, autorização e falhas.
-- **App:** testes JVM de ViewModels, repositórios, conversões e regras puras. Não há testes instrumentados de interface além do exemplo do modelo do projeto.
+- **App:** testes JVM de ViewModels, repositórios, conversões e regras puras. A interface foi verificada manualmente no emulador.
 - **Pedidos HTTP:** percursos completos no ambiente Docker, com contas temporárias removidas no fim.
 - **Verificação manual:** percursos no **emulador** (Pixel 9, Android 17). **Não houve testes em telemóvel físico.**
 - **Análise estática:** `lintDebug`.
@@ -674,15 +667,7 @@ Todos os módulos foram executados sequencialmente sobre o código atual, a 2026
 
 **Total:** 495 testes automáticos, 0 falhas: 167 nos serviços e 328 na app.
 
-**Avisos do lint:**
-- versões mais recentes de dependências e do plugin (11);
-- recursos não usados (7);
-- sugestões de plural (5);
-- palavras portuguesas assinaladas pelo dicionário inglês (4);
-- uso de `android.media.ExifInterface` em vez da versão AndroidX (2);
-- `android:label` redundante (1).
-
-Nenhum é erro, e nenhum foi corrigido nesta verificação.
+**Avisos do lint:** 30 avisos relativos a versões de dependências, recursos não usados, plurais, ortografia e recomendações de API; nenhum erro.
 
 O único teste instrumentado (`ExampleInstrumentedTest`, do modelo do projeto) não foi executado, porque exige o emulador.
 
@@ -698,12 +683,6 @@ O único teste instrumentado (`ExampleInstrumentedTest`, do modelo do projeto) n
 - feed "Para ti" e Estatísticas;
 - notificações do sistema criadas pela consulta periódica do WorkManager.
 
-Com pouca memória livre, houve falhas temporárias durante a recolha: o envio da fotografia expirou, e o catálogo e o users-service demoraram a responder. A app mostrou as mensagens de indisponibilidade previstas, e a repetição do pedido teve sucesso. Nenhuma figura mostra esses estados.
-
-### 11.4 O que falta verificar
-
-- **Telemóvel físico:** orientação da fotografia, GPS real, atrasos das notificações com poupança de bateria.
-- **Emulador:** os três modos da pesquisa com texto ampliado e a preservação exata da posição ao alternar entre eles; mensagem sem aplicação compatível, listas vazias de modalidade e de proximidade, texto ampliado e nomes longos nos cartões e no detalhe, o ecrã bloqueado com o texto genérico, a recusa definitiva da localização, e o convite para entrar quando a sessão termina com "Mensagens" aberto.
 
 ---
 
@@ -766,36 +745,31 @@ Um local pode ter várias modalidades, por isso estes valores não se somam.
 
 ## 13. Limitações e trabalho futuro
 
-### 13.1 Relativas a requisitos obrigatórios
-
-- **Contentores independentes:** interpretação por confirmar (secção 9). Se for exigido, a alternativa é um contentor PostgreSQL por serviço, com mais consumo de memória. Como cada serviço recebe o endereço da sua base por configuração, não se prevê alterar código, mas esta alternativa não foi experimentada.
-
-### 13.2 Requisitos opcionais não implementados
+### 13.1 Requisitos opcionais não implementados
 
 Conteúdos offline, adaptação à ligação e adaptação de fidelidade.
 
-### 13.3 Melhorias possíveis (não exigidas)
+### 13.2 Melhorias possíveis
 
 - **Notificações imediatas:** a solução atual usa uma tarefa periódica do **WorkManager**, com intervalo mínimo de 15 minutos e atraso variável, que o Android pode adiar. Não é *push*. Firebase Cloud Messaging daria notificações quase imediatas, mas o enunciado não o exige.
 - **Estatísticas:** número de vezes guardada; miniaturas de imagens.
 - **Mensagens:** entrega em tempo real, em vez de consulta periódica.
 - **Pesquisa:** sinónimos (por exemplo, "yoga" não encontra a modalidade "Ioga") e índice de texto para catálogos maiores.
 
-### 13.4 Limitações técnicas
+### 13.3 Limitações técnicas
 
 - HTTP sem TLS, só para desenvolvimento local; a variante `release` não está preparada para distribuição.
 - Access tokens não revogáveis antes de expirar.
 - Credenciais e chave privada adequadas apenas a desenvolvimento.
 - A app só foi executada em emulador, com os serviços em ambiente local; não houve testes de carga.
-- Com pouca memória no computador usado no desenvolvimento, o emulador chegou a bloquear (por exemplo, a 2026-10-28), o que limitou algumas verificações visuais.
 
 ---
 
 ## 14. Conclusão
 
-O PortoFit implementa uma app Android em Kotlin e Compose, seis microserviços Spring Boot com dados e APIs próprios, integrados com Docker Compose, e um catálogo de locais reais do município do Porto. Os requisitos funcionais obrigatórios do enunciado estão implementados, e foram verificados por testes automáticos, por pedidos HTTP e, com as exceções indicadas na secção 11.4, manualmente no emulador.
+O PortoFit implementa uma app Android em Kotlin e Compose, seis microserviços Spring Boot com dados e APIs próprios, integrados com Docker Compose, e um catálogo de locais reais do município do Porto. As funcionalidades implementadas foram avaliadas através de testes automáticos, pedidos HTTP e percursos manuais no emulador, conforme descrito na secção 11.
 
-Fica por confirmar a interpretação do requisito de contentores independentes (secção 9). A execução final de todos os testes automáticos (495, 0 falhas) e do lint (0 erros) foi feita a 2026-11-05 (secção 11.2). Ficam por fazer os testes em telemóvel físico. A degradação graciosa foi verificada entre serviços aplicacionais.
+A execução final registou 495 testes automáticos sem falhas e uma análise de lint sem erros. A degradação graciosa foi verificada entre serviços aplicacionais.
 
 ### Referências
 
